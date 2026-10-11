@@ -1,0 +1,25 @@
+# Build
+build/
+out/
+vcpkg_installed/
+*.cso
+
+# Personal Claude Code notes (one per developer)
+CLAUDE.local.md
+CLAUDE.md
+
+# Benchmark output and captures
+results/
+captures/
+
+# Large test assets (download separately)
+assets/
+
+# IDE
+.idea/
+.vs/
+cmake-build-*/
+CMakeUserPresets.json
+
+docs/
+.claude/
