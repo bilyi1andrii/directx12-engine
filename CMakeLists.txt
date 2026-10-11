@@ -18,5 +18,6 @@ find_package(directx-headers CONFIG REQUIRED)
 find_package(directx12-agility CONFIG REQUIRED)
 find_package(directx-dxc CONFIG REQUIRED)
 
+add_subdirectory(engine/core)
 add_subdirectory(shaders)
 add_subdirectory(apps/sandbox)

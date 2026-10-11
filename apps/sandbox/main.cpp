@@ -7,15 +7,18 @@
 #include <dxgi1_6.h>          // from the Windows SDK, same as tutorial
 #include <wrl.h>              // Microsoft::WRL::ComPtr
 
-#include "Helpers.h"
+#include "core/Log.h"
+#include "core/ThrowIfFailed.h"
 
 using Microsoft::WRL::ComPtr;
+using engine::core::LogError;
+using engine::core::LogInfo;
+using engine::core::ThrowIfFailed;
 
 // Agility SDK: these two exports make d3d12.dll load the newer runtime from <exe dir>/D3D12/
 // instead of the one built into Windows. They must live in the .exe (not a DLL or static library),
 // and D3D12_SDK_VERSION (from the directx-headers package) must match the directx12-agility package.
-extern "C"
-{
+extern "C" {
 __declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION;
 __declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\";
 }
@@ -516,6 +519,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
         g_FenceEvent = CreateEventHandle();
 
 
+        LogInfo("Initialized: {}x{}, tearing {}", g_ClientWidth, g_ClientHeight,
+                g_TearingSupported ? "supported" : "not supported");
+
         g_IsInitialized = true;
 
         ::ShowWindow(g_hWnd, SW_SHOW);
@@ -535,6 +541,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
     }
     catch (std::exception& e)
     {
+        LogError("{}", e.what());
         MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
         return -1;
     }
