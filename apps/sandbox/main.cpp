@@ -11,6 +11,7 @@
 #include "core/Timer.h"
 #include "core/Window.h"
 #include "core/Input.h"
+#include "core/Assert.h"
 
 using Microsoft::WRL::ComPtr;
 using engine::core::LogError;
@@ -303,6 +304,8 @@ void Flush(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence> fence,
 
 void Render()
 {
+    ENGINE_ASSERT_MSG(g_CurrentBackBufferIndex < g_NumFrames, "back buffer index {} out of range",
+                      g_CurrentBackBufferIndex);
     auto commandAllocator = g_CommandAllocators[g_CurrentBackBufferIndex];
     auto backBuffer = g_BackBuffers[g_CurrentBackBufferIndex];
 

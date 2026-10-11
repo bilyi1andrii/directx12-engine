@@ -1,6 +1,8 @@
 # engine_core: window, input, timing, logging, error handling
 
 add_library(engine_core STATIC
+        Assert.cpp
+        Assert.h
         Input.cpp
         Input.h
         Log.cpp
