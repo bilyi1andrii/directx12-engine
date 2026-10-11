@@ -1,6 +1,8 @@
 # engine_core: window, input, timing, logging, error handling
 
 add_library(engine_core STATIC
+        Input.cpp
+        Input.h
         Log.cpp
         Log.h
         ThrowIfFailed.cpp

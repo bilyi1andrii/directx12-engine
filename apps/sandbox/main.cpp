@@ -10,6 +10,7 @@
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
 #include "core/Window.h"
+#include "core/Input.h"
 
 using Microsoft::WRL::ComPtr;
 using engine::core::LogError;
@@ -361,12 +362,19 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         g_TearingSupported = CheckTearingSupport();
 
+        engine::core::Input input;
+
         engine::core::Window window({
             .title = L"D3D12 Engine", .width = 1280,
             .height = 720
         });
 
         window.SetCallbacks({
+            .onMessage = [&input](const engine::core::WindowMessage& message)
+            {
+                input.HandleMessage(message);
+                return false; // let the window handle it as well
+            },
             .onResize = [](uint32_t width, uint32_t height)
             {
                 // The swap chain is resized in step 1c; until then the image is stretched.
@@ -409,14 +417,41 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
+        engine::core::Int2 rightDrag; // temporary raw-mouse check
         while (window.PumpMessages())
         {
             frameTimer.Tick();
+            if (input.WasKeyPressed(VK_ESCAPE))
+            {
+                window.Close();
+            }
+            if (input.WasKeyPressed('V'))
+            {
+                g_VSync = !g_VSync;
+                LogInfo("VSync {}", g_VSync ? "on" : "off");
+            }
+
+            // Temporary check of raw mouse input until the camera uses it
+            if (input.IsKeyDown(VK_RBUTTON))
+            {
+                rightDrag.x += input.RawMouseDelta().x;
+                rightDrag.y += input.RawMouseDelta().y;
+            }
+            if (input.WasKeyReleased(VK_RBUTTON))
+            {
+                LogInfo("Right-drag: raw mouse moved ({}, {})", rightDrag.x,
+                        rightDrag.y);
+                rightDrag = {};
+            }
             if (frameTimer.FpsUpdated())
             {
                 const double fps = frameTimer.Fps();
                 window.SetTitle(std::format(L"D3D12 Engine - {:.1f} FPS ({:.2f} ms)", fps, 1000.0 / fps));
             }
+
+            // Everything above has read this frame's input; clear the
+            // per-frame values (pressed, deltas).
+            input.EndFrame();
 
             // A minimized window has nothing to show.
             // WaitMessage() sleeps until the next message
