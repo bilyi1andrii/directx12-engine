@@ -58,14 +58,18 @@ namespace engine::core
         void Close();
         void SetTitle(std::wstring_view title);
 
+        // Borderless fullscreen
+        void SetFullscreen(bool fullscreen);
+        void ToggleFullscreen() { SetFullscreen(!m_fullscreen); }
+
         [[nodiscard]] HWND Handle() const noexcept { return m_hwnd; }
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
         [[nodiscard]] uint32_t Height() const noexcept { return m_height; }
         [[nodiscard]] bool IsMinimized() const noexcept { return m_minimized; }
+        [[nodiscard]] bool IsFullscreen() const noexcept { return m_fullscreen; }
 
         // The code passed to PostQuitMessage.
         // Valid after PumpMessage() returned false
-
         [[nodiscard]] int ExitCode() const noexcept { return m_exitCode; }
 
     private:
@@ -78,6 +82,11 @@ namespace engine::core
         uint32_t m_width = 0;
         uint32_t m_height = 0;
         bool m_minimized = false;
+        bool m_fullscreen = false;
+        WINDOWPLACEMENT m_windowedPlacement{
+            .length =
+            sizeof(WINDOWPLACEMENT)
+        }; // restored when leaving fullscreen
         int m_exitCode = 0;
         std::exception_ptr m_pendingException;
     };

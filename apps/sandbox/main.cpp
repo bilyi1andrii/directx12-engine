@@ -431,6 +431,12 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 LogInfo("VSync {}", g_VSync ? "on" : "off");
             }
 
+            if (input.WasKeyPressed(VK_F11) || (input.WasKeyPressed(VK_RETURN)
+                && input.IsKeyDown(VK_MENU)))
+            {
+                window.ToggleFullscreen();
+            }
+
             // Temporary check of raw mouse input until the camera uses it
             if (input.IsKeyDown(VK_RBUTTON))
             {

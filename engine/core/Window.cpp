@@ -118,6 +118,43 @@ namespace engine::core
         ::SetWindowTextW(m_hwnd, std::wstring(title).c_str());
     }
 
+    void Window::SetFullscreen(bool fullscreen)
+    {
+        if (fullscreen == m_fullscreen || m_hwnd == nullptr || m_minimized)
+        {
+            return;
+        }
+
+        const LONG_PTR style = ::GetWindowLongPtrW(m_hwnd, GWL_STYLE);
+        if (fullscreen)
+        {
+            // Remember the windowed position and size, then drop the frame and cover the monitor.
+            MONITORINFO monitor{.cbSize = sizeof(MONITORINFO)};
+            ThrowIfWin32Failed(::GetWindowPlacement(m_hwnd,
+                                                    &m_windowedPlacement) != FALSE);
+            ThrowIfWin32Failed(::GetMonitorInfoW(::MonitorFromWindow(m_hwnd,
+                                                                     MONITOR_DEFAULTTONEAREST), &monitor) !=
+                FALSE);
+
+            ::SetWindowLongPtrW(m_hwnd, GWL_STYLE, style &
+                                ~static_cast<LONG_PTR>(kWindowedStyle));
+            const RECT& area = monitor.rcMonitor;
+            ::SetWindowPos(m_hwnd, HWND_TOP, area.left, area.top, area.right -
+                           area.left, area.bottom - area.top,
+                           SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+        else
+        {
+            // Put the frame back, then restore the remembered position and size.
+            ::SetWindowLongPtrW(m_hwnd, GWL_STYLE, style | kWindowedStyle);
+            ::SetWindowPlacement(m_hwnd, &m_windowedPlacement);
+            ::SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0,
+                           SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER |
+                           SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        }
+        m_fullscreen = fullscreen;
+    }
+
     LRESULT CALLBACK Window::WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (message == WM_NCCREATE)
@@ -201,6 +238,14 @@ namespace engine::core
                                SWP_NOACTIVATE);
                 return 0;
             }
+        case WM_SYSCHAR:
+            // Alt+Enter: without this, Windows plays its "ding" for an
+            // Alt+key combination that has no menu entry.
+            if (msg.wParam == VK_RETURN)
+            {
+                return 0;
+            }
+            break;
         case WM_DESTROY:
             ::PostQuitMessage(0); // makes PumpMessages() return false
             return 0;
