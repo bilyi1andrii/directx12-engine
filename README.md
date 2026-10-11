@@ -3,8 +3,9 @@
 A real-time renderer in C++23 on Direct3D 12, the successor of
 [DX11 engine](https://github.com/bilyi1andrii/graphics_hw_bilyi).
 
-**Status:** step 1 of the plan, so far a clear-screen window. The build system is in place:
-CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL compiled by DXC at build time.
+**Status:** step 1 of the plan, so far a clear-screen window. The build system is in place
+(CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL compiled by DXC at build time), and so is the platform
+layer in `engine/core` (window, input, timing, logging, error handling).
 
 ## Requirements
 
@@ -48,6 +49,20 @@ cmake --build --preset x64-debug      # build
 .\build\x64-debug\bin\sandbox.exe     # run
 ```
 
+### Controls
+
+| Key | Action |
+|---|---|
+| Esc | Quit |
+| V | Toggle vsync (the FPS is shown in the title bar) |
+| F11 or Alt+Enter | Toggle borderless fullscreen |
+
+### Log output
+
+The app logs to stderr and to the debugger output. Debug and RelWithDebInfo builds are console programs, so the log
+appears in CLion's Run window or in the terminal. A Debug build started from Explorer therefore opens a console window
+next to the game window. Release builds have no console; capture their log with `sandbox.exe 2> log.txt`.
+
 ### Output layout
 
 ```
@@ -72,7 +87,8 @@ build/x64-debug/bin/
 ```
 apps/sandbox   test application (entry point)
 cmake/         CMake helper modules (warnings, Agility SDK copy)
+engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert (no D3D12)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6)
 ```
 
-Engine modules (`engine/core`, `engine/rhi`, `engine/render`, …) are added in the next steps.
+More engine modules (`engine/rhi`, `engine/render`, …) are added in the next steps.
