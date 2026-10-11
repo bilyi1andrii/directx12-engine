@@ -1,7 +1,6 @@
-#include <cassert>
-#include <algorithm>
 #include <chrono>
 #include <cstdint>
+#include <format>
 #include <directx/d3d12.h>
 #include <directx/d3dx12.h>
 #include <dxgi1_6.h>          // from the Windows SDK, same as tutorial
@@ -9,8 +8,8 @@
 
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
-
 #include "core/Timer.h"
+#include "core/Window.h"
 
 using Microsoft::WRL::ComPtr;
 using engine::core::LogError;
@@ -30,17 +29,6 @@ const uint8_t g_NumFrames = 3;
 // Use WARP adapter (emulator of GPU)
 bool g_UseWarp = false;
 
-uint32_t g_ClientWidth = 1280;
-uint32_t g_ClientHeight = 720;
-
-// Set to true when all DX12 have been initialized
-bool g_IsInitialized = false;
-
-// Window handle
-HWND g_hWnd;
-
-// Window rectangle (fullscreen state toggle)
-RECT g_WindowRect;
 
 // DirectX12 Objects
 ComPtr<ID3D12Device2> g_Device;
@@ -57,9 +45,6 @@ UINT g_CurrentBackBufferIndex;
 // Can be toggled with the V key.
 bool g_VSync = true;
 bool g_TearingSupported = false;
-// By default, use windowed mode.
-// Can be toggled with the Alt+Enter or F11
-bool g_Fullscreen = false;
 
 ComPtr<ID3D12Fence> g_Fence;
 uint64_t g_FenceValue = 0;
@@ -73,66 +58,6 @@ void EnableDebugLayer()
     ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugInterface)));
     debugInterface->EnableDebugLayer();
 #endif
-}
-
-// Window callback function.
-LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
-
-void RegisterWindowClass(HINSTANCE hInst, const wchar_t* windowClassName)
-{
-    WNDCLASSEXW windowClass = {};
-
-    windowClass.cbSize = sizeof(WNDCLASSEXW);
-    windowClass.style = CS_HREDRAW | CS_VREDRAW;
-    windowClass.lpfnWndProc = &WndProc;
-    windowClass.cbClsExtra = 0;
-    windowClass.cbWndExtra = 0;
-    windowClass.hInstance = hInst;
-    windowClass.hIcon = ::LoadIcon(hInst, NULL);
-    windowClass.hCursor = ::LoadCursor(NULL, IDC_ARROW);
-    windowClass.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
-    windowClass.lpszMenuName = NULL;
-    windowClass.lpszClassName = windowClassName;
-    windowClass.hIconSm = ::LoadIcon(hInst, nullptr);
-
-    static ATOM atom = ::RegisterClassExW(&windowClass);
-    assert(atom > 0);
-}
-
-HWND CreateMainWindow(const wchar_t* windowClassName, HINSTANCE hInst,
-                      const wchar_t* windowTitle, uint32_t width, uint32_t height)
-{
-    int screenWidth = ::GetSystemMetrics(SM_CXSCREEN);
-    int screenHeight = ::GetSystemMetrics(SM_CYSCREEN);
-
-    RECT wr = {0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
-    ::AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
-
-    int windowWidth = wr.right - wr.left;
-    int windowHeight = wr.bottom - wr.top;
-
-    // Center the window within the screen. Clamp to 0, 0 for the top-left corner.
-    int windowX = std::max<int>(0, (screenWidth - windowWidth) / 2);
-    int windowY = std::max<int>(0, (screenHeight - windowHeight) / 2);
-
-    HWND hWnd = ::CreateWindowExW(
-        0,
-        windowClassName,
-        windowTitle,
-        WS_OVERLAPPEDWINDOW,
-        windowX,
-        windowY,
-        windowWidth,
-        windowHeight,
-        NULL,
-        NULL,
-        hInst,
-        nullptr
-    );
-
-    assert(hWnd && "Failed to create window");
-
-    return hWnd;
 }
 
 ComPtr<IDXGIAdapter4> GetAdapter(bool useWarp)
@@ -343,10 +268,8 @@ ComPtr<ID3D12Fence> CreateFence(ComPtr<ID3D12Device2> device)
 
 HANDLE CreateEventHandle()
 {
-    HANDLE fenceEvent;
-
-    fenceEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    assert(fenceEvent && "Failed to create fence event.");
+    HANDLE fenceEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    engine::core::ThrowIfWin32Failed(fenceEvent != nullptr);
 
     return fenceEvent;
 }
@@ -426,50 +349,11 @@ void Render()
     }
 }
 
-void Update()
-{
-    static engine::core::FrameTimer frameTimer;
 
-    frameTimer.Tick();
-    if (frameTimer.FpsUpdated())
-    {
-        LogInfo("FPS: {:.1f} ({:.2f} ms)", frameTimer.Fps(), 1000.0 /
-                frameTimer.Fps());
-    }
-}
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-    if (!g_IsInitialized)
-    {
-        return ::DefWindowProcW(hwnd, message, wParam, lParam);
-    }
-
-    switch (message)
-    {
-    case WM_PAINT:
-        Update();
-        Render();
-        break;
-    case WM_DESTROY:
-        ::PostQuitMessage(0);
-        break;
-    default:
-        return ::DefWindowProcW(hwnd, message, wParam, lParam);
-    }
-    return 0;
-}
-
-
-int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/)
+int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/)
 {
     try
     {
-        // Prevents the output from looking blurry
-        SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-
-        const wchar_t* windowClassName = L"DX12WindowClass";
-
         engine::core::Timer initTimer;
         initTimer.Start();
 
@@ -477,12 +361,18 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
 
         g_TearingSupported = CheckTearingSupport();
 
-        RegisterWindowClass(hInst, windowClassName);
+        engine::core::Window window({
+            .title = L"D3D12 Engine", .width = 1280,
+            .height = 720
+        });
 
-        g_hWnd = CreateMainWindow(windowClassName, hInst, L"Learning DirectX12", g_ClientWidth, g_ClientHeight);
-
-        // Initialize the global rect variable
-        ::GetWindowRect(g_hWnd, &g_WindowRect);
+        window.SetCallbacks({
+            .onResize = [](uint32_t width, uint32_t height)
+            {
+                // The swap chain is resized in step 1c; until then the image is stretched.
+                LogInfo("Window resized to {}x{}", width, height);
+            },
+        });
 
         ComPtr<IDXGIAdapter4> dxgiAdapter4 = GetAdapter(g_UseWarp);
 
@@ -490,8 +380,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
 
         g_CommandQueue = CreateCommandQueue(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-        g_SwapChain = CreateSwapChain(g_hWnd, g_CommandQueue,
-                                      g_ClientWidth, g_ClientHeight, g_NumFrames);
+        g_SwapChain = CreateSwapChain(window.Handle(), g_CommandQueue,
+                                      window.Width(), window.Height(),
+                                      g_NumFrames);
 
         g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
 
@@ -513,25 +404,37 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
 
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}",
-                initTimer.ElapsedMs(), g_ClientWidth, g_ClientHeight,
-                g_TearingSupported ? "supported" : "not supported");
+                initTimer.ElapsedMs(), window.Width(),
+                window.Height(), g_TearingSupported ? "supported" : "not supported");
 
-        g_IsInitialized = true;
-
-        ::ShowWindow(g_hWnd, SW_SHOW);
-
-        MSG msg = {};
-        while (::GetMessageW(&msg, nullptr, 0, 0) > 0)
+        // Game loop: handle all pending window messages, update, render
+        engine::core::FrameTimer frameTimer;
+        while (window.PumpMessages())
         {
-            ::TranslateMessage(&msg);
-            ::DispatchMessageW(&msg);
+            frameTimer.Tick();
+            if (frameTimer.FpsUpdated())
+            {
+                const double fps = frameTimer.Fps();
+                window.SetTitle(std::format(L"D3D12 Engine - {:.1f} FPS ({:.2f} ms)", fps, 1000.0 / fps));
+            }
+
+            // A minimized window has nothing to show.
+            // WaitMessage() sleeps until the next message
+            if (window.IsMinimized())
+            {
+                ::WaitMessage();
+                continue;
+            }
+            Render();
         }
 
         Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
 
         ::CloseHandle(g_FenceEvent);
 
-        return static_cast<int>(msg.wParam);
+        LogInfo("Exiting with code {}", window.ExitCode());
+
+        return window.ExitCode();
     }
     catch (std::exception& e)
     {
