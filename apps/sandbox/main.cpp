@@ -10,6 +10,8 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 
+#include "core/Timer.h"
+
 using Microsoft::WRL::ComPtr;
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -426,24 +428,13 @@ void Render()
 
 void Update()
 {
-    static uint64_t frameCounter = 0;
-    static double elapsedSeconds = 0.0;
-    static auto t0 = std::chrono::steady_clock::now();
+    static engine::core::FrameTimer frameTimer;
 
-    frameCounter++;
-    auto t1 = std::chrono::steady_clock::now();
-    auto deltaTime = t1 - t0;
-    t0 = t1;
-    elapsedSeconds += std::chrono::duration<double>(t1 - t0).count();
-    if (elapsedSeconds > 1.0)
+    frameTimer.Tick();
+    if (frameTimer.FpsUpdated())
     {
-        char buffer[500];
-        auto fps = frameCounter / elapsedSeconds;
-        sprintf_s(buffer, 500, "FPS: %f\n", fps);
-        OutputDebugStringA(buffer);
-
-        frameCounter = 0;
-        elapsedSeconds = 0.0;
+        LogInfo("FPS: {:.1f} ({:.2f} ms)", frameTimer.Fps(), 1000.0 /
+                frameTimer.Fps());
     }
 }
 
@@ -479,6 +470,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
 
         const wchar_t* windowClassName = L"DX12WindowClass";
 
+        engine::core::Timer initTimer;
+        initTimer.Start();
 
         EnableDebugLayer();
 
@@ -519,7 +512,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/,
         g_FenceEvent = CreateEventHandle();
 
 
-        LogInfo("Initialized: {}x{}, tearing {}", g_ClientWidth, g_ClientHeight,
+        LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}",
+                initTimer.ElapsedMs(), g_ClientWidth, g_ClientHeight,
                 g_TearingSupported ? "supported" : "not supported");
 
         g_IsInitialized = true;

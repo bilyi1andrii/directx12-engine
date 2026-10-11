@@ -4,7 +4,9 @@ add_library(engine_core STATIC
         Log.cpp
         Log.h
         ThrowIfFailed.cpp
-        ThrowIfFailed.h)
+        ThrowIfFailed.h
+        Timer.cpp
+        Timer.h)
 
 engine_target_defaults(engine_core)
 
