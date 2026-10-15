@@ -2,6 +2,8 @@
 
 add_library(engine_rhi STATIC
         AgilitySdk.h
+        CommandQueue.cpp
+        CommandQueue.h
         Device.cpp
         Device.h
         RhiCommon.h)

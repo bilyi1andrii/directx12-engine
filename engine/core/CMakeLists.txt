@@ -11,6 +11,7 @@ add_library(engine_core STATIC
         ThrowIfFailed.h
         Timer.cpp
         Timer.h
+        UniqueHandle.h
         Window.cpp
         Window.h)
 

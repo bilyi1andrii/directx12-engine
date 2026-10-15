@@ -1,4 +1,3 @@
-#include <chrono>
 #include <cstdint>
 #include <format>
 #include <directx/d3dx12.h>
@@ -10,6 +9,7 @@
 #include "core/Input.h"
 #include "core/Assert.h"
 #include "rhi/AgilitySdk.h"
+#include "rhi/CommandQueue.h"
 #include "rhi/Device.h"
 
 using engine::rhi::ComPtr;
@@ -24,7 +24,6 @@ const uint8_t g_NumFrames = 3;
 
 
 // DirectX12 Objects
-ComPtr<ID3D12CommandQueue> g_CommandQueue;
 ComPtr<IDXGISwapChain4> g_SwapChain;
 ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
 ComPtr<ID3D12GraphicsCommandList> g_CommandList;
@@ -38,26 +37,7 @@ UINT g_CurrentBackBufferIndex;
 bool g_VSync = true;
 bool g_TearingSupported = false;
 
-ComPtr<ID3D12Fence> g_Fence;
-uint64_t g_FenceValue = 0;
 uint64_t g_FrameFenceValues[g_NumFrames] = {};
-HANDLE g_FenceEvent;
-
-
-ComPtr<ID3D12CommandQueue> CreateCommandQueue(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type)
-{
-    ComPtr<ID3D12CommandQueue> d3d12CommandQueue;
-
-    D3D12_COMMAND_QUEUE_DESC desc = {};
-    desc.Type = type;
-    desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-    desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    desc.NodeMask = 0;
-
-    ThrowIfFailed(device->CreateCommandQueue(&desc, IID_PPV_ARGS(&d3d12CommandQueue)));
-
-    return d3d12CommandQueue;
-}
 
 
 ComPtr<IDXGISwapChain4> CreateSwapChain(IDXGIFactory4* dxgiFactory4, HWND hWnd,
@@ -153,50 +133,8 @@ ComPtr<ID3D12GraphicsCommandList> CreateCommandList(ComPtr<ID3D12Device2> device
     return commandList;
 }
 
-ComPtr<ID3D12Fence> CreateFence(ComPtr<ID3D12Device2> device)
-{
-    ComPtr<ID3D12Fence> fence;
 
-    ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
-
-    return fence;
-}
-
-HANDLE CreateEventHandle()
-{
-    HANDLE fenceEvent = ::CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    engine::core::ThrowIfWin32Failed(fenceEvent != nullptr);
-
-    return fenceEvent;
-}
-
-uint64_t Signal(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence> fence,
-                uint64_t& fenceValue)
-{
-    uint64_t fenceValueForSignal = ++fenceValue;
-    ThrowIfFailed(commandQueue->Signal(fence.Get(), fenceValueForSignal));
-
-    return fenceValueForSignal;
-}
-
-void WaitForFenceValue(ComPtr<ID3D12Fence> fence, uint64_t fenceValue, HANDLE fenceEvent,
-                       std::chrono::milliseconds duration = std::chrono::milliseconds::max())
-{
-    if (fence->GetCompletedValue() < fenceValue)
-    {
-        ThrowIfFailed(fence->SetEventOnCompletion(fenceValue, fenceEvent));
-        ::WaitForSingleObject(fenceEvent, static_cast<DWORD>(duration.count()));
-    }
-}
-
-void Flush(ComPtr<ID3D12CommandQueue> commandQueue, ComPtr<ID3D12Fence> fence,
-           uint64_t& fenceValue, HANDLE fenceEvent)
-{
-    uint64_t fenceValueForSignal = Signal(commandQueue, fence, fenceValue);
-    WaitForFenceValue(fence, fenceValueForSignal, fenceEvent);
-}
-
-void Render()
+void Render(engine::rhi::CommandQueue& queue)
 {
     ENGINE_ASSERT_MSG(g_CurrentBackBufferIndex < g_NumFrames, "back buffer index {} out of range",
                       g_CurrentBackBufferIndex);
@@ -230,20 +168,17 @@ void Render()
 
         ThrowIfFailed(g_CommandList->Close());
 
-        ID3D12CommandList* const commandLists[] = {
-            g_CommandList.Get()
-        };
-        g_CommandQueue->ExecuteCommandLists(_countof(commandLists), commandLists);
+        queue.ExecuteCommandList(g_CommandList.Get());
 
         UINT syncInterval = g_VSync ? 1 : 0;
         UINT presentFlags = g_TearingSupported && !g_VSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
         ThrowIfFailed(g_SwapChain->Present(syncInterval, presentFlags));
 
-        g_FrameFenceValues[g_CurrentBackBufferIndex] = Signal(g_CommandQueue, g_Fence, g_FenceValue);
+        g_FrameFenceValues[g_CurrentBackBufferIndex] = queue.Signal();
 
         g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
 
-        WaitForFenceValue(g_Fence, g_FrameFenceValues[g_CurrentBackBufferIndex], g_FenceEvent);
+        queue.WaitForFenceValue(g_FrameFenceValues[g_CurrentBackBufferIndex]);
     }
 }
 
@@ -279,9 +214,9 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         engine::rhi::Device device;
         g_TearingSupported = device.TearingSupported();
 
-        g_CommandQueue = CreateCommandQueue(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT);
+        engine::rhi::CommandQueue queue(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue");
 
-        g_SwapChain = CreateSwapChain(device.Factory(), window.Handle(), g_CommandQueue,
+        g_SwapChain = CreateSwapChain(device.Factory(), window.Handle(), queue.Native(),
                                       window.Width(), window.Height(),
                                       g_NumFrames);
 
@@ -299,9 +234,6 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         g_CommandList = CreateCommandList(device.Native(),
                                           g_CommandAllocators[g_CurrentBackBufferIndex],
                                           D3D12_COMMAND_LIST_TYPE_DIRECT);
-
-        g_Fence = CreateFence(device.Native());
-        g_FenceEvent = CreateEventHandle();
 
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}",
@@ -361,7 +293,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             }
             try
             {
-                Render();
+                Render(queue);
             } catch (const engine::core::HResultError&)
             {
                 // Present, Signal and others fail with DXGI_ERROR_DEVICE_REMOVED once the GPU is lost
@@ -370,9 +302,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             }
         }
 
-        Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
-
-        ::CloseHandle(g_FenceEvent);
+        queue.Flush();
 
         LogInfo("Exiting with code {}", window.ExitCode());
 
