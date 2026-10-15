@@ -1,10 +1,7 @@
 #include <chrono>
 #include <cstdint>
 #include <format>
-#include <directx/d3d12.h>
 #include <directx/d3dx12.h>
-#include <dxgi1_6.h>          // from the Windows SDK, same as tutorial
-#include <wrl.h>              // Microsoft::WRL::ComPtr
 
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
@@ -12,28 +9,21 @@
 #include "core/Window.h"
 #include "core/Input.h"
 #include "core/Assert.h"
+#include "rhi/AgilitySdk.h"
+#include "rhi/Device.h"
 
-using Microsoft::WRL::ComPtr;
+using engine::rhi::ComPtr;
 using engine::core::LogError;
 using engine::core::LogInfo;
 using engine::core::ThrowIfFailed;
 
-// Agility SDK: these two exports make d3d12.dll load the newer runtime from <exe dir>/D3D12/
-// instead of the one built into Windows. They must live in the .exe (not a DLL or static library),
-// and D3D12_SDK_VERSION (from the directx-headers package) must match the directx12-agility package.
-extern "C" {
-__declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION;
-__declspec(dllexport) extern const char* D3D12SDKPath = ".\\D3D12\\";
-}
+ENGINE_EXPORT_AGILITY_SDK()
 
 // The number of swap chain back buffers
 const uint8_t g_NumFrames = 3;
-// Use WARP adapter (emulator of GPU)
-bool g_UseWarp = false;
 
 
 // DirectX12 Objects
-ComPtr<ID3D12Device2> g_Device;
 ComPtr<ID3D12CommandQueue> g_CommandQueue;
 ComPtr<IDXGISwapChain4> g_SwapChain;
 ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
@@ -53,74 +43,6 @@ uint64_t g_FenceValue = 0;
 uint64_t g_FrameFenceValues[g_NumFrames] = {};
 HANDLE g_FenceEvent;
 
-void EnableDebugLayer()
-{
-#if defined(_DEBUG)
-    ComPtr<ID3D12Debug> debugInterface;
-    ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugInterface)));
-    debugInterface->EnableDebugLayer();
-#endif
-}
-
-ComPtr<IDXGIAdapter4> GetAdapter(bool useWarp)
-{
-    ComPtr<IDXGIFactory4> dxgiFactory;
-    UINT createFactoryFlags = 0;
-#if defined(_DEBUG)
-    createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
-#endif
-
-    ThrowIfFailed(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory)));
-
-    ComPtr<IDXGIAdapter1> dxgiAdapter1;
-    ComPtr<IDXGIAdapter4> dxgiAdapter4;
-
-    if (useWarp)
-    {
-        ThrowIfFailed(dxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&dxgiAdapter1)));
-        ThrowIfFailed(dxgiAdapter1.As(&dxgiAdapter4));
-    }
-    else
-    {
-        SIZE_T maxDedicatedVideoMemory = 0;
-        for (UINT i = 0; dxgiFactory->EnumAdapters1(i, &dxgiAdapter1) != DXGI_ERROR_NOT_FOUND; ++i)
-        {
-            DXGI_ADAPTER_DESC1 dxgiAdapterDesc1;
-            dxgiAdapter1->GetDesc1(&dxgiAdapterDesc1);
-
-            // Check to see if the adapter can create a D3D12 device without actually
-            // creating it. The adapter with the largest dedicated video memory
-            // is favored.
-            if ((dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 &&
-                SUCCEEDED(D3D12CreateDevice(dxgiAdapter1.Get(),
-                    D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)) &&
-                dxgiAdapterDesc1.DedicatedVideoMemory > maxDedicatedVideoMemory)
-            {
-                maxDedicatedVideoMemory = dxgiAdapterDesc1.DedicatedVideoMemory;
-                ThrowIfFailed(dxgiAdapter1.As(&dxgiAdapter4));
-            }
-        }
-    }
-
-    return dxgiAdapter4;
-}
-
-ComPtr<ID3D12Device2> CreateDevice(ComPtr<IDXGIAdapter4> adapter)
-{
-    ComPtr<ID3D12Device2> d3d12Device2;
-    ThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d12Device2)));
-#if defined(_DEBUG)
-    ComPtr<ID3D12InfoQueue> pInfoQueue;
-    if (SUCCEEDED(d3d12Device2.As(&pInfoQueue)))
-    {
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_CORRUPTION, TRUE);
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_ERROR, TRUE);
-        pInfoQueue->SetBreakOnSeverity(D3D12_MESSAGE_SEVERITY_WARNING, TRUE);
-    }
-#endif
-    return d3d12Device2;
-}
-
 
 ComPtr<ID3D12CommandQueue> CreateCommandQueue(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type)
 {
@@ -137,40 +59,12 @@ ComPtr<ID3D12CommandQueue> CreateCommandQueue(ComPtr<ID3D12Device2> device, D3D1
     return d3d12CommandQueue;
 }
 
-bool CheckTearingSupport()
-{
-    BOOL allowTearing = FALSE;
 
-    ComPtr<IDXGIFactory4> factory4;
-    if (SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory4))))
-    {
-        ComPtr<IDXGIFactory5> factory5;
-        if (SUCCEEDED(factory4.As(&factory5)))
-        {
-            if (FAILED(factory5->CheckFeatureSupport(
-                DXGI_FEATURE_PRESENT_ALLOW_TEARING,
-                &allowTearing, sizeof(allowTearing))))
-            {
-                allowTearing = FALSE;
-            }
-        }
-    }
-
-    return allowTearing == TRUE;
-}
-
-ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd,
+ComPtr<IDXGISwapChain4> CreateSwapChain(IDXGIFactory4* dxgiFactory4, HWND hWnd,
                                         ComPtr<ID3D12CommandQueue> commandQueue,
                                         uint32_t width, uint32_t height, uint32_t bufferCount)
 {
     ComPtr<IDXGISwapChain4> dxgiSwapChain4;
-    ComPtr<IDXGIFactory4> dxgiFactory4;
-    UINT createFactoryFlags = 0;
-#if defined(_DEBUG)
-    createFactoryFlags = DXGI_CREATE_FACTORY_DEBUG;
-#endif
-
-    ThrowIfFailed(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory4)));
 
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
     swapChainDesc.Width = width;
@@ -184,7 +78,7 @@ ComPtr<IDXGISwapChain4> CreateSwapChain(HWND hWnd,
     swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
     swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
     // It is recommended to always allow tearing if tearing support is available.
-    swapChainDesc.Flags = CheckTearingSupport() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+    swapChainDesc.Flags = g_TearingSupported ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
 
     ComPtr<IDXGISwapChain1> swapChain1;
     ThrowIfFailed(dxgiFactory4->CreateSwapChainForHwnd(
@@ -361,9 +255,6 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         engine::core::Timer initTimer;
         initTimer.Start();
 
-        EnableDebugLayer();
-
-        g_TearingSupported = CheckTearingSupport();
 
         engine::core::Input input;
 
@@ -385,32 +276,31 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             },
         });
 
-        ComPtr<IDXGIAdapter4> dxgiAdapter4 = GetAdapter(g_UseWarp);
+        engine::rhi::Device device;
+        g_TearingSupported = device.TearingSupported();
 
-        g_Device = CreateDevice(dxgiAdapter4);
+        g_CommandQueue = CreateCommandQueue(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-        g_CommandQueue = CreateCommandQueue(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
-
-        g_SwapChain = CreateSwapChain(window.Handle(), g_CommandQueue,
+        g_SwapChain = CreateSwapChain(device.Factory(), window.Handle(), g_CommandQueue,
                                       window.Width(), window.Height(),
                                       g_NumFrames);
 
         g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
 
-        g_RTVDescriptorHeap = CreateDescriptorHeap(g_Device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
-        g_RTVDescriptorSize = g_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+        g_RTVDescriptorHeap = CreateDescriptorHeap(device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
+        g_RTVDescriptorSize = device.Native()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-        UpdateRenderTargetViews(g_Device, g_SwapChain, g_RTVDescriptorHeap);
+        UpdateRenderTargetViews(device.Native(), g_SwapChain, g_RTVDescriptorHeap);
 
         for (UINT i = 0; i < g_NumFrames; ++i)
         {
-            g_CommandAllocators[i] = CreateCommandAllocator(g_Device, D3D12_COMMAND_LIST_TYPE_DIRECT);
+            g_CommandAllocators[i] = CreateCommandAllocator(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT);
         }
-        g_CommandList = CreateCommandList(g_Device,
+        g_CommandList = CreateCommandList(device.Native(),
                                           g_CommandAllocators[g_CurrentBackBufferIndex],
                                           D3D12_COMMAND_LIST_TYPE_DIRECT);
 
-        g_Fence = CreateFence(g_Device);
+        g_Fence = CreateFence(device.Native());
         g_FenceEvent = CreateEventHandle();
 
 
@@ -469,7 +359,15 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 ::WaitMessage();
                 continue;
             }
-            Render();
+            try
+            {
+                Render();
+            } catch (const engine::core::HResultError&)
+            {
+                // Present, Signal and others fail with DXGI_ERROR_DEVICE_REMOVED once the GPU is lost
+                device.LogDeviceRemovedInfo();
+                throw;
+            }
         }
 
         Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
