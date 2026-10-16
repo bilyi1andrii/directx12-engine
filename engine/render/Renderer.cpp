@@ -1,18 +1,37 @@
 #include "render/Renderer.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <format>
 #include <span>
+#include <stdexcept>
+#include <string_view>
+#include <utility>
+#include <vector>
 
 #include <DirectXMath.h>
+#include <directx/d3dx12.h>
 
 #include "core/Assert.h"
+#include "core/File.h"
 #include "core/Log.h"
+#include "core/ThrowIfFailed.h"
 
 namespace engine::render {
+    using core::ThrowIfFailed;
+
     namespace {
+        // Compiled shader bytecode (DXIL), written by the build to <exe dir>/shaders/<name>.cso
+        std::vector<std::byte> LoadShader(std::wstring_view fileName) {
+            auto bytecode = core::ReadBinaryFile(core::ExecutableDirectory() / L"shaders" / fileName);
+            if (!bytecode) {
+                throw std::runtime_error(std::format("Cannot load shader {}", bytecode.error()));
+            }
+            return std::move(*bytecode);
+        }
+
         // Matches vs_basic.hlsl's VSInput
         struct VertexPosColor {
             DirectX::XMFLOAT3 position;
@@ -53,6 +72,8 @@ namespace engine::render {
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
         }
+        CreateRootSignature();
+        CreatePipelineState();
         UploadCube();
     }
 
@@ -122,5 +143,105 @@ namespace engine::render {
         m_context.Close();
         m_queue.ExecuteCommandList(m_context.Native());
         frame.SetFenceValue(m_queue.Signal());
+    }
+
+    void Renderer::CreateRootSignature() {
+        // The root signature is the shaders' "function signature": it lists the inputs they get
+        // and where each comes from. Every PSO and every draw is created/recorded against one.
+        //
+        // Here a single parameter: 16 root constants (the MVP matrix) for vs_basic's
+        // ConstantBuffer at b0. Root constants are written straight into the command list,
+        // the cheapest way to pass a few values per draw.
+        const D3D12_ROOT_PARAMETER1 mvpConstants{
+            .ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
+            .Constants = {.ShaderRegister = 0, .RegisterSpace = 0, .Num32BitValues = 16},
+            .ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX,
+        };
+
+        // ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT: the cube is read through vertex buffers. The DENY flags
+        // tell the driver which stages never read root parameters, so it can skip setting them up.
+        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC desc{
+            .Version = D3D_ROOT_SIGNATURE_VERSION_1_1,
+            .Desc_1_1 =
+                {
+                    .NumParameters = 1,
+                    .pParameters = &mvpConstants,
+                    .NumStaticSamplers = 0,
+                    .pStaticSamplers = nullptr,
+                    .Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+                             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+                             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+                             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+                             D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS,
+                },
+        };
+
+        // The description is serialized into a binary blob first (the same format a root signature
+        // compiled into a shader has), then the device creates the object from that blob
+        rhi::ComPtr<ID3DBlob> blob;
+        rhi::ComPtr<ID3DBlob> error;
+        const HRESULT hr = ::D3D12SerializeVersionedRootSignature(&desc, &blob, &error);
+        if (FAILED(hr) && error) {
+            core::LogError("Root signature: {}", static_cast<const char *>(error->GetBufferPointer()));
+        }
+        ThrowIfFailed(hr);
+
+        ThrowIfFailed(m_device.Native()->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(),
+                                                             IID_PPV_ARGS(&m_rootSignature)));
+        ThrowIfFailed(m_rootSignature->SetName(L"Cube root signature"));
+    }
+
+    void Renderer::CreatePipelineState() {
+        const std::vector<std::byte> vertexShader = LoadShader(L"vs_basic.cso");
+        const std::vector<std::byte> pixelShader = LoadShader(L"ps_basic.cso");
+
+        // How the input assembler reads one vertex from the vertex buffer: must match VertexPosColor
+        // on the CPU and VSInput in vs_basic.hlsl (semantic names, formats, byte offsets)
+        const std::array inputLayout{
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "POSITION",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(VertexPosColor, position),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "COLOR",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(VertexPosColor, color),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+        };
+
+        // A pipeline state object (PSO) bakes shaders and all fixed-function state into one object
+        // up front, so the driver compiles everything once instead of at draw time. D3D12 has no
+        // separate RSSetState/OMSetBlendState: changing any of this means switching PSOs.
+        // The CD3DX12 defaults: no blending; solid fill, back faces culled, clockwise = front;
+        // depth test LESS with depth writes on.
+        const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{
+            .pRootSignature = m_rootSignature.Get(),
+            .VS = {.pShaderBytecode = vertexShader.data(), .BytecodeLength = vertexShader.size()},
+            .PS = {.pShaderBytecode = pixelShader.data(), .BytecodeLength = pixelShader.size()},
+            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .SampleMask = D3D12_DEFAULT_SAMPLE_MASK, // all samples
+            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
+            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
+            .InputLayout = {.pInputElementDescs = inputLayout.data(),
+                            .NumElements = static_cast<UINT>(inputLayout.size())},
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
+            .NumRenderTargets = 1,
+            .RTVFormats = {rhi::SwapChain::kFormat},
+            // Must match the depth buffer; checked against the bound DSV when drawing
+            .DSVFormat = rhi::DepthBuffer::kFormat,
+            .SampleDesc = {.Count = 1, .Quality = 0},
+        };
+
+        ThrowIfFailed(m_device.Native()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&m_pipelineState)));
+        ThrowIfFailed(m_pipelineState->SetName(L"Cube PSO"));
     }
 } // namespace engine::render

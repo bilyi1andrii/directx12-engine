@@ -3,6 +3,8 @@
 add_library(engine_core STATIC
         Assert.cpp
         Assert.h
+        File.cpp
+        File.h
         Input.cpp
         Input.h
         Log.cpp
