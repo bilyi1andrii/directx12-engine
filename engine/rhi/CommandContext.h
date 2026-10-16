@@ -2,6 +2,7 @@
 #define D3D12_ENGINE_COMMANDCONTEXT_H
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -43,6 +44,22 @@ namespace engine::rhi {
         // src in COPY_SOURCE or GENERIC_READ (upload heap)
         void CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
                         uint64_t size);
+
+        // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
+        void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
+        // Viewport and scissor covering the whole width x height target
+        void SetViewportAndScissor(uint32_t width, uint32_t height);
+        void SetGraphicsRootSignature(ID3D12RootSignature *rootSignature);
+        void SetPipelineState(ID3D12PipelineState *pipelineState);
+        // Writes `data` (a multiple of 4 bytes) into the root constants of parameter `rootIndex`.
+        // The root signature must be set first.
+        void SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data);
+        void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology);
+        void SetVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW &view);
+        void SetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW &view);
+
+        // One non-instanced indexed draw
+        void DrawIndexed(uint32_t indexCount, uint32_t startIndex = 0, int32_t baseVertex = 0);
 
         // Flushes barriers and ends recording; the list can then be executed
         void Close();

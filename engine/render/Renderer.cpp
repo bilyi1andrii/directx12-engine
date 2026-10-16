@@ -1,6 +1,7 @@
 #include "render/Renderer.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -59,6 +60,30 @@ namespace engine::render {
             1, 5, 6, 1, 6, 2, // +Y
             4, 0, 3, 4, 3, 7, // -Y
         };
+
+        // The cube's model-view-projection matrix at `timeSeconds`, ready for the shader.
+        DirectX::XMFLOAT4X4 CubeMvp(double timeSeconds, uint32_t width, uint32_t height) {
+            using namespace DirectX;
+
+            // 90 degrees per second around the (0, 1, 1) axis. fmod in double keeps the
+            // angle precise however long the program runs.
+            const float angle = XMConvertToRadians(static_cast<float>(std::fmod(timeSeconds * 90.0, 360.0)));
+            const XMMATRIX model = XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle);
+
+            const XMMATRIX view = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, -10.0f, 1.0f), // eye
+                                                   XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),   // focus
+                                                   XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));  // up
+
+            // Left-handed with depth in [0, 1], as in the DX11 Camera
+            const float aspect = static_cast<float>(width) / static_cast<float>(height);
+            const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), aspect, 0.1f, 100.0f);
+
+            // DirectXMath uses row vectors (v * M). HLSL reads matrices column-major by default, so the
+            // matrix is transposed here; vs_basic then computes mul(v, mvp).
+            XMFLOAT4X4 mvp;
+            XMStoreFloat4x4(&mvp, XMMatrixTranspose(model * view * projection));
+            return mvp;
+        }
     } // namespace
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
@@ -102,14 +127,28 @@ namespace engine::render {
         m_context.Begin(frame.Allocator());
     }
 
-    void Renderer::Render() {
+    void Renderer::Render(double timeSeconds) {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
+        const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
         constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
         m_context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        m_context.ClearRenderTarget(m_swapChain.CurrentRtv(), clearColor);
+        m_context.ClearRenderTarget(rtv, clearColor);
         // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
         m_context.ClearDepth(m_depth.Dsv(), rhi::DepthBuffer::kClearDepth);
+
+        m_context.SetRenderTarget(rtv, m_depth.Dsv());
+        m_context.SetViewportAndScissor(m_swapChain.Width(), m_swapChain.Height());
+        m_context.SetGraphicsRootSignature(m_rootSignature.Get());
+        m_context.SetPipelineState(m_pipelineState.Get());
+
+        const DirectX::XMFLOAT4X4 mvp = CubeMvp(timeSeconds, m_swapChain.Width(), m_swapChain.Height());
+        m_context.SetGraphicsRootConstants(0, std::as_bytes(std::span(&mvp, 1)));
+
+        m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_context.SetVertexBuffer(m_cubeVertices.VertexBufferView(sizeof(VertexPosColor)));
+        m_context.SetIndexBuffer(m_cubeIndices.IndexBufferView(DXGI_FORMAT_R16_UINT));
+        m_context.DrawIndexed(static_cast<uint32_t>(kCubeIndices.size()));
     }
 
     void Renderer::EndFrame(bool vsync) {

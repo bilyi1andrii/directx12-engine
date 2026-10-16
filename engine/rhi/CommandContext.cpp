@@ -74,6 +74,67 @@ namespace engine::rhi {
         m_list->CopyBufferRegion(dst, dstOffset, src, srcOffset, size);
     }
 
+    void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
+        ENGINE_ASSERT(m_recording);
+        m_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+    }
+
+    void CommandContext::SetViewportAndScissor(uint32_t width, uint32_t height) {
+        ENGINE_ASSERT(m_recording);
+        // Viewport: maps clip space to pixels and depth to [0, 1]. Scissor: pixels outside the rectangle
+        // are discarded. Neither has a default in D3D12; without them nothing is drawn.
+        const D3D12_VIEWPORT viewport{
+            .TopLeftX = 0.0f,
+            .TopLeftY = 0.0f,
+            .Width = static_cast<float>(width),
+            .Height = static_cast<float>(height),
+            .MinDepth = D3D12_MIN_DEPTH,
+            .MaxDepth = D3D12_MAX_DEPTH,
+        };
+        const D3D12_RECT scissor{
+            .left = 0, .top = 0, .right = static_cast<LONG>(width), .bottom = static_cast<LONG>(height)};
+        m_list->RSSetViewports(1, &viewport);
+        m_list->RSSetScissorRects(1, &scissor);
+    }
+
+    void CommandContext::SetGraphicsRootSignature(ID3D12RootSignature *rootSignature) {
+        ENGINE_ASSERT(m_recording);
+        m_list->SetGraphicsRootSignature(rootSignature);
+    }
+
+    void CommandContext::SetPipelineState(ID3D12PipelineState *pipelineState) {
+        ENGINE_ASSERT(m_recording);
+        m_list->SetPipelineState(pipelineState);
+    }
+
+    void CommandContext::SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data) {
+        ENGINE_ASSERT(m_recording);
+        ENGINE_ASSERT_MSG(data.size() % 4 == 0, "root constants must be 32-bit values, got {} bytes", data.size());
+        // The values are copied into the command list now, so `data` may go away after this call
+        m_list->SetGraphicsRoot32BitConstants(rootIndex, static_cast<UINT>(data.size() / 4), data.data(), 0);
+    }
+
+    void CommandContext::SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology) {
+        ENGINE_ASSERT(m_recording);
+        m_list->IASetPrimitiveTopology(topology);
+    }
+
+    void CommandContext::SetVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW &view) {
+        ENGINE_ASSERT(m_recording);
+        m_list->IASetVertexBuffers(0, 1, &view);
+    }
+
+    void CommandContext::SetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW &view) {
+        ENGINE_ASSERT(m_recording);
+        m_list->IASetIndexBuffer(&view);
+    }
+
+    void CommandContext::DrawIndexed(uint32_t indexCount, uint32_t startIndex, int32_t baseVertex) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->DrawIndexedInstanced(indexCount, 1, startIndex, baseVertex, 0);
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();

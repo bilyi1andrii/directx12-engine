@@ -36,8 +36,8 @@ namespace engine::render {
         // (no-op when unchanged) and starts recording
         void BeginFrame(uint32_t width, uint32_t height);
 
-        // Records the frame's commands
-        void Render();
+        // Records the frame's commands. timeSeconds: time since start, animates the cube
+        void Render(double timeSeconds);
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);

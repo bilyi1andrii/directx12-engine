@@ -82,7 +82,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             }
             try {
                 renderer.BeginFrame(window.Width(), window.Height());
-                renderer.Render();
+                renderer.Render(frameTimer.TotalSeconds());
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
