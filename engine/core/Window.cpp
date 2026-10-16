@@ -59,6 +59,7 @@ namespace engine::core {
     Window::~Window() {
         // DestroyWindow still sends messages (e.g. WM_DESTROY)
         m_callbacks = {};
+        m_inDestructor = true;
         if (m_hwnd != nullptr) {
             ::DestroyWindow(m_hwnd);
         }
@@ -194,7 +195,12 @@ namespace engine::core {
             }
             break;
         case WM_DESTROY:
-            ::PostQuitMessage(0); // makes PumpMessages() return false
+            // Makes PumpMessages() return false. Not when the destructor destroys the window (e.g. while
+            // an exception unwinds): nobody pumps messages any more, and a stale WM_QUIT would close the
+            // next MessageBox (the error dialog) the moment it opens.
+            if (!m_inDestructor) {
+                ::PostQuitMessage(0);
+            }
             return 0;
         default:
             break;

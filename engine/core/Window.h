@@ -79,6 +79,7 @@ namespace engine::core {
         bool m_fullscreen = false;
         WINDOWPLACEMENT m_windowedPlacement{.length = sizeof(WINDOWPLACEMENT)}; // restored when leaving fullscreen
         int m_exitCode = 0;
+        bool m_inDestructor = false; // the destructor destroys the window: do not post WM_QUIT
         std::exception_ptr m_pendingException;
     };
 } // namespace engine::core
