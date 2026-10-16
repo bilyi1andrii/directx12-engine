@@ -2,10 +2,14 @@
 
 add_library(engine_rhi STATIC
         AgilitySdk.h
+        CommandContext.cpp
+        CommandContext.h
         CommandQueue.cpp
         CommandQueue.h
         Device.cpp
         Device.h
+        FrameContext.cpp
+        FrameContext.h
         RhiCommon.h)
 
 engine_target_defaults(engine_rhi)

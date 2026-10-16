@@ -1,5 +1,7 @@
+#include <array>
 #include <cstdint>
 #include <format>
+#include <vector>
 #include <directx/d3dx12.h>
 
 #include "core/Log.h"
@@ -9,8 +11,10 @@
 #include "core/Input.h"
 #include "core/Assert.h"
 #include "rhi/AgilitySdk.h"
+#include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
 #include "rhi/Device.h"
+#include "rhi/FrameContext.h"
 
 using engine::rhi::ComPtr;
 using engine::core::LogError;
@@ -26,18 +30,14 @@ const uint8_t g_NumFrames = 3;
 // DirectX12 Objects
 ComPtr<IDXGISwapChain4> g_SwapChain;
 ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
-ComPtr<ID3D12GraphicsCommandList> g_CommandList;
-ComPtr<ID3D12CommandAllocator> g_CommandAllocators[g_NumFrames];
 ComPtr<ID3D12DescriptorHeap> g_RTVDescriptorHeap;
 UINT g_RTVDescriptorSize;
-UINT g_CurrentBackBufferIndex;
 
 // By default, enable V-Sync.
 // Can be toggled with the V key.
 bool g_VSync = true;
 bool g_TearingSupported = false;
 
-uint64_t g_FrameFenceValues[g_NumFrames] = {};
 
 
 ComPtr<IDXGISwapChain4> CreateSwapChain(IDXGIFactory4* dxgiFactory4, HWND hWnd,
@@ -112,74 +112,36 @@ void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device,
     }
 }
 
-ComPtr<ID3D12CommandAllocator> CreateCommandAllocator(ComPtr<ID3D12Device2> device,
-                                                      D3D12_COMMAND_LIST_TYPE type)
+
+void Render(engine::rhi::CommandQueue& queue, engine::rhi::FrameContext& frame, engine::rhi::CommandContext& context)
 {
-    ComPtr<ID3D12CommandAllocator> commandAllocator;
-    ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator)));
+    // Begin frame: this slot was last used kFramesInFlight frames ago; wait until the GPU has
+    // finished that frame before reusing its allocator
+    frame.WaitAndReset(queue);
+    context.Begin(frame.Allocator());
 
-    return commandAllocator;
-}
+    // The swap chain decides which back buffer is next; it is not the frame number
+    const UINT backBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
+    ENGINE_ASSERT_MSG(backBufferIndex < g_NumFrames, "back buffer index {} out of range", backBufferIndex);
+    ID3D12Resource* backBuffer = g_BackBuffers[backBufferIndex].Get();
+    const CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(g_RTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+                                            static_cast<INT>(backBufferIndex), g_RTVDescriptorSize);
 
-ComPtr<ID3D12GraphicsCommandList> CreateCommandList(ComPtr<ID3D12Device2> device,
-                                                    ComPtr<ID3D12CommandAllocator> commandAllocator,
-                                                    D3D12_COMMAND_LIST_TYPE type)
-{
-    ComPtr<ID3D12GraphicsCommandList> commandList;
-    ThrowIfFailed(device->CreateCommandList(0, type, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList)));
+    // Record
+    constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
+    context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+    context.ClearRenderTarget(rtv, clearColor);
+    context.Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
+    context.Close();
 
-    ThrowIfFailed(commandList->Close());
+    // End frame: submit, present, and remember which fence value marks the end of this frame's GPU work
+    queue.ExecuteCommandList(context.Native());
 
-    return commandList;
-}
+    const UINT syncInterval = g_VSync ? 1 : 0;
+    const UINT presentFlags = g_TearingSupported && !g_VSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
+    ThrowIfFailed(g_SwapChain->Present(syncInterval, presentFlags));
 
-
-void Render(engine::rhi::CommandQueue& queue)
-{
-    ENGINE_ASSERT_MSG(g_CurrentBackBufferIndex < g_NumFrames, "back buffer index {} out of range",
-                      g_CurrentBackBufferIndex);
-    auto commandAllocator = g_CommandAllocators[g_CurrentBackBufferIndex];
-    auto backBuffer = g_BackBuffers[g_CurrentBackBufferIndex];
-
-    ThrowIfFailed(commandAllocator->Reset());
-    ThrowIfFailed(g_CommandList->Reset(commandAllocator.Get(), nullptr));
-
-    // Clear
-    {
-        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            backBuffer.Get(),
-            D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-
-        g_CommandList->ResourceBarrier(1, &barrier);
-
-        FLOAT clearColor[] = {0.4f, 0.6f, 0.9f, 1.0f};
-        CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(g_RTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-                                          g_CurrentBackBufferIndex, g_RTVDescriptorSize);
-
-        g_CommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
-    }
-
-    // Present
-    {
-        CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(
-            backBuffer.Get(),
-            D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-        g_CommandList->ResourceBarrier(1, &barrier);
-
-        ThrowIfFailed(g_CommandList->Close());
-
-        queue.ExecuteCommandList(g_CommandList.Get());
-
-        UINT syncInterval = g_VSync ? 1 : 0;
-        UINT presentFlags = g_TearingSupported && !g_VSync ? DXGI_PRESENT_ALLOW_TEARING : 0;
-        ThrowIfFailed(g_SwapChain->Present(syncInterval, presentFlags));
-
-        g_FrameFenceValues[g_CurrentBackBufferIndex] = queue.Signal();
-
-        g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
-
-        queue.WaitForFenceValue(g_FrameFenceValues[g_CurrentBackBufferIndex]);
-    }
+    frame.SetFenceValue(queue.Signal());
 }
 
 
@@ -214,27 +176,27 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         engine::rhi::Device device;
         g_TearingSupported = device.TearingSupported();
 
+        // Declared before the queue, so they are destroyed after it: the queue's destructor waits
+        // for the GPU, and only then are the allocators and the command list released
+        std::vector<engine::rhi::FrameContext> frames;
+        frames.reserve(engine::rhi::kFramesInFlight);
+        for (uint32_t i = 0; i < engine::rhi::kFramesInFlight; ++i)
+        {
+            frames.emplace_back(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
+        }
+        engine::rhi::CommandContext context(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list");
+
         engine::rhi::CommandQueue queue(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue");
 
         g_SwapChain = CreateSwapChain(device.Factory(), window.Handle(), queue.Native(),
                                       window.Width(), window.Height(),
                                       g_NumFrames);
 
-        g_CurrentBackBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
 
         g_RTVDescriptorHeap = CreateDescriptorHeap(device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
         g_RTVDescriptorSize = device.Native()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
         UpdateRenderTargetViews(device.Native(), g_SwapChain, g_RTVDescriptorHeap);
-
-        for (UINT i = 0; i < g_NumFrames; ++i)
-        {
-            g_CommandAllocators[i] = CreateCommandAllocator(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT);
-        }
-        g_CommandList = CreateCommandList(device.Native(),
-                                          g_CommandAllocators[g_CurrentBackBufferIndex],
-                                          D3D12_COMMAND_LIST_TYPE_DIRECT);
-
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}",
                 initTimer.ElapsedMs(), window.Width(),
@@ -242,6 +204,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
+        uint64_t frameNumber = 0;
         engine::core::Int2 rightDrag; // temporary raw-mouse check
         while (window.PumpMessages())
         {
@@ -293,7 +256,8 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             }
             try
             {
-                Render(queue);
+                Render(queue, frames[frameNumber % engine::rhi::kFramesInFlight], context);
+                ++frameNumber;
             } catch (const engine::core::HResultError&)
             {
                 // Present, Signal and others fail with DXGI_ERROR_DEVICE_REMOVED once the GPU is lost
