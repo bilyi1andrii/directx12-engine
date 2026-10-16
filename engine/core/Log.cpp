@@ -31,7 +31,7 @@ namespace engine::core
         // Debugger output
         ::OutputDebugStringA(line.c_str());
 
-        // print to stderr that parent (e.g. CLion) provides
+        // stderr: shown by the console or IDE terminal that started us
         std::fputs(line.c_str(), stderr);
         std::fflush(stderr);
     }
