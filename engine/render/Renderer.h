@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "rhi/Buffer.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
 #include "rhi/DepthBuffer.h"
@@ -49,6 +50,9 @@ namespace engine::render {
     private:
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
+        // Uploads the cube's vertex and index buffers (called once, from the constructor)
+        void UploadCube();
+
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The frames and the command list come
         // before the queue: the queue's destructor waits for the GPU before they are released.
@@ -64,6 +68,9 @@ namespace engine::render {
         rhi::SwapChain m_swapChain;
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
+
+        rhi::Buffer m_cubeVertices;
+        rhi::Buffer m_cubeIndices;
 
         uint64_t m_frameNumber = 0;
     };

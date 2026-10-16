@@ -67,6 +67,13 @@ namespace engine::rhi {
         m_list->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, depth, 0, 0, nullptr);
     }
 
+    void CommandContext::CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
+                                    uint64_t size) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->CopyBufferRegion(dst, dstOffset, src, srcOffset, size);
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();

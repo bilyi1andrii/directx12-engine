@@ -39,6 +39,11 @@ namespace engine::rhi {
         // Clears depth only (no stencil). Use the depth buffer's optimized clear value
         void ClearDepth(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth);
 
+        // Copies `size` bytes between two buffers. dst must be in (or promotable to) COPY_DEST,
+        // src in COPY_SOURCE or GENERIC_READ (upload heap)
+        void CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
+                        uint64_t size);
+
         // Flushes barriers and ends recording; the list can then be executed
         void Close();
 
