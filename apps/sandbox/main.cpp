@@ -1,7 +1,4 @@
-#include <array>
-#include <cstdint>
 #include <format>
-#include <vector>
 
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
@@ -10,40 +7,12 @@
 #include "core/Input.h"
 #include "core/Assert.h"
 #include "rhi/AgilitySdk.h"
-#include "rhi/CommandContext.h"
-#include "rhi/CommandQueue.h"
-#include "rhi/DescriptorAllocator.h"
-#include "rhi/Device.h"
-#include "rhi/FrameContext.h"
-#include "rhi/SwapChain.h"
+#include "render/Renderer.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
 
 ENGINE_EXPORT_AGILITY_SDK()
-
-void Render(engine::rhi::CommandQueue &queue, engine::rhi::FrameContext &frame, engine::rhi::CommandContext &context,
-            engine::rhi::SwapChain &swapChain, bool vsync) {
-    // Begin frame: this slot was last used kFramesInFlight frames ago; wait until
-    // the GPU has finished that frame before reusing its allocator
-    frame.WaitAndReset(queue);
-    context.Begin(frame.Allocator());
-
-    ID3D12Resource *backBuffer = swapChain.CurrentBackBuffer();
-
-    // Record
-    constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
-    context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-    context.ClearRenderTarget(swapChain.CurrentRtv(), clearColor);
-    context.Transition(backBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT);
-    context.Close();
-
-    // End frame: submit, present, and remember which fence value marks the end of
-    // this frame's GPU work
-    queue.ExecuteCommandList(context.Native());
-    swapChain.Present(vsync);
-    frame.SetFenceValue(queue.Signal());
-}
 
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
     try {
@@ -64,32 +33,13 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 },
         });
 
-        engine::rhi::Device device;
-
-        // Declared before the queue, so they are destroyed after it: the queue's
-        // destructor waits for the GPU, and only then are the allocators and the
-        // command list released
-        std::vector<engine::rhi::FrameContext> frames;
-        frames.reserve(engine::rhi::kFramesInFlight);
-        for (uint32_t i = 0; i < engine::rhi::kFramesInFlight; ++i) {
-            frames.emplace_back(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
-        }
-        engine::rhi::CommandContext context(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list");
-
-        engine::rhi::CommandQueue queue(device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue");
-
-        // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory
-        engine::rhi::DescriptorAllocator rtvAllocator(device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap");
-        // Declared after the queue and the allocator: its destructor flushes the queue and returns
-        // its RTVs, so both must still exist
-        engine::rhi::SwapChain swapChain(device, queue, rtvAllocator, window.Handle(), window.Width(), window.Height());
+        engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height());
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
-                device.TearingSupported() ? "supported" : "not supported");
+                renderer.TearingSupported() ? "supported" : "not supported");
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
-        uint64_t frameNumber = 0;
         bool vsync = true;            // toggled with V
         engine::core::Int2 rightDrag; // temporary raw-mouse check
         while (window.PumpMessages()) {
@@ -131,19 +81,16 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 continue;
             }
             try {
-                // Match the window's current client size (no-op when unchanged)
-                swapChain.Resize(window.Width(), window.Height());
-                Render(queue, frames[frameNumber % engine::rhi::kFramesInFlight], context, swapChain, vsync);
-                ++frameNumber;
+                renderer.BeginFrame(window.Width(), window.Height());
+                renderer.Render();
+                renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
-                // Present, Signal and others fail with DXGI_ERROR_DEVICE_REMOVED once
-                // the GPU is lost
-                device.LogDeviceRemovedInfo();
+                // Reset, ResizeBuffers, Present, Signal and others fail with
+                // DXGI_ERROR_DEVICE_REMOVED once the GPU is lost
+                renderer.LogDeviceRemovedInfo();
                 throw;
             }
         }
-
-        queue.Flush();
 
         LogInfo("Exiting with code {}", window.ExitCode());
 

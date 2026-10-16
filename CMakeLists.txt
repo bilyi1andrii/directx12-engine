@@ -20,5 +20,6 @@ find_package(directx-dxc CONFIG REQUIRED)
 
 add_subdirectory(engine/core)
 add_subdirectory(engine/rhi)
+add_subdirectory(engine/render)
 add_subdirectory(shaders)
 add_subdirectory(apps/sandbox)
