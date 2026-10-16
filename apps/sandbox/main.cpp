@@ -1,6 +1,7 @@
 #include <array>
 #include <cstdint>
 #include <format>
+#include <span>
 #include <vector>
 #include <directx/d3dx12.h>
 
@@ -13,6 +14,7 @@
 #include "rhi/AgilitySdk.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
+#include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
 
@@ -29,8 +31,6 @@ const uint8_t g_NumFrames = 3;
 // DirectX12 Objects
 ComPtr<IDXGISwapChain4> g_SwapChain;
 ComPtr<ID3D12Resource> g_BackBuffers[g_NumFrames];
-ComPtr<ID3D12DescriptorHeap> g_RTVDescriptorHeap;
-UINT g_RTVDescriptorSize;
 
 // By default, enable V-Sync.
 // Can be toggled with the V key.
@@ -68,38 +68,24 @@ ComPtr<IDXGISwapChain4> CreateSwapChain(IDXGIFactory4 *dxgiFactory4, HWND hWnd, 
     return dxgiSwapChain4;
 }
 
-ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device2> device, D3D12_DESCRIPTOR_HEAP_TYPE type,
-                                                  uint32_t numDescriptors) {
-    ComPtr<ID3D12DescriptorHeap> descriptorHeap;
+// Gets the back buffers and writes one render target view (RTV) for each into a slot from the allocator
+std::array<engine::rhi::Descriptor, g_NumFrames> CreateBackBufferRtvs(engine::rhi::NativeDevice *device,
+                                                                      IDXGISwapChain4 *swapChain,
+                                                                      engine::rhi::DescriptorAllocator &rtvAllocator) {
+    std::array<engine::rhi::Descriptor, g_NumFrames> rtvs;
+    for (UINT i = 0; i < g_NumFrames; ++i) {
+        ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&g_BackBuffers[i])));
+        ThrowIfFailed(g_BackBuffers[i]->SetName(std::format(L"Back buffer {}", i).c_str()));
 
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.NumDescriptors = numDescriptors;
-    desc.Type = type;
-
-    ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
-
-    return descriptorHeap;
-}
-
-void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device, ComPtr<IDXGISwapChain4> swapChain,
-                             ComPtr<ID3D12DescriptorHeap> descriptorHeap) {
-    auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-
-    for (int i = 0; i < g_NumFrames; ++i) {
-        ComPtr<ID3D12Resource> backBuffer;
-        ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer)));
-
-        device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
-
-        g_BackBuffers[i] = backBuffer;
-
-        rtvHandle.Offset(rtvDescriptorSize);
+        rtvs[i] = rtvAllocator.Allocate();
+        // An RTV describes how the pipeline writes to the texture (format, mip); nullptr = the texture's own format
+        device->CreateRenderTargetView(g_BackBuffers[i].Get(), nullptr, rtvs[i].Cpu());
     }
+    return rtvs;
 }
 
-void Render(engine::rhi::CommandQueue &queue, engine::rhi::FrameContext &frame, engine::rhi::CommandContext &context) {
+void Render(engine::rhi::CommandQueue &queue, engine::rhi::FrameContext &frame, engine::rhi::CommandContext &context,
+            std::span<const engine::rhi::Descriptor> backBufferRtvs) {
     // Begin frame: this slot was last used kFramesInFlight frames ago; wait until
     // the GPU has finished that frame before reusing its allocator
     frame.WaitAndReset(queue);
@@ -110,8 +96,7 @@ void Render(engine::rhi::CommandQueue &queue, engine::rhi::FrameContext &frame, 
     const UINT backBufferIndex = g_SwapChain->GetCurrentBackBufferIndex();
     ENGINE_ASSERT_MSG(backBufferIndex < g_NumFrames, "back buffer index {} out of range", backBufferIndex);
     ID3D12Resource *backBuffer = g_BackBuffers[backBufferIndex].Get();
-    const CD3DX12_CPU_DESCRIPTOR_HANDLE rtv(g_RTVDescriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-                                            static_cast<INT>(backBufferIndex), g_RTVDescriptorSize);
+    const D3D12_CPU_DESCRIPTOR_HANDLE rtv = backBufferRtvs[backBufferIndex].Cpu();
 
     // Record
     constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
@@ -172,10 +157,10 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         g_SwapChain = CreateSwapChain(device.Factory(), window.Handle(), queue.Native(), window.Width(),
                                       window.Height(), g_NumFrames);
 
-        g_RTVDescriptorHeap = CreateDescriptorHeap(device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, g_NumFrames);
-        g_RTVDescriptorSize = device.Native()->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
-        UpdateRenderTargetViews(device.Native(), g_SwapChain, g_RTVDescriptorHeap);
+        // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory
+        engine::rhi::DescriptorAllocator rtvAllocator(device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap");
+        // Declared after the allocator, so the descriptors are returned before it is destroyed
+        const std::array backBufferRtvs = CreateBackBufferRtvs(device.Native(), g_SwapChain.Get(), rtvAllocator);
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 g_TearingSupported ? "supported" : "not supported");
@@ -223,7 +208,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 continue;
             }
             try {
-                Render(queue, frames[frameNumber % engine::rhi::kFramesInFlight], context);
+                Render(queue, frames[frameNumber % engine::rhi::kFramesInFlight], context, backBufferRtvs);
                 ++frameNumber;
             } catch (const engine::core::HResultError &) {
                 // Present, Signal and others fail with DXGI_ERROR_DEVICE_REMOVED once
