@@ -5,14 +5,10 @@
 
 #include <Windows.h>
 
-namespace engine::core
-{
-    namespace
-    {
-        std::string_view LevelTag(LogLevel level)
-        {
-            switch (level)
-            {
+namespace engine::core {
+    namespace {
+        std::string_view LevelTag(LogLevel level) {
+            switch (level) {
             case LogLevel::Info:
                 return "info";
             case LogLevel::Warning:
@@ -24,8 +20,7 @@ namespace engine::core
         }
     } // namespace
 
-    void WriteLog(LogLevel level, std::string_view message)
-    {
+    void WriteLog(LogLevel level, std::string_view message) {
         const std::string line = std::format("[{}] {}\n", LevelTag(level), message);
 
         // Debugger output
@@ -35,4 +30,4 @@ namespace engine::core
         std::fputs(line.c_str(), stderr);
         std::fflush(stderr);
     }
-} // engine::core
+} // namespace engine::core

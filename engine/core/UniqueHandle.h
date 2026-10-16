@@ -5,14 +5,10 @@
 
 #include <Windows.h>
 
-namespace engine::core
-{
-    struct HandleCloser
-    {
-        void operator()(HANDLE handle) const noexcept
-        {
-            if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
-            {
+namespace engine::core {
+    struct HandleCloser {
+        void operator()(HANDLE handle) const noexcept {
+            if (handle != nullptr && handle != INVALID_HANDLE_VALUE) {
                 ::CloseHandle(handle);
             }
         }

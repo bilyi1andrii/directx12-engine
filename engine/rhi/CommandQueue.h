@@ -7,8 +7,7 @@
 #include "core/UniqueHandle.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi
-{
+namespace engine::rhi {
     // A GPU command queue plus the fence that tracks how far the GPU has got through it.
     //
     // The CPU submits command lists and then calls Signal(), which returns a fence value.
@@ -18,20 +17,19 @@ namespace engine::rhi
     //
     // Not thread-safe. Not copyable or movable.
 
-    class CommandQueue
-    {
+    class CommandQueue {
     public:
-        CommandQueue(NativeDevice* device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name);
+        CommandQueue(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name);
         // Waits until the GPU has finished all submitted work
         ~CommandQueue();
 
-        CommandQueue(const CommandQueue&) = delete;
-        CommandQueue& operator=(const CommandQueue&) = delete;
-        CommandQueue(CommandQueue&&) = delete;
-        CommandQueue& operator=(CommandQueue&&) = delete;
+        CommandQueue(const CommandQueue &) = delete;
+        CommandQueue &operator=(const CommandQueue &) = delete;
+        CommandQueue(CommandQueue &&) = delete;
+        CommandQueue &operator=(CommandQueue &&) = delete;
 
         // Submits a closed command list. Returns immediately; the GPU runs it later.
-        void ExecuteCommandList(ID3D12CommandList* commandList);
+        void ExecuteCommandList(ID3D12CommandList *commandList);
 
         // Adds a "set fence to N" command at the end of the queue and returns N.
         // N is complete once the GPU has finished everything submitted before this call.
@@ -46,15 +44,14 @@ namespace engine::rhi
         // never per frame.
         void Flush();
 
-        [[nodiscard]] ID3D12CommandQueue* Native() const noexcept { return m_queue.Get(); }
+        [[nodiscard]] ID3D12CommandQueue *Native() const noexcept { return m_queue.Get(); }
 
     private:
         ComPtr<ID3D12CommandQueue> m_queue;
         ComPtr<ID3D12Fence> m_fence;
         uint64_t m_lastSignaledValue = 0; // the fence starts at 0, so value 0 is always complete
-        core::UniqueHandle m_fenceEvent; // signaled by the fence when a waited-for value is reached
+        core::UniqueHandle m_fenceEvent;  // signaled by the fence when a waited-for value is reached
     };
 } // namespace engine::rhi
-
 
 #endif //D3D12_ENGINE_COMMANDQUEUE_H

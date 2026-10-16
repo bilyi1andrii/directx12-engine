@@ -7,8 +7,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi
-{
+namespace engine::rhi {
 
     class CommandQueue;
 
@@ -23,8 +22,7 @@ namespace engine::rhi
     //
     // Move-only.
 
-    class FrameContext
-    {
+    class FrameContext {
     public:
         FrameContext(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name);
 

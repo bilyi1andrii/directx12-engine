@@ -1,0 +1,25 @@
+BasedOnStyle: LLVM
+
+# Layout
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4          # public:/private: one level left of the members
+NamespaceIndentation: All         # indent inside namespace engine::xxx { ... }
+BreakBeforeBraces: Attach         # opening bracket on the same line
+AllowShortFunctionsOnASingleLine: Inline   # one-line getters inside classes only
+AllowShortLambdasOnASingleLine: Inline
+
+# Pointers and references bind to the name: int *p, const Foo &f
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+
+# Includes: keep our grouping (std / third-party / engine) and order
+IncludeBlocks: Preserve
+SortIncludes: Never              # keep hand order (Windows headers can be order-sensitive)
+
+# Trailing comments and macro backslashes
+AlignTrailingComments: true
+SpacesBeforeTrailingComments: 1
+ReflowComments: false             # never re-wrap comments written by hand
+AlignEscapedNewlines: Left

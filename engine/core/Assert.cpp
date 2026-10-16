@@ -6,18 +6,12 @@
 
 #include "core/Log.h"
 
-
-namespace engine::core::detail
-{
-    void AssertFailed(std::string_view expression, std::string_view message,
-                      std::source_location location)
-    {
-        LogError("Assertion failed: {}{}{}\n  at {}:{}", expression,
-                 message.empty() ? "" : " - ", message,
+namespace engine::core::detail {
+    void AssertFailed(std::string_view expression, std::string_view message, std::source_location location) {
+        LogError("Assertion failed: {}{}{}\n  at {}:{}", expression, message.empty() ? "" : " - ", message,
                  location.file_name(), location.line());
 
-        if (::IsDebuggerPresent())
-        {
+        if (::IsDebuggerPresent()) {
             __debugbreak();
             // the debugger stops here; step out to see the failing line
             return; // "continue" in the debugger resumes after the assert

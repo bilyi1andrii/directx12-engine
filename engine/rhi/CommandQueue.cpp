@@ -7,12 +7,10 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi
-{
+namespace engine::rhi {
     using core::ThrowIfFailed;
 
-    CommandQueue::CommandQueue(NativeDevice* device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name)
-    {
+    CommandQueue::CommandQueue(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name) {
         // The GPU executes command lists from queues. DIRECT queues accept everything (draw, compute,
         // copy); COMPUTE and COPY queues accept less but can run in parallel with the direct one.
         const D3D12_COMMAND_QUEUE_DESC desc{
@@ -34,45 +32,36 @@ namespace engine::rhi
         core::ThrowIfWin32Failed(m_fenceEvent != nullptr);
     }
 
-    CommandQueue::~CommandQueue()
-    {
+    CommandQueue::~CommandQueue() {
         // Releasing the queue, or anything its pending command lists use, while the GPU is still
         // running them is an error. Waiting here makes destruction safe even when unwinding from
         // an exception.
-        try
-        {
+        try {
             Flush();
-        }
-        catch (const std::exception& e)
-        {
+        } catch (const std::exception &e) {
             core::LogError("CommandQueue flush at destruction failed: {}", e.what());
         }
     }
 
-    void CommandQueue::ExecuteCommandList(ID3D12CommandList* commandList)
-    {
-        ID3D12CommandList* const lists[] = {commandList};
+    void CommandQueue::ExecuteCommandList(ID3D12CommandList *commandList) {
+        ID3D12CommandList *const lists[] = {commandList};
         m_queue->ExecuteCommandLists(static_cast<UINT>(std::size(lists)), lists);
     }
 
-    uint64_t CommandQueue::Signal()
-    {
+    uint64_t CommandQueue::Signal() {
         ++m_lastSignaledValue;
         ThrowIfFailed(m_queue->Signal(m_fence.Get(), m_lastSignaledValue));
         return m_lastSignaledValue;
     }
 
-    bool CommandQueue::IsFenceComplete(uint64_t fenceValue) const
-    {
+    bool CommandQueue::IsFenceComplete(uint64_t fenceValue) const {
         // After device removal the fence reports UINT64_MAX, so every value counts as complete
         // and nothing waits forever
         return m_fence->GetCompletedValue() >= fenceValue;
     }
 
-    void CommandQueue::WaitForFenceValue(uint64_t fenceValue)
-    {
-        if (IsFenceComplete(fenceValue))
-        {
+    void CommandQueue::WaitForFenceValue(uint64_t fenceValue) {
+        if (IsFenceComplete(fenceValue)) {
             return;
         }
         // Ask the fence to signal the event once it reaches fenceValue, then sleep until it does.
@@ -81,8 +70,7 @@ namespace engine::rhi
         core::ThrowIfWin32Failed(::WaitForSingleObject(m_fenceEvent.get(), INFINITE) == WAIT_OBJECT_0);
     }
 
-    void CommandQueue::Flush()
-    {
+    void CommandQueue::Flush() {
         WaitForFenceValue(Signal());
     }
 } // namespace engine::rhi

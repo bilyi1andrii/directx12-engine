@@ -7,23 +7,20 @@
 
 #include <Windows.h>
 
-namespace engine::core
-{
-    class HResultError: public std::runtime_error
-    {
+namespace engine::core {
+    class HResultError : public std::runtime_error {
     public:
-        HResultError(HRESULT hr, const std::string& message);
+        HResultError(HRESULT hr, const std::string &message);
         [[nodiscard]] HRESULT Code() const noexcept { return m_hr; }
+
     private:
         HRESULT m_hr;
     };
 
     void ThrowHResult(HRESULT hr, std::source_location location);
 
-    inline void ThrowIfFailed(HRESULT hr, std::source_location location = std::source_location::current())
-    {
-        if (FAILED(hr))
-        {
+    inline void ThrowIfFailed(HRESULT hr, std::source_location location = std::source_location::current()) {
+        if (FAILED(hr)) {
             ThrowHResult(hr, location);
         }
     }
@@ -31,6 +28,5 @@ namespace engine::core
     void ThrowIfWin32Failed(bool succeeded, std::source_location location = std::source_location::current());
 
 } // namespace engine::core
-
 
 #endif //D3D12_ENGINE_THROWIFFAILED_H

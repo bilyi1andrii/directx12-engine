@@ -4,10 +4,8 @@
 #include <chrono>
 #include <cstdint>
 
-namespace engine::core
-{
-    class Timer
-    {
+namespace engine::core {
+    class Timer {
     public:
         using Clock = std::chrono::steady_clock;
 
@@ -24,10 +22,7 @@ namespace engine::core
         // After Stop(): time between start and stop
         [[nodiscard]] double ElapsedMs() const;
 
-        [[nodiscard]] bool IsRunning() const noexcept
-        {
-            return m_running;
-        }
+        [[nodiscard]] bool IsRunning() const noexcept { return m_running; }
 
     private:
         Clock::time_point m_start = Clock::now();
@@ -35,40 +30,24 @@ namespace engine::core
         bool m_running = false;
     };
 
-    class FrameTimer
-    {
+    class FrameTimer {
     public:
         using Clock = std::chrono::steady_clock;
 
         // Advances one frame. Returns seconds since the previous Tick()
         double Tick();
 
-        [[nodiscard]] double DeltaSeconds() const noexcept
-        {
-            return m_deltaSeconds;
-        }
+        [[nodiscard]] double DeltaSeconds() const noexcept { return m_deltaSeconds; }
 
-        [[nodiscard]] double TotalSeconds() const noexcept
-        {
-            return m_totalSeconds;
-        }
+        [[nodiscard]] double TotalSeconds() const noexcept { return m_totalSeconds; }
 
-        [[nodiscard]] uint64_t FrameCount() const noexcept
-        {
-            return m_frameCount;
-        }
+        [[nodiscard]] uint64_t FrameCount() const noexcept { return m_frameCount; }
 
         // Frames per second
-        [[nodiscard]] double Fps() const noexcept
-        {
-            return m_fps;
-        }
+        [[nodiscard]] double Fps() const noexcept { return m_fps; }
 
         // True only on the Tick() that updated Fps
-        [[nodiscard]] bool FpsUpdated() const noexcept
-        {
-            return m_fpsUpdated;
-        }
+        [[nodiscard]] bool FpsUpdated() const noexcept { return m_fpsUpdated; }
 
     private:
         Clock::time_point m_start = Clock::now();

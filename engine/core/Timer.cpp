@@ -1,11 +1,8 @@
 #include "core/Timer.h"
 
-namespace engine::core
-{
-    bool Timer::Start()
-    {
-        if (m_running)
-        {
+namespace engine::core {
+    bool Timer::Start() {
+        if (m_running) {
             return false;
         }
         m_start = Clock::now();
@@ -13,10 +10,8 @@ namespace engine::core
         return true;
     }
 
-    bool Timer::Stop()
-    {
-        if (!m_running)
-        {
+    bool Timer::Stop() {
+        if (!m_running) {
             return false;
         }
         m_stop = Clock::now();
@@ -24,20 +19,17 @@ namespace engine::core
         return true;
     }
 
-    void Timer::Restart()
-    {
+    void Timer::Restart() {
         m_start = Clock::now();
         m_running = true;
     }
 
-    double Timer::ElapsedMs() const
-    {
+    double Timer::ElapsedMs() const {
         const Clock::time_point end = m_running ? Clock::now() : m_stop;
         return std::chrono::duration<double, std::milli>(end - m_start).count();
     }
 
-    double FrameTimer::Tick()
-    {
+    double FrameTimer::Tick() {
         const Clock::time_point now = Clock::now();
         m_deltaSeconds = std::chrono::duration<double>(now - m_last).count();
         m_totalSeconds = std::chrono::duration<double>(now - m_start).count();
@@ -49,8 +41,7 @@ namespace engine::core
         m_fpsWindowSeconds += m_deltaSeconds;
         ++m_fpsWindowFrames;
 
-        if (m_fpsWindowSeconds >= 1.0)
-        {
+        if (m_fpsWindowSeconds >= 1.0) {
             m_fps = m_fpsWindowFrames / m_fpsWindowSeconds;
             m_fpsUpdated = true;
             m_fpsWindowSeconds = 0.0;

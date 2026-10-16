@@ -8,8 +8,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi
-{
+namespace engine::rhi {
     // Thin wrapper over a graphics command list. Collects resource barriers and submits them as one
     // ResourceBarrier() call right before the next command that needs them (or at Close()).
     //
@@ -17,8 +16,7 @@ namespace engine::rhi
     // Calls made directly on Native() bypass the batching: call FlushBarriers() before them.
     //
     // Not copyable or movable.
-    class CommandContext
-    {
+    class CommandContext {
     public:
         CommandContext(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name);
 

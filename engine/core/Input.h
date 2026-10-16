@@ -6,23 +6,20 @@
 
 #include "core/Window.h"
 
-namespace engine::core
-{
-    struct Int2
-    {
+namespace engine::core {
+    struct Int2 {
         int x = 0;
         int y = 0;
     };
 
     // Keyboard and mouse state
-    class Input
-    {
+    class Input {
     public:
         // Registers for raw mouse input (WM_INPUT)
         Input();
 
         // Redirect every window message here
-        void HandleMessage(const WindowMessage& message);
+        void HandleMessage(const WindowMessage &message);
 
         // Call once per frame, after the frame has read the input
         void EndFrame();
@@ -35,30 +32,19 @@ namespace engine::core
         [[nodiscard]] bool WasKeyReleased(uint8_t key) const; // went up during this frame
 
         // Cursor position in client-area pixels (can be outside the window while a button is held).
-        [[nodiscard]] Int2 MousePosition() const noexcept
-        {
-            return m_mousePosition;
-        }
+        [[nodiscard]] Int2 MousePosition() const noexcept { return m_mousePosition; }
 
         // Raw mouse movement during this frame
-        [[nodiscard]] Int2 RawMouseDelta() const noexcept
-        {
-            return
-                m_rawMouseDelta;
-        }
+        [[nodiscard]] Int2 RawMouseDelta() const noexcept { return m_rawMouseDelta; }
 
         // Wheel movement during this frame, in notches.
-        [[nodiscard]] float WheelDelta() const noexcept
-        {
-            return m_wheelDelta;
-        }
+        [[nodiscard]] float WheelDelta() const noexcept { return m_wheelDelta; }
 
     private:
         void Press(uint8_t key);
         void Release(uint8_t key);
         void ReleaseAll();
-        void OnMouseButton(const WindowMessage& message, uint8_t button, bool
-                           down);
+        void OnMouseButton(const WindowMessage &message, uint8_t button, bool down);
         void OnRawInput(LPARAM lParam);
 
         std::bitset<256> m_down;
@@ -69,6 +55,5 @@ namespace engine::core
         float m_wheelDelta = 0.0f;
     };
 } // namespace engine::core
-
 
 #endif //D3D12_ENGINE_INPUT_H

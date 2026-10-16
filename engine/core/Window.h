@@ -8,28 +8,24 @@
 
 #include <Windows.h>
 
-namespace engine::core
-{
-    struct WindowMessage
-    {
+namespace engine::core {
+    struct WindowMessage {
         HWND hwnd;
         UINT message;
         WPARAM wParam;
         LPARAM lParam;
     };
 
-    struct WindowDesc
-    {
+    struct WindowDesc {
         std::wstring_view title = L"D3D12 Engine";
         uint32_t width = 1280; // client area
         uint32_t height = 720;
     };
 
-    struct WindowCallbacks
-    {
+    struct WindowCallbacks {
         // Sees every message before the window handles it.
         // Return true to skip the window's own handling
-        std::function<bool(const WindowMessage&)> onMessage;
+        std::function<bool(const WindowMessage &)> onMessage;
 
         // The client area changed size. Not called when minimized
         std::function<void(uint32_t width, uint32_t height)> onResize;
@@ -37,16 +33,15 @@ namespace engine::core
 
     // The application's main window
     // Not copyable or movable
-    class Window
-    {
+    class Window {
     public:
-        explicit Window(const WindowDesc& desc);
+        explicit Window(const WindowDesc &desc);
         ~Window();
 
-        Window(const Window&) = delete;
-        Window& operator=(const Window&) = delete;
-        Window(Window&&) = delete;
-        Window& operator=(Window&&) = delete;
+        Window(const Window &) = delete;
+        Window &operator=(const Window &) = delete;
+        Window(Window &&) = delete;
+        Window &operator=(Window &&) = delete;
 
         void SetCallbacks(WindowCallbacks callbacks);
 
@@ -73,9 +68,8 @@ namespace engine::core
         [[nodiscard]] int ExitCode() const noexcept { return m_exitCode; }
 
     private:
-        static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam,
-                                        LPARAM lParam);
-        LRESULT HandleMessage(const WindowMessage& message);
+        static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+        LRESULT HandleMessage(const WindowMessage &message);
 
         HWND m_hwnd = nullptr;
         WindowCallbacks m_callbacks;
@@ -83,10 +77,7 @@ namespace engine::core
         uint32_t m_height = 0;
         bool m_minimized = false;
         bool m_fullscreen = false;
-        WINDOWPLACEMENT m_windowedPlacement{
-            .length =
-            sizeof(WINDOWPLACEMENT)
-        }; // restored when leaving fullscreen
+        WINDOWPLACEMENT m_windowedPlacement{.length = sizeof(WINDOWPLACEMENT)}; // restored when leaving fullscreen
         int m_exitCode = 0;
         std::exception_ptr m_pendingException;
     };
