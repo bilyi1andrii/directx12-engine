@@ -36,6 +36,9 @@ namespace engine::rhi {
 
         void ClearRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::span<const float, 4> color);
 
+        // Clears depth only (no stencil). Use the depth buffer's optimized clear value
+        void ClearDepth(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth);
+
         // Flushes barriers and ends recording; the list can then be executed
         void Close();
 

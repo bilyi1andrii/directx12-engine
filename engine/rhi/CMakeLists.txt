@@ -6,6 +6,8 @@ add_library(engine_rhi STATIC
         CommandContext.h
         CommandQueue.cpp
         CommandQueue.h
+        DepthBuffer.cpp
+        DepthBuffer.h
         DescriptorAllocator.cpp
         DescriptorAllocator.h
         Device.cpp

@@ -65,9 +65,9 @@ namespace engine::rhi {
         ThrowIfFailed(m_swapChain->Present(syncInterval, flags));
     }
 
-    void SwapChain::Resize(uint32_t width, uint32_t height) {
+    bool SwapChain::Resize(uint32_t width, uint32_t height) {
         if (width == 0 || height == 0 || (width == m_width && height == m_height)) {
-            return;
+            return false;
         }
 
         // ResizeBuffers fails while anything still references a back buffer, and the GPU may still be
@@ -82,6 +82,7 @@ namespace engine::rhi {
 
         CreateBackBufferViews();
         core::LogInfo("Swap chain resized to {}x{}", width, height);
+        return true;
     }
 
     ID3D12Resource *SwapChain::CurrentBackBuffer() const {

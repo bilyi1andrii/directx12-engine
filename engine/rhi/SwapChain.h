@@ -40,7 +40,8 @@ namespace engine::rhi {
 
         // Recreates the back buffers at the new size. Waits until the GPU is idle first.
         // Does nothing for an unchanged size or 0x0 (minimized), so it is cheap to call every frame.
-        void Resize(uint32_t width, uint32_t height);
+        // Returns true if the buffers were recreated (size-dependent targets must follow)
+        bool Resize(uint32_t width, uint32_t height);
 
         // The back buffer this frame renders into. Changes after every Present()
         [[nodiscard]] ID3D12Resource *CurrentBackBuffer() const;

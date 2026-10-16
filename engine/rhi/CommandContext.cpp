@@ -61,6 +61,12 @@ namespace engine::rhi {
         m_list->ClearRenderTargetView(rtv, color.data(), 0, nullptr);
     }
 
+    void CommandContext::ClearDepth(D3D12_CPU_DESCRIPTOR_HANDLE dsv, float depth) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, depth, 0, 0, nullptr);
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();

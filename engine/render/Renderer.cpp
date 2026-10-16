@@ -11,7 +11,9 @@ namespace engine::render {
         : m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
-          m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height) {
+          m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
+          m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
+          m_depth(m_device.Native(), m_dsvAllocator, width, height, L"Depth buffer") {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
@@ -36,7 +38,9 @@ namespace engine::render {
 
         // After WaitAndReset: objects a resize defers into this slot must survive until this
         // frame's fence, not be dropped by the reset
-        m_swapChain.Resize(width, height);
+        if (m_swapChain.Resize(width, height)) {
+            m_depth.Resize(m_swapChain.Width(), m_swapChain.Height(), frame);
+        }
 
         m_context.Begin(frame.Allocator());
     }
@@ -47,6 +51,8 @@ namespace engine::render {
         constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
         m_context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
         m_context.ClearRenderTarget(m_swapChain.CurrentRtv(), clearColor);
+        // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
+        m_context.ClearDepth(m_depth.Dsv(), rhi::DepthBuffer::kClearDepth);
     }
 
     void Renderer::EndFrame(bool vsync) {

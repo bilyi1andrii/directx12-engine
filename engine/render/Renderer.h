@@ -6,6 +6,7 @@
 
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
+#include "rhi/DepthBuffer.h"
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
@@ -57,8 +58,12 @@ namespace engine::render {
         rhi::CommandQueue m_queue;
         // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory
         rhi::DescriptorAllocator m_rtvAllocator;
+        // The main depth buffer plus the shadow maps of step 4
+        rhi::DescriptorAllocator m_dsvAllocator;
         // After the queue and the allocator: its destructor flushes the queue and returns its RTVs
         rhi::SwapChain m_swapChain;
+        // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
+        rhi::DepthBuffer m_depth;
 
         uint64_t m_frameNumber = 0;
     };
