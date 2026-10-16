@@ -12,7 +12,9 @@ add_library(engine_rhi STATIC
         Device.h
         FrameContext.cpp
         FrameContext.h
-        RhiCommon.h)
+        RhiCommon.h
+        SwapChain.cpp
+        SwapChain.h)
 
 engine_target_defaults(engine_rhi)
 
