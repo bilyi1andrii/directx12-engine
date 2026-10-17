@@ -21,6 +21,7 @@ include(EngineTargets)
 find_package(directx-headers CONFIG REQUIRED)
 find_package(directx12-agility CONFIG REQUIRED)
 find_package(directx-dxc CONFIG REQUIRED)
+find_package(D3D12MemoryAllocator CONFIG REQUIRED)
 
 add_subdirectory(engine/core)
 add_subdirectory(engine/rhi)
