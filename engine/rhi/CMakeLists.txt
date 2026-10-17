@@ -21,6 +21,8 @@ add_library(engine_rhi STATIC
         RhiCommon.h
         SwapChain.cpp
         SwapChain.h
+        UploadRing.cpp
+        UploadRing.h
         ValidationStats.h)
 
 engine_target_defaults(engine_rhi)
