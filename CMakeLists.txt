@@ -25,6 +25,7 @@ find_package(D3D12MemoryAllocator CONFIG REQUIRED)
 
 add_subdirectory(engine/core)
 add_subdirectory(engine/rhi)
+add_subdirectory(engine/scene)
 add_subdirectory(engine/render)
 add_subdirectory(shaders)
 add_subdirectory(apps/sandbox)
