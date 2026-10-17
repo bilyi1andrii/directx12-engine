@@ -1,7 +1,10 @@
 #include <format>
 
+#include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
+#include <vector>
 
 #include "SandboxOptions.h"
 #include "core/CommandLine.h"
@@ -23,12 +26,25 @@ ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
     // Exit codes besides the window's own (0). An assert exits with 3, an exception with -1.
+    constexpr int kExitSmokeTestFailed = 1;
     constexpr int kExitBadCommandLine = 2;
 
-    // Creates the window and the renderer and runs the game loop until the window closes.
-    // Returns the window's exit code. Everything it creates is destroyed before it returns,
-    // so `validation` is complete afterwards.
-    int RunSandbox(engine::rhi::ValidationStats &validation) {
+    // The debug layer exists only in Debug builds (rhi::Device checks the same macro)
+#if defined(_DEBUG)
+    constexpr bool kValidationExpected = true;
+#else
+    constexpr bool kValidationExpected = false;
+#endif
+
+    struct RunResult {
+        int exitCode = 0; // the window's
+        uint64_t framesRendered = 0;
+    };
+
+    // Creates the window and the renderer and runs the game loop until the window closes
+    // (in a smoke test: after the requested number of frames). Everything it creates is
+    // destroyed before it returns, so `validation` is complete afterwards.
+    RunResult RunSandbox(const SandboxOptions &options, engine::rhi::ValidationStats &validation) {
         engine::core::Timer initTimer;
         initTimer.Start();
 
@@ -51,10 +67,16 @@ namespace {
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 renderer.TearingSupported() ? "supported" : "not supported");
 
+        const std::optional<uint32_t> smokeTestFrames = options.smokeTestFrames;
+        if (smokeTestFrames) {
+            LogInfo("Smoke test: rendering {} frames", *smokeTestFrames);
+        }
+
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
         bool vsync = true;            // toggled with V
         engine::core::Int2 rightDrag; // temporary raw-mouse check
+        uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
             frameTimer.Tick();
             if (input.WasKeyPressed(VK_ESCAPE)) {
@@ -88,8 +110,10 @@ namespace {
             input.EndFrame();
 
             // A minimized window has nothing to show.
-            // WaitMessage() sleeps until the next message
-            if (window.IsMinimized()) {
+            // WaitMessage() sleeps until the next message.
+            // A smoke test keeps rendering, or it would never reach its frame count: the swap chain
+            // ignores the 0x0 size, and Present returns DXGI_STATUS_OCCLUDED, which is a success code.
+            if (window.IsMinimized() && !smokeTestFrames) {
                 ::WaitMessage();
                 continue;
             }
@@ -103,14 +127,31 @@ namespace {
                 renderer.LogDeviceRemovedInfo();
                 throw;
             }
+            ++framesRendered;
+
+            if (smokeTestFrames) {
+                const uint32_t frames = *smokeTestFrames;
+                // Two fullscreen toggles exercise the resize path: flush, ResizeBuffers, new RTVs and
+                // the deferred release of the old depth buffer
+                if (frames >= 3 && (framesRendered == frames / 3 || framesRendered == 2 * frames / 3)) {
+                    window.ToggleFullscreen();
+                }
+                if (framesRendered == frames) {
+                    window.Close();
+                }
+            }
         }
 
-        return window.ExitCode();
+        return {.exitCode = window.ExitCode(), .framesRendered = framesRendered};
     }
 
     void LogValidationSummary(const engine::rhi::ValidationStats &validation) {
         if (!validation.active) {
-            LogInfo("Validation: not active (Release build or debug layer unavailable)");
+            if (kValidationExpected) {
+                LogWarning("Validation: not active (D3D12 or DXGI debug interface unavailable)");
+            } else {
+                LogInfo("Validation: not active (no debug layer in this build)");
+            }
             return;
         }
         const uint32_t errors = validation.errorCount.load();
@@ -121,9 +162,51 @@ namespace {
                        validation.liveObjectCount);
         }
     }
+
+    // Checks a finished smoke test and logs the verdict. Returns the process exit code.
+    int SmokeTestExitCode(uint32_t expectedFrames, const RunResult &run,
+                          const engine::rhi::ValidationStats &validation) {
+        std::vector<std::string> failures;
+        if (run.framesRendered != expectedFrames) {
+            // e.g. the window was closed early (Alt+F4, WM_CLOSE from outside)
+            failures.push_back(std::format("rendered {} of {} frames", run.framesRendered, expectedFrames));
+        }
+        if (run.exitCode != 0) {
+            failures.push_back(std::format("window exit code {}", run.exitCode));
+        }
+        if (validation.active) {
+            const uint32_t errors = validation.errorCount.load();
+            if (errors != 0) {
+                failures.push_back(std::format("{} debug-layer errors", errors));
+            }
+            if (validation.liveObjectCount != 0) {
+                failures.push_back(std::format("{} live objects at shutdown", validation.liveObjectCount));
+            }
+        } else if (kValidationExpected) {
+            // Fail closed: a Debug run that could not check anything must not pass
+            failures.emplace_back("validation was not active");
+        } else {
+            LogWarning("Smoke test: no debug layer in this build; only checks that {} frames render and the app "
+                       "shuts down",
+                       expectedFrames);
+        }
+
+        if (failures.empty()) {
+            LogInfo("Smoke test PASSED: {} frames", run.framesRendered);
+            return 0;
+        }
+        std::string reasons;
+        for (const std::string &failure : failures) {
+            reasons += reasons.empty() ? failure : "; " + failure;
+        }
+        LogError("Smoke test FAILED: {}", reasons);
+        return kExitSmokeTestFailed;
+    }
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
+    // Known before anything that can fail later; the catch below needs it
+    bool smokeTest = false;
     try {
         const std::expected<SandboxOptions, std::string> options = ParseSandboxOptions(engine::core::CommandLineArgs());
         if (!options) {
@@ -132,17 +215,22 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             LogInfo("{}", kSandboxUsage);
             return kExitBadCommandLine;
         }
+        smokeTest = options->smokeTestFrames.has_value();
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;
-        const int exitCode = RunSandbox(validation);
+        const RunResult run = RunSandbox(*options, validation);
         LogValidationSummary(validation);
 
+        const int exitCode = smokeTest ? SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
         LogInfo("Exiting with code {}", exitCode);
         return exitCode;
     } catch (std::exception &e) {
         LogError("{}", e.what());
-        MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
+        // A dialog would block an unattended run until someone closes it
+        if (!smokeTest) {
+            MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
+        }
         return -1;
     }
 }
