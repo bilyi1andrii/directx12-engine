@@ -13,7 +13,7 @@ namespace engine::rhi {
     // Thin wrapper over a graphics command list. Collects resource barriers and submits them as one
     // ResourceBarrier() call right before the next command that needs them (or at Close()).
     //
-    // Usage per frame: Begin(frame.Allocator()) -> Transition/Clear/... -> Close() -> CommandQueue::ExecuteCommandList(Native()).
+    // Usage per frame: Begin(frame.CommandAllocator()) -> Transition/Clear/... -> Close() -> CommandQueue::ExecuteCommandList(Native()).
     // Calls made directly on Native() bypass the batching: call FlushBarriers() before them.
     //
     // Not copyable or movable.

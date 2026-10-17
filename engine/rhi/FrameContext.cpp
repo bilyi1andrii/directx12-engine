@@ -9,18 +9,21 @@
 namespace engine::rhi {
     using core::ThrowIfFailed;
 
-    FrameContext::FrameContext(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name) {
+    FrameContext::FrameContext(NativeDevice *device, rhi::Allocator &allocator, D3D12_COMMAND_LIST_TYPE type,
+                               std::wstring_view name)
+        : m_uploadRing(allocator, std::wstring(name) + L" upload") {
         // A command allocator owns the memory that recorded commands are written into. The GPU reads
         // that memory while executing, so the allocator may only be Reset() once that work is done.
-        ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&m_allocator)));
-        ThrowIfFailed(m_allocator->SetName((std::wstring(name) + L" allocator").c_str()));
+        ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&m_commandAllocator)));
+        ThrowIfFailed(m_commandAllocator->SetName((std::wstring(name) + L" command allocator").c_str()));
     }
 
     void FrameContext::WaitAndReset(CommandQueue &queue) {
         queue.WaitForFenceValue(m_fenceValue);
 
         // The GPU is done with everything this slot recorded last time
-        ThrowIfFailed(m_allocator->Reset());
+        ThrowIfFailed(m_commandAllocator->Reset());
+        m_uploadRing.Reset();
         m_deferredReleases.clear();
     }
 

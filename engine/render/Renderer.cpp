@@ -96,7 +96,8 @@ namespace engine::render {
           m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer") {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
-            m_frames.emplace_back(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
+            m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
+                                  std::format(L"Frame {}", i));
         }
         CreateRootSignature();
         CreatePipelineState();
@@ -125,7 +126,7 @@ namespace engine::render {
             m_depth.Resize(m_swapChain.Width(), m_swapChain.Height(), frame);
         }
 
-        m_context.Begin(frame.Allocator());
+        m_context.Begin(frame.CommandAllocator());
     }
 
     void Renderer::Render(double timeSeconds) {
@@ -171,7 +172,7 @@ namespace engine::render {
         // resets the allocator and releases the upload buffers. No extra flush needed.
         ENGINE_ASSERT(m_frameNumber == 0);
         rhi::FrameContext &frame = CurrentFrame();
-        m_context.Begin(frame.Allocator());
+        m_context.Begin(frame.CommandAllocator());
 
         m_cubeVertices =
             rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeVertices)),
