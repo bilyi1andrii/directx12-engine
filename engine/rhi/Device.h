@@ -3,17 +3,21 @@
 
 #include <string>
 
+#include <dxgidebug.h> // IDXGIInfoQueue
+
 #include "rhi/RhiCommon.h"
+#include "rhi/ValidationStats.h"
 
 namespace engine::rhi {
     // Owns the DXGI factory, the adapter (GPU) and the D3D12 device.
     // In Debug builds it also enables the debug layer, GPU-based validation and DRED,
-    // and routes debug-layer messages to the log.
+    // routes D3D12 and DXGI debug messages to the log and counts errors and leaks in `stats`.
     // Not copyable or movable: the debug-message callback keeps `this`.
 
     class Device {
     public:
-        Device();
+        // `stats` must outlive the Device (the destructor writes the live-object count)
+        explicit Device(ValidationStats &stats);
         // Releases the device, then reports live (leaked) DXGI/D3D12 objects in Debug builds
         ~Device();
 
@@ -30,16 +34,24 @@ namespace engine::rhi {
         // and, in Debug builds, the DRED and page-fault info. Does nothing otherwise.
         void LogDeviceRemovedInfo() const;
 
+        // Moves the messages DXGI stored since the last call (e.g. from Present or ResizeBuffers) to the
+        // log and counts its errors. D3D12's messages arrive through the callback instead.
+        // Call once per frame; does nothing in Release builds.
+        void DrainDxgiMessages();
+
     private:
         void CreateFactory();
         void SelectAdapter();
         void CreateDevice();
         void CheckFeatureSupport() const;
         void SetUpInfoQueue();
+        void SetUpDxgiInfoQueue();
 
         static void __stdcall OnDebugMessage(D3D12_MESSAGE_CATEGORY category, D3D12_MESSAGE_SEVERITY severity,
                                              D3D12_MESSAGE_ID id, LPCSTR description, void *context);
 
+        ValidationStats &m_stats;
+        ComPtr<IDXGIInfoQueue> m_dxgiInfoQueue; // Debug builds only
         ComPtr<IDXGIFactory6> m_factory;
         ComPtr<IDXGIAdapter4> m_adapter;
         ComPtr<NativeDevice> m_device;

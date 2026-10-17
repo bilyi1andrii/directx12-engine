@@ -86,8 +86,8 @@ namespace engine::render {
         }
     } // namespace
 
-    Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height)
-        : m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
+    Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
+        : m_device(validation), m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
@@ -160,6 +160,8 @@ namespace engine::render {
         m_queue.ExecuteCommandList(m_context.Native());
         m_swapChain.Present(vsync);
         CurrentFrame().SetFenceValue(m_queue.Signal());
+        // Logs this frame's DXGI messages (Present, ResizeBuffers) next to the frame that caused them
+        m_device.DrainDxgiMessages();
         ++m_frameNumber;
     }
 

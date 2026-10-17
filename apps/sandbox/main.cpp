@@ -7,15 +7,20 @@
 #include "core/Input.h"
 #include "core/Assert.h"
 #include "rhi/AgilitySdk.h"
+#include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
+using engine::core::LogWarning;
 
 ENGINE_EXPORT_AGILITY_SDK()
 
-int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
-    try {
+namespace {
+    // Creates the window and the renderer and runs the game loop until the window closes.
+    // Returns the window's exit code. Everything it creates is destroyed before it returns,
+    // so `validation` is complete afterwards.
+    int RunSandbox(engine::rhi::ValidationStats &validation) {
         engine::core::Timer initTimer;
         initTimer.Start();
 
@@ -33,7 +38,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 },
         });
 
-        engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height());
+        engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 renderer.TearingSupported() ? "supported" : "not supported");
@@ -92,9 +97,33 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             }
         }
 
-        LogInfo("Exiting with code {}", window.ExitCode());
-
         return window.ExitCode();
+    }
+
+    void LogValidationSummary(const engine::rhi::ValidationStats &validation) {
+        if (!validation.active) {
+            LogInfo("Validation: not active (Release build or debug layer unavailable)");
+            return;
+        }
+        const uint32_t errors = validation.errorCount.load();
+        if (errors == 0 && validation.liveObjectCount == 0) {
+            LogInfo("Validation: 0 debug-layer errors, 0 live objects at shutdown");
+        } else {
+            LogWarning("Validation: {} debug-layer errors, {} live objects at shutdown", errors,
+                       validation.liveObjectCount);
+        }
+    }
+} // namespace
+
+int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
+    try {
+        // Outlives the renderer: its device writes the live-object count when it is destroyed
+        engine::rhi::ValidationStats validation;
+        const int exitCode = RunSandbox(validation);
+        LogValidationSummary(validation);
+
+        LogInfo("Exiting with code {}", exitCode);
+        return exitCode;
     } catch (std::exception &e) {
         LogError("{}", e.what());
         MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);

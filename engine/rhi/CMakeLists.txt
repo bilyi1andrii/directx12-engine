@@ -18,7 +18,8 @@ add_library(engine_rhi STATIC
         FrameContext.h
         RhiCommon.h
         SwapChain.cpp
-        SwapChain.h)
+        SwapChain.h
+        ValidationStats.h)
 
 engine_target_defaults(engine_rhi)
 

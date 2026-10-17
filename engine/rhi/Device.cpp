@@ -7,8 +7,6 @@
 #include <system_error>
 #include <vector>
 
-#include <dxgidebug.h> // IDXGIDebug1, IDXGIInfoQueue: live-object report
-
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 
@@ -77,37 +75,48 @@ namespace engine::rhi {
             dred->SetPageFaultEnablement(D3D12_DRED_ENABLEMENT_FORCED_ON);
         }
 
-        // Logs every DXGI/D3D12 object that is still alive. Called after the device is released,
-        // so anything listed here is a leak.
-        void ReportLiveObjects() {
-            ComPtr<IDXGIDebug1> dxgiDebug;
-            ComPtr<IDXGIInfoQueue> dxgiInfoQueue;
-            if (FAILED(::DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug))) ||
-                FAILED(::DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiInfoQueue)))) {
-                LogWarning("DXGI debug interface not available, cannot report live objects");
-                return;
+        // Calls handle(message) for each message from `producer` stored in the DXGI info queue
+        template <typename Handler>
+        void ForEachStoredMessage(IDXGIInfoQueue &infoQueue, DXGI_DEBUG_ID producer, Handler &&handle) {
+            const UINT64 count = infoQueue.GetNumStoredMessages(producer);
+            std::vector<std::byte> buffer;
+            for (UINT64 i = 0; i < count; ++i) {
+                SIZE_T size = 0;
+                ThrowIfFailed(infoQueue.GetMessage(producer, i, nullptr, &size));
+                buffer.resize(size);
+                auto *message = reinterpret_cast<DXGI_INFO_QUEUE_MESSAGE *>(buffer.data());
+                ThrowIfFailed(infoQueue.GetMessage(producer, i, message, &size));
+                handle(*message);
             }
+        }
+
+        // DescriptionByteLength counts the terminating null
+        std::string_view Description(const DXGI_INFO_QUEUE_MESSAGE &message) {
+            return {message.pDescription, message.DescriptionByteLength - 1};
+        }
+
+        // Logs every DXGI/D3D12 object that is still alive and returns how many there are.
+        // Called after the device is released, so anything listed here is a leak.
+        uint32_t ReportLiveObjects(IDXGIInfoQueue &infoQueue) {
+            ComPtr<IDXGIDebug1> dxgiDebug;
+            ThrowIfFailed(::DXGIGetDebugInterface1(0, IID_PPV_ARGS(&dxgiDebug)));
 
             // The report goes into the DXGI info queue; copy it from there to the log
-            dxgiInfoQueue->ClearStoredMessages(DXGI_DEBUG_ALL);
+            infoQueue.ClearStoredMessages(DXGI_DEBUG_ALL);
             ThrowIfFailed(dxgiDebug->ReportLiveObjects(
                 DXGI_DEBUG_ALL,
                 static_cast<DXGI_DEBUG_RLO_FLAGS>(DXGI_DEBUG_RLO_DETAIL | DXGI_DEBUG_RLO_IGNORE_INTERNAL)));
 
-            const UINT64 count = dxgiInfoQueue->GetNumStoredMessages(DXGI_DEBUG_ALL);
-            std::vector<std::byte> buffer;
-            for (UINT64 i = 0; i < count; ++i) {
-                SIZE_T size = 0;
-                ThrowIfFailed(dxgiInfoQueue->GetMessage(DXGI_DEBUG_ALL, i, nullptr, &size));
-                buffer.resize(size);
-                auto *message = reinterpret_cast<DXGI_INFO_QUEUE_MESSAGE *>(buffer.data());
-                ThrowIfFailed(dxgiInfoQueue->GetMessage(DXGI_DEBUG_ALL, i, message, &size));
-                LogWarning("{}", std::string_view(message->pDescription, message->DescriptionByteLength - 1));
-            }
+            uint32_t count = 0;
+            ForEachStoredMessage(infoQueue, DXGI_DEBUG_ALL, [&count](const DXGI_INFO_QUEUE_MESSAGE &message) {
+                LogWarning("{}", Description(message));
+                ++count;
+            });
+            return count;
         }
     } // namespace
 
-    Device::Device() {
+    Device::Device(ValidationStats &stats) : m_stats(stats) {
         if constexpr (kDebugBuild) {
             EnableDebugLayer();
             EnableDred();
@@ -118,6 +127,10 @@ namespace engine::rhi {
         CheckFeatureSupport();
         if constexpr (kDebugBuild) {
             SetUpInfoQueue();
+            SetUpDxgiInfoQueue();
+            // A run is only checked if both message sources work; the destructor clears this again
+            // if the live-object report fails
+            m_stats.active = m_messageCallbackCookie != 0 && m_dxgiInfoQueue != nullptr;
         }
     }
 
@@ -136,9 +149,17 @@ namespace engine::rhi {
 
         if constexpr (kDebugBuild) {
             try {
-                ReportLiveObjects();
+                // The last DXGI messages, including those from releasing the swap chain and the factory
+                DrainDxgiMessages();
+                if (m_dxgiInfoQueue) {
+                    m_stats.liveObjectCount = ReportLiveObjects(*m_dxgiInfoQueue.Get());
+                } else {
+                    LogWarning("DXGI debug interface not available, cannot report live objects");
+                    m_stats.active = false;
+                }
             } catch (const std::exception &e) {
                 LogError("Live-object report failed: {}", e.what());
+                m_stats.active = false;
             }
         }
     }
@@ -241,7 +262,7 @@ namespace engine::rhi {
 
     void Device::SetUpInfoQueue() {
         // The info queue collects the debug layer's messages. Version 1 adds a callback,
-        // which lets the engine log them (and, in the smoke test, count them).
+        // which lets the engine log and count them.
         ComPtr<ID3D12InfoQueue1> infoQueue;
         if (FAILED(m_device.As(&infoQueue))) {
             LogWarning("ID3D12InfoQueue1 not available; debug-layer messages only go to the debugger output");
@@ -260,13 +281,55 @@ namespace engine::rhi {
         // Each message now appears twice in the debugger output (D3D12's own line and the log's).
     }
 
+    void Device::SetUpDxgiInfoQueue() {
+        // DXGI's debug layer (DXGI_CREATE_FACTORY_DEBUG) stores its messages in a separate queue that
+        // has no callback, so DrainDxgiMessages() reads it once per frame
+        if (FAILED(::DXGIGetDebugInterface1(0, IID_PPV_ARGS(&m_dxgiInfoQueue)))) {
+            LogWarning("DXGI debug interface not available; DXGI messages are not logged or counted");
+            return;
+        }
+
+        // Same policy as for D3D12: stop in the debugger on errors, only when one is attached
+        if (::IsDebuggerPresent()) {
+            ThrowIfFailed(m_dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_DXGI,
+                                                              DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION, TRUE));
+            ThrowIfFailed(
+                m_dxgiInfoQueue->SetBreakOnSeverity(DXGI_DEBUG_DXGI, DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR, TRUE));
+        }
+    }
+
+    void Device::DrainDxgiMessages() {
+        if (!m_dxgiInfoQueue) {
+            return;
+        }
+        // Only DXGI's own messages. D3D12's messages are in this queue too (producer DXGI_DEBUG_D3D12), but they
+        // already went through OnDebugMessage and would be counted twice
+        ForEachStoredMessage(*m_dxgiInfoQueue.Get(), DXGI_DEBUG_DXGI, [this](const DXGI_INFO_QUEUE_MESSAGE &message) {
+            switch (message.Severity) {
+            case DXGI_INFO_QUEUE_MESSAGE_SEVERITY_CORRUPTION:
+            case DXGI_INFO_QUEUE_MESSAGE_SEVERITY_ERROR:
+                ++m_stats.errorCount;
+                LogError("DXGI #{}: {}", message.ID, Description(message));
+                break;
+            case DXGI_INFO_QUEUE_MESSAGE_SEVERITY_WARNING:
+                LogWarning("DXGI #{}: {}", message.ID, Description(message));
+                break;
+            default:
+                LogInfo("DXGI #{}: {}", message.ID, Description(message));
+                break;
+            }
+        });
+        m_dxgiInfoQueue->ClearStoredMessages(DXGI_DEBUG_DXGI);
+    }
+
     void __stdcall Device::OnDebugMessage(D3D12_MESSAGE_CATEGORY /*category*/, D3D12_MESSAGE_SEVERITY severity,
-                                          D3D12_MESSAGE_ID id, LPCSTR description, void * /*context*/) {
+                                          D3D12_MESSAGE_ID id, LPCSTR description, void *context) {
         // Called from inside D3D12 calls: exceptions must not propagate into the runtime
         try {
             switch (severity) {
             case D3D12_MESSAGE_SEVERITY_CORRUPTION:
             case D3D12_MESSAGE_SEVERITY_ERROR:
+                ++static_cast<Device *>(context)->m_stats.errorCount;
                 LogError("D3D12 #{}: {}", static_cast<int>(id), description);
                 break;
             case D3D12_MESSAGE_SEVERITY_WARNING:

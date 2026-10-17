@@ -12,6 +12,7 @@
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
 #include "rhi/SwapChain.h"
+#include "rhi/ValidationStats.h"
 
 namespace engine::render {
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
@@ -23,7 +24,9 @@ namespace engine::render {
     // Not copyable or movable (the swap chain and descriptors keep references to members).
     class Renderer {
     public:
-        Renderer(HWND hwnd, uint32_t width, uint32_t height);
+        // `validation` collects debug-layer errors and leaks (Debug builds) and must outlive the renderer:
+        // the device writes the live-object count when it is destroyed, after everything else
+        Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation);
         // Waits for the GPU before any member is released
         ~Renderer();
 
