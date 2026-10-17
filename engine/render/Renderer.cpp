@@ -1,7 +1,7 @@
 #include "render/Renderer.h"
 
 #include <array>
-#include <cmath>
+#include <cstring>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -19,6 +19,10 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "rhi/UploadRing.h"
+
+#include "common/root_signature.hlsli"
+#include "common/shared_types.hlsli"
 
 namespace engine::render {
     using core::ThrowIfFailed;
@@ -61,28 +65,27 @@ namespace engine::render {
             4, 0, 3, 4, 3, 7, // -Y
         };
 
-        // The cube's model-view-projection matrix at `timeSeconds`, ready for the shader.
-        DirectX::XMFLOAT4X4 CubeMvp(double timeSeconds, uint32_t width, uint32_t height) {
+        // Frame constants for a fixed camera looking at the cube from above and to the side, so three faces
+        // are visible. Temporary: the fly camera replaces it in the next sub-step.
+        gpu::FrameConstants FixedCameraConstants(uint32_t width, uint32_t height) {
             using namespace DirectX;
 
-            // 90 degrees per second around the (0, 1, 1) axis. fmod in double keeps the
-            // angle precise however long the program runs.
-            const float angle = XMConvertToRadians(static_cast<float>(std::fmod(timeSeconds * 90.0, 360.0)));
-            const XMMATRIX model = XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle);
-
-            const XMMATRIX view = XMMatrixLookAtLH(XMVectorSet(0.0f, 0.0f, -10.0f, 1.0f), // eye
-                                                   XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),   // focus
-                                                   XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));  // up
+            const XMVECTOR eye = XMVectorSet(3.0f, 4.0f, -8.0f, 1.0f);
+            const XMMATRIX view = XMMatrixLookAtLH(eye, XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), // focus
+                                                   XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));     // up
 
             // Left-handed with depth in [0, 1], as in the DX11 Camera
             const float aspect = static_cast<float>(width) / static_cast<float>(height);
             const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), aspect, 0.1f, 100.0f);
 
             // DirectXMath uses row vectors (v * M). HLSL reads matrices column-major by default, so the
-            // matrix is transposed here; vs_basic then computes mul(v, mvp).
-            XMFLOAT4X4 mvp;
-            XMStoreFloat4x4(&mvp, XMMatrixTranspose(model * view * projection));
-            return mvp;
+            // matrices are transposed here; shaders then compute mul(v, M).
+            gpu::FrameConstants constants{};
+            XMStoreFloat4x4(&constants.view, XMMatrixTranspose(view));
+            XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
+            XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(view * projection));
+            XMStoreFloat3(&constants.cameraPosition, eye);
+            return constants;
         }
     } // namespace
 
@@ -99,7 +102,12 @@ namespace engine::render {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
                                   std::format(L"Frame {}", i));
         }
-        CreateRootSignature();
+        // The global root signature is defined in HLSL (shaders/common/root_signature.hlsli) and compiled by
+        // DXC into its own file, already validated and serialized: the device only deserializes it
+        const std::vector<std::byte> rootSignature = LoadShader(L"rs_global.cso");
+        ThrowIfFailed(m_device.Native()->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),
+                                                             IID_PPV_ARGS(&m_rootSignature)));
+        ThrowIfFailed(m_rootSignature->SetName(L"Global root signature"));
         CreatePipelineState();
         UploadCube();
     }
@@ -129,7 +137,7 @@ namespace engine::render {
         m_context.Begin(frame.CommandAllocator());
     }
 
-    void Renderer::Render(double timeSeconds) {
+    void Renderer::Render() {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
@@ -144,8 +152,13 @@ namespace engine::render {
         m_context.SetGraphicsRootSignature(m_rootSignature.Get());
         m_context.SetPipelineState(m_pipelineState.Get());
 
-        const DirectX::XMFLOAT4X4 mvp = CubeMvp(timeSeconds, m_swapChain.Width(), m_swapChain.Height());
-        m_context.SetGraphicsRootConstants(0, std::as_bytes(std::span(&mvp, 1)));
+        // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
+        // already records the next frame into the other slot's ring
+        const gpu::FrameConstants frameConstants = FixedCameraConstants(m_swapChain.Width(), m_swapChain.Height());
+        const rhi::UploadAllocation frameCb =
+            CurrentFrame().Upload().Allocate(sizeof(frameConstants), rhi::kConstantBufferAlignment);
+        std::memcpy(frameCb.cpu, &frameConstants, sizeof(frameConstants));
+        m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         m_context.SetVertexBuffer(m_cubeVertices.VertexBufferView(sizeof(VertexPosColor)));
@@ -186,52 +199,6 @@ namespace engine::render {
         m_context.Close();
         m_queue.ExecuteCommandList(m_context.Native());
         frame.SetFenceValue(m_queue.Signal());
-    }
-
-    void Renderer::CreateRootSignature() {
-        // The root signature is the shaders' "function signature": it lists the inputs they get
-        // and where each comes from. Every PSO and every draw is created/recorded against one.
-        //
-        // Here a single parameter: 16 root constants (the MVP matrix) for vs_basic's
-        // ConstantBuffer at b0. Root constants are written straight into the command list,
-        // the cheapest way to pass a few values per draw.
-        const D3D12_ROOT_PARAMETER1 mvpConstants{
-            .ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS,
-            .Constants = {.ShaderRegister = 0, .RegisterSpace = 0, .Num32BitValues = 16},
-            .ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX,
-        };
-
-        // ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT: the cube is read through vertex buffers. The DENY flags
-        // tell the driver which stages never read root parameters, so it can skip setting them up.
-        const D3D12_VERSIONED_ROOT_SIGNATURE_DESC desc{
-            .Version = D3D_ROOT_SIGNATURE_VERSION_1_1,
-            .Desc_1_1 =
-                {
-                    .NumParameters = 1,
-                    .pParameters = &mvpConstants,
-                    .NumStaticSamplers = 0,
-                    .pStaticSamplers = nullptr,
-                    .Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
-                             D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-                             D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-                             D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
-                             D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS,
-                },
-        };
-
-        // The description is serialized into a binary blob first (the same format a root signature
-        // compiled into a shader has), then the device creates the object from that blob
-        rhi::ComPtr<ID3DBlob> blob;
-        rhi::ComPtr<ID3DBlob> error;
-        const HRESULT hr = ::D3D12SerializeVersionedRootSignature(&desc, &blob, &error);
-        if (FAILED(hr) && error) {
-            core::LogError("Root signature: {}", static_cast<const char *>(error->GetBufferPointer()));
-        }
-        ThrowIfFailed(hr);
-
-        ThrowIfFailed(m_device.Native()->CreateRootSignature(0, blob->GetBufferPointer(), blob->GetBufferSize(),
-                                                             IID_PPV_ARGS(&m_rootSignature)));
-        ThrowIfFailed(m_rootSignature->SetName(L"Cube root signature"));
     }
 
     void Renderer::CreatePipelineState() {

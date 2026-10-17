@@ -40,8 +40,8 @@ namespace engine::render {
         // (no-op when unchanged) and starts recording
         void BeginFrame(uint32_t width, uint32_t height);
 
-        // Records the frame's commands. timeSeconds: time since start, animates the cube
-        void Render(double timeSeconds);
+        // Records the frame's commands
+        void Render();
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
@@ -54,9 +54,8 @@ namespace engine::render {
     private:
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
-        // Create the cube's root signature and pipeline state (called once, from the constructor).
-        // Temporary: step 2 replaces them with the global root signature and PipelineCache.
-        void CreateRootSignature();
+        // Creates the cube's pipeline state (called once, from the constructor).
+        // Temporary: PipelineCache replaces it later in step 2.
         void CreatePipelineState();
 
         // Uploads the cube's vertex and index buffers (called once, from the constructor)
@@ -81,7 +80,7 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        rhi::ComPtr<ID3D12RootSignature> m_rootSignature;
+        rhi::ComPtr<ID3D12RootSignature> m_rootSignature; // the global one (shaders/common/root_signature.hlsli)
         rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
         rhi::Buffer m_cubeVertices;
         rhi::Buffer m_cubeIndices;
