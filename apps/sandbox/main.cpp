@@ -1,5 +1,10 @@
 #include <format>
 
+#include <expected>
+#include <string>
+
+#include "SandboxOptions.h"
+#include "core/CommandLine.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
@@ -17,6 +22,9 @@ using engine::core::LogWarning;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
+    // Exit codes besides the window's own (0). An assert exits with 3, an exception with -1.
+    constexpr int kExitBadCommandLine = 2;
+
     // Creates the window and the renderer and runs the game loop until the window closes.
     // Returns the window's exit code. Everything it creates is destroyed before it returns,
     // so `validation` is complete afterwards.
@@ -117,6 +125,14 @@ namespace {
 
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
     try {
+        const std::expected<SandboxOptions, std::string> options = ParseSandboxOptions(engine::core::CommandLineArgs());
+        if (!options) {
+            // No dialog: a wrong command line usually comes from a script
+            LogError("{}", options.error());
+            LogInfo("{}", kSandboxUsage);
+            return kExitBadCommandLine;
+        }
+
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;
         const int exitCode = RunSandbox(validation);

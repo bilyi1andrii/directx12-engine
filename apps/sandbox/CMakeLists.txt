@@ -1,5 +1,7 @@
 add_executable(sandbox
-        main.cpp)
+        main.cpp
+        SandboxOptions.cpp
+        SandboxOptions.h)
 
 # Equivalent of WIN32
 set_target_properties(sandbox PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)

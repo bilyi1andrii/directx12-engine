@@ -9,6 +9,7 @@
 
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "core/Utf8.h"
 
 namespace engine::rhi {
     namespace {
@@ -16,6 +17,7 @@ namespace engine::rhi {
         using core::LogInfo;
         using core::LogWarning;
         using core::ThrowIfFailed;
+        using core::ToUtf8;
 
 #if defined(_DEBUG)
         constexpr bool kDebugBuild = true;
@@ -26,17 +28,6 @@ namespace engine::rhi {
         // Bindless needs resource binding tier 3 and shader model 6.6
         constexpr D3D_FEATURE_LEVEL kMinFeatureLevel = D3D_FEATURE_LEVEL_12_0;
         constexpr D3D_SHADER_MODEL kMinShaderModel = D3D_SHADER_MODEL_6_6;
-
-        std::string ToUtf8(std::wstring_view text) {
-            if (text.empty()) {
-                return {};
-            }
-            const int length = static_cast<int>(text.size());
-            const int size = ::WideCharToMultiByte(CP_UTF8, 0, text.data(), length, nullptr, 0, nullptr, nullptr);
-            std::string result(static_cast<size_t>(size), '\0');
-            ::WideCharToMultiByte(CP_UTF8, 0, text.data(), length, result.data(), size, nullptr, nullptr);
-            return result;
-        }
 
         // Debug names in DRED output may be missing
         std::string NameOrUnnamed(const wchar_t *name) {
