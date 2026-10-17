@@ -87,6 +87,7 @@ namespace {
         engine::scene::Camera camera;
         camera.position = {3.0f, 4.0f, -8.0f};
         engine::scene::LookAt(camera, {0.0f, 0.0f, 0.0f});
+        camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
         // Game loop: handle all pending window messages, update, render
