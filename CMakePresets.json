@@ -38,5 +38,15 @@
     { "name": "x64-debug", "configurePreset": "x64-debug" },
     { "name": "x64-release", "configurePreset": "x64-release" },
     { "name": "x64-relwithdebinfo", "configurePreset": "x64-relwithdebinfo" }
+  ],
+  "testPresets": [
+    {
+      "name": "test-base",
+      "hidden": true,
+      "output": { "outputOnFailure": true }
+    },
+    { "name": "x64-debug", "inherits": "test-base", "configurePreset": "x64-debug" },
+    { "name": "x64-release", "inherits": "test-base", "configurePreset": "x64-release" },
+    { "name": "x64-relwithdebinfo", "inherits": "test-base", "configurePreset": "x64-relwithdebinfo" }
   ]
 }

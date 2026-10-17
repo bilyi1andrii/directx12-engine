@@ -10,6 +10,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # and shaders/ folders, so all apps (sandbox, later bench) find them the same way.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
+# Tests run with `ctest --preset <preset>` after a build. Must be enabled in the top-level
+# CMakeLists.txt, before the subdirectories that add tests.
+enable_testing()
+
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(EngineTargets)
 
