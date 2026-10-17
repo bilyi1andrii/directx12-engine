@@ -87,12 +87,13 @@ namespace engine::render {
     } // namespace
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
-        : m_device(validation), m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
+        : m_device(validation), m_allocator(m_device),
+          m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
-          m_depth(m_device.Native(), m_dsvAllocator, width, height, L"Depth buffer") {
+          m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer") {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, std::format(L"Frame {}", i));
@@ -173,10 +174,10 @@ namespace engine::render {
         m_context.Begin(frame.Allocator());
 
         m_cubeVertices =
-            rhi::Buffer::CreateWithData(m_device.Native(), m_context, frame, std::as_bytes(std::span(kCubeVertices)),
+            rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeVertices)),
                                         D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB");
         m_cubeIndices =
-            rhi::Buffer::CreateWithData(m_device.Native(), m_context, frame, std::as_bytes(std::span(kCubeIndices)),
+            rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeIndices)),
                                         D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB");
 
         // Must be submitted and signalled before the first BeginFrame: otherwise WaitAndReset would

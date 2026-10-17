@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 
+#include "rhi/Allocator.h"
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/RhiCommon.h"
 
@@ -13,11 +14,12 @@ namespace engine::rhi {
 
     // A depth texture the size of the render target, plus its depth-stencil view (DSV).
     // It always stays in DEPTH_WRITE, so it needs no barriers while nothing samples it.
+    // Created through rhi::Allocator.
     //
-    // Destroying it releases the texture at once: the owner must make sure the GPU is idle
+    // Destroying it releases the texture and its memory at once: the owner must make sure the GPU is idle
     // (Renderer flushes the queue first). Resize() defers the old texture instead.
     //
-    // Move-only. The DSV allocator must outlive it.
+    // Move-only. The resource allocator and the DSV allocator must outlive it.
     class DepthBuffer {
     public:
         // 32-bit float depth, no stencil
@@ -25,8 +27,8 @@ namespace engine::rhi {
         // Far plane with the standard (not reversed) depth range; the depth test is LESS
         static constexpr float kClearDepth = 1.0f;
 
-        DepthBuffer(NativeDevice *device, DescriptorAllocator &dsvAllocator, uint32_t width, uint32_t height,
-                    std::wstring_view name);
+        DepthBuffer(NativeDevice *device, Allocator &allocator, DescriptorAllocator &dsvAllocator, uint32_t width,
+                    uint32_t height, std::wstring_view name);
 
         DepthBuffer(const DepthBuffer &) = delete;
         DepthBuffer &operator=(const DepthBuffer &) = delete;
@@ -37,7 +39,7 @@ namespace engine::rhi {
         // list, because earlier frames may still be using it. Does nothing for an unchanged size or 0x0.
         void Resize(uint32_t width, uint32_t height, FrameContext &frame);
 
-        [[nodiscard]] ID3D12Resource *Native() const noexcept { return m_resource.Get(); }
+        [[nodiscard]] ID3D12Resource *Native() const noexcept { return m_allocation->GetResource(); }
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE Dsv() const noexcept { return m_dsv.Cpu(); }
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
         [[nodiscard]] uint32_t Height() const noexcept { return m_height; }
@@ -46,7 +48,8 @@ namespace engine::rhi {
         void Create();
 
         NativeDevice *m_device;
-        ComPtr<ID3D12Resource> m_resource;
+        Allocator *m_allocator;
+        Allocation m_allocation;
         Descriptor m_dsv; // the slot is kept across resizes; only the view in it is rewritten
         uint32_t m_width = 0;
         uint32_t m_height = 0;

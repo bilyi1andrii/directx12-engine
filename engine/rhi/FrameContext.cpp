@@ -24,7 +24,7 @@ namespace engine::rhi {
         m_deferredReleases.clear();
     }
 
-    void FrameContext::DeferRelease(ComPtr<ID3D12DeviceChild> object) {
-        m_deferredReleases.push_back(std::move(object));
+    void FrameContext::DeferRelease(Allocation allocation) {
+        m_deferredReleases.push_back(std::move(allocation));
     }
 } // namespace engine::rhi

@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "rhi/Allocator.h"
 #include "rhi/Buffer.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
@@ -62,9 +63,12 @@ namespace engine::render {
         void UploadCube();
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
-        // live-object report sees everything else released. The frames and the command list come
-        // before the queue: the queue's destructor waits for the GPU before they are released.
+        // live-object report sees everything else released. The resource allocator is next: every
+        // buffer, texture and deferred release (in the frames) must be gone before it. The frames and
+        // the command list come before the queue: the queue's destructor waits for the GPU before
+        // they are released.
         rhi::Device m_device;
+        rhi::Allocator m_allocator;
         std::vector<rhi::FrameContext> m_frames;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;

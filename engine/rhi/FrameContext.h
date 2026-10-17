@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include "rhi/Allocator.h"
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
@@ -38,9 +39,10 @@ namespace engine::rhi {
         // End of the frame: the value returned by CommandQueue::Signal() after submitting its work
         void SetFenceValue(uint64_t fenceValue) noexcept { m_fenceValue = fenceValue; }
 
-        // Keeps a D3D12 object alive until the GPU has finished this frame. Use it instead of
-        // releasing anything the frame's command lists may reference.
-        void DeferRelease(ComPtr<ID3D12DeviceChild> object);
+        // Keeps the resource and its memory alive until the GPU finishes this frame.
+        // Use this instead of immediate release for any resource used by this frame's commands.
+        // Otherwise, D3D12MA might reuse the memory while the GPU is still reading it.
+        void DeferRelease(Allocation allocation);
 
         [[nodiscard]] ID3D12CommandAllocator *Allocator() const noexcept { return m_allocator.Get(); }
         [[nodiscard]] uint64_t FenceValue() const noexcept { return m_fenceValue; }
@@ -48,7 +50,7 @@ namespace engine::rhi {
     private:
         ComPtr<ID3D12CommandAllocator> m_allocator;
         uint64_t m_fenceValue = 0; // 0: nothing submitted yet, always complete
-        std::vector<ComPtr<ID3D12DeviceChild>> m_deferredReleases;
+        std::vector<Allocation> m_deferredReleases;
     };
 
 } // namespace engine::rhi
