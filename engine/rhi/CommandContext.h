@@ -13,7 +13,7 @@ namespace engine::rhi {
     // Thin wrapper over a graphics command list. Collects resource barriers and submits them as one
     // ResourceBarrier() call right before the next command that needs them (or at Close()).
     //
-    // Usage per frame: Begin(frame.Allocator()) -> Transition/Clear/... -> Close() -> CommandQueue::ExecuteCommandList(Native()).
+    // Usage per frame: Begin(frame.CommandAllocator()) -> Transition/Clear/... -> Close() -> CommandQueue::ExecuteCommandList(Native()).
     // Calls made directly on Native() bypass the batching: call FlushBarriers() before them.
     //
     // Not copyable or movable.
@@ -54,6 +54,9 @@ namespace engine::rhi {
         // Writes `data` (a multiple of 4 bytes) into the root constants of parameter `rootIndex`.
         // The root signature must be set first.
         void SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data);
+        // Points root CBV parameter `rootIndex` at a constant buffer (256-byte aligned, from an
+        // UploadRing). Only the address is recorded: the data must stay valid until the GPU has read it.
+        void SetGraphicsRootConstantBufferView(uint32_t rootIndex, D3D12_GPU_VIRTUAL_ADDRESS address);
         void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology);
         void SetVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW &view);
         void SetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW &view);

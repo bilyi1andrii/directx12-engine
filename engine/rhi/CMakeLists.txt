@@ -2,6 +2,8 @@
 
 add_library(engine_rhi STATIC
         AgilitySdk.h
+        Allocator.cpp
+        Allocator.h
         Buffer.cpp
         Buffer.h
         CommandContext.cpp
@@ -19,6 +21,8 @@ add_library(engine_rhi STATIC
         RhiCommon.h
         SwapChain.cpp
         SwapChain.h
+        UploadRing.cpp
+        UploadRing.h
         ValidationStats.h)
 
 engine_target_defaults(engine_rhi)
@@ -31,4 +35,5 @@ target_link_libraries(engine_rhi PUBLIC
         engine_core
         Microsoft::DirectX-Headers      # <directx/d3d12.h>, <directx/d3dx12.h> matching the Agility SDK
         Microsoft::DirectX-Guids        # IIDs for interfaces newer than the Windows SDK's dxguid.lib
+        GPUOpen::D3D12MemoryAllocator   # <D3D12MemAlloc.h>, included by rhi/Allocator.h
         d3d12 dxgi dxguid)

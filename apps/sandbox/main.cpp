@@ -17,6 +17,8 @@
 #include "rhi/AgilitySdk.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
+#include "scene/Camera.h"
+#include "scene/CameraController.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -35,6 +37,15 @@ namespace {
 #else
     constexpr bool kValidationExpected = false;
 #endif
+
+    // The renderer's input for one frame, from the camera (scene and render do not know each other)
+    engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
+        engine::render::FrameView view{};
+        DirectX::XMStoreFloat4x4(&view.view, engine::scene::ViewMatrix(camera));
+        DirectX::XMStoreFloat4x4(&view.projection, engine::scene::ProjectionMatrix(camera, aspectRatio));
+        view.cameraPosition = camera.position;
+        return view;
+    }
 
     struct RunResult {
         int exitCode = 0; // the window's
@@ -72,10 +83,16 @@ namespace {
             LogInfo("Smoke test: rendering {} frames", *smokeTestFrames);
         }
 
+        // Looks at the cube from above and to the side, so three faces are visible
+        engine::scene::Camera camera;
+        camera.position = {3.0f, 4.0f, -8.0f};
+        engine::scene::LookAt(camera, {0.0f, 0.0f, 0.0f});
+        camera.fovDegrees = 60.0f;
+        const engine::scene::CameraController cameraController;
+
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
-        bool vsync = true;            // toggled with V
-        engine::core::Int2 rightDrag; // temporary raw-mouse check
+        bool vsync = true; // toggled with V
         uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
             frameTimer.Tick();
@@ -91,15 +108,8 @@ namespace {
                 window.ToggleFullscreen();
             }
 
-            // Temporary check of raw mouse input until the camera uses it
-            if (input.IsKeyDown(VK_RBUTTON)) {
-                rightDrag.x += input.RawMouseDelta().x;
-                rightDrag.y += input.RawMouseDelta().y;
-            }
-            if (input.WasKeyReleased(VK_RBUTTON)) {
-                LogInfo("Right-drag: raw mouse moved ({}, {})", rightDrag.x, rightDrag.y);
-                rightDrag = {};
-            }
+            cameraController.Update(camera, input, frameTimer.DeltaSeconds());
+
             if (frameTimer.FpsUpdated()) {
                 const double fps = frameTimer.Fps();
                 window.SetTitle(std::format(L"D3D12 Engine - {:.1f} FPS ({:.2f} ms)", fps, 1000.0 / fps));
@@ -119,7 +129,8 @@ namespace {
             }
             try {
                 renderer.BeginFrame(window.Width(), window.Height());
-                renderer.Render(frameTimer.TotalSeconds());
+                // After BeginFrame: the aspect ratio follows this frame's swap chain size
+                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()));
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with

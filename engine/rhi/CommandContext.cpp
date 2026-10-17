@@ -114,6 +114,13 @@ namespace engine::rhi {
         m_list->SetGraphicsRoot32BitConstants(rootIndex, static_cast<UINT>(data.size() / 4), data.data(), 0);
     }
 
+    void CommandContext::SetGraphicsRootConstantBufferView(uint32_t rootIndex, D3D12_GPU_VIRTUAL_ADDRESS address) {
+        ENGINE_ASSERT(m_recording);
+        ENGINE_ASSERT_MSG(address % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT == 0,
+                          "constant buffer address {:#x} is not 256-byte aligned", address);
+        m_list->SetGraphicsRootConstantBufferView(rootIndex, address);
+    }
+
     void CommandContext::SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology) {
         ENGINE_ASSERT(m_recording);
         m_list->IASetPrimitiveTopology(topology);

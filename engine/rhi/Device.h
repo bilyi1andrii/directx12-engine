@@ -28,6 +28,7 @@ namespace engine::rhi {
 
         [[nodiscard]] NativeDevice *Native() const noexcept { return m_device.Get(); }
         [[nodiscard]] IDXGIFactory6 *Factory() const noexcept { return m_factory.Get(); }
+        [[nodiscard]] IDXGIAdapter4 *Adapter() const noexcept { return m_adapter.Get(); }
         [[nodiscard]] bool TearingSupported() const noexcept { return m_tearingSupported; }
 
         // If the device was removed (GPU hang, driver crash, invalid command), logs the reason

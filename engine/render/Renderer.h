@@ -4,6 +4,9 @@
 #include <cstdint>
 #include <vector>
 
+#include <DirectXMath.h>
+
+#include "rhi/Allocator.h"
 #include "rhi/Buffer.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
@@ -15,9 +18,15 @@
 #include "rhi/ValidationStats.h"
 
 namespace engine::render {
+    struct FrameView {
+        DirectX::XMFLOAT4X4 view;
+        DirectX::XMFLOAT4X4 projection;
+        DirectX::XMFLOAT3 cameraPosition; // world space
+    };
+
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height) -> Render() -> EndFrame(vsync).
+    // Per frame: BeginFrame(width, height) -> Render(view) -> EndFrame(vsync).
     // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
@@ -39,8 +48,14 @@ namespace engine::render {
         // (no-op when unchanged) and starts recording
         void BeginFrame(uint32_t width, uint32_t height);
 
-        // Records the frame's commands. timeSeconds: time since start, animates the cube
-        void Render(double timeSeconds);
+        // Width / height of the back buffers, for the camera's projection. Valid after BeginFrame; never
+        // 0 or NaN, because the swap chain keeps its last size while the window is minimized.
+        [[nodiscard]] float AspectRatio() const noexcept {
+            return static_cast<float>(m_swapChain.Width()) / static_cast<float>(m_swapChain.Height());
+        }
+
+        // Records the frame's commands, seen through `view`
+        void Render(const FrameView &view);
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
@@ -53,18 +68,20 @@ namespace engine::render {
     private:
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
-        // Create the cube's root signature and pipeline state (called once, from the constructor).
-        // Temporary: step 2 replaces them with the global root signature and PipelineCache.
-        void CreateRootSignature();
+        // Creates the cube's pipeline state (called once, from the constructor).
+        // Temporary: PipelineCache replaces it later in step 2.
         void CreatePipelineState();
 
         // Uploads the cube's vertex and index buffers (called once, from the constructor)
         void UploadCube();
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
-        // live-object report sees everything else released. The frames and the command list come
-        // before the queue: the queue's destructor waits for the GPU before they are released.
+        // live-object report sees everything else released. The resource allocator is next: every
+        // buffer, texture and deferred release (in the frames) must be gone before it. The frames and
+        // the command list come before the queue: the queue's destructor waits for the GPU before
+        // they are released.
         rhi::Device m_device;
+        rhi::Allocator m_allocator;
         std::vector<rhi::FrameContext> m_frames;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
@@ -77,7 +94,7 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        rhi::ComPtr<ID3D12RootSignature> m_rootSignature;
+        rhi::ComPtr<ID3D12RootSignature> m_rootSignature; // the global one (shaders/common/root_signature.hlsli)
         rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
         rhi::Buffer m_cubeVertices;
         rhi::Buffer m_cubeIndices;
