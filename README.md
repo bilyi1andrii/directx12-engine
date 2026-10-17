@@ -3,10 +3,11 @@
 A real-time renderer in C++23 on Direct3D 12, the successor of
 [DX11 engine](https://github.com/bilyi1andrii/graphics_hw_bilyi).
 
-**Status:** step 1 of the plan, so far a clear-screen window. The build system is in place
-(CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL compiled by DXC at build time), and so is the platform
-layer in `engine/core` (window, input, timing, logging, error handling). The D3D12 wrapper in `engine/rhi`
-is in progress (device with debug layer and feature checks, command queue with fence).
+**Status:** step 1 of the plan is complete: a window with a spinning cube. In place are the build system
+(CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer in
+`engine/core` (window, input, timing, logging, error handling), the D3D12 wrapper in `engine/rhi` (device with debug
+layer and feature checks, queues, frames in flight, descriptors, swap chain, buffers), the `Renderer` in
+`engine/render`, and an automated smoke test. Next: step 2 (camera, textures, models, instancing).
 
 ## Requirements
 
@@ -40,6 +41,7 @@ CMake and Ninja are on `PATH`. From a terminal, use a **Developer PowerShell for
 cmake --preset x64-debug              # configure (first run also installs vcpkg packages)
 cmake --build --preset x64-debug      # build
 .\build\x64-debug\bin\sandbox.exe     # run
+ctest --preset x64-debug              # smoke test
 ```
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
@@ -59,6 +61,26 @@ PowerShell. Debug the exe with the Visual Studio debugger, or another debugger t
 The app logs to stderr and to the debugger output. Debug and RelWithDebInfo builds are console programs, so the log
 appears in the terminal (or the IDE's terminal) that started them. A Debug build started from Explorer therefore opens a
 console window next to the game window. Release builds have no console; capture their log with `sandbox.exe 2> log.txt`.
+
+### Smoke test
+
+`ctest --preset x64-debug` runs `sandbox.exe --smoke-test 120`: it renders 120 frames, toggles fullscreen twice
+(the screen flashes for about a second) and exits on its own. The test fails if the D3D12 or DXGI debug layer reported
+an error, if objects are still alive at shutdown, if fewer than 120 frames were rendered, or if the app crashes or
+hangs (ctest stops it after 30 s). On failure ctest prints the log; the last lines say why. Run it after every change,
+before committing.
+
+The exe can also be started directly with `--smoke-test N`. Exit codes:
+
+| Code | Meaning |
+|---|---|
+| 0 | Passed |
+| 1 | Failed (the log says why) |
+| 2 | Bad command line |
+| 3 | Failed assert |
+| -1 | Exception |
+
+Only Debug builds have the debug layer. In Release the test only checks that the app renders and shuts down.
 
 ### Output layout
 
@@ -81,11 +103,12 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point)
+apps/sandbox   test application (entry point, --smoke-test)
 cmake/         CMake helper modules (warnings, Agility SDK copy)
-engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert (no D3D12)
-engine/rhi     thin D3D12 wrapper: Device, CommandQueue (more to come in step 1)
+engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, File, CommandLine (no D3D12)
+engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors, buffers
+engine/render  Renderer: owns the frame loop's GPU objects and records each frame
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6)
 ```
 
-More engine modules (`engine/render`, `engine/scene`, …) are added in the next steps.
+More engine modules (`engine/scene`, `engine/assets`, …) are added in the next steps.
