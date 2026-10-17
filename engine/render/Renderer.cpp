@@ -65,26 +65,19 @@ namespace engine::render {
             4, 0, 3, 4, 3, 7, // -Y
         };
 
-        // Frame constants for a fixed camera looking at the cube from above and to the side, so three faces
-        // are visible. Temporary: the fly camera replaces it in the next sub-step.
-        gpu::FrameConstants FixedCameraConstants(uint32_t width, uint32_t height) {
+        // The shader's view of FrameView: matrices transposed (DirectXMath uses row vectors, HLSL reads
+        // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection
+        gpu::FrameConstants MakeFrameConstants(const FrameView &view) {
             using namespace DirectX;
 
-            const XMVECTOR eye = XMVectorSet(3.0f, 4.0f, -8.0f, 1.0f);
-            const XMMATRIX view = XMMatrixLookAtLH(eye, XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f), // focus
-                                                   XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));     // up
+            const XMMATRIX viewMatrix = XMLoadFloat4x4(&view.view);
+            const XMMATRIX projection = XMLoadFloat4x4(&view.projection);
 
-            // Left-handed with depth in [0, 1], as in the DX11 Camera
-            const float aspect = static_cast<float>(width) / static_cast<float>(height);
-            const XMMATRIX projection = XMMatrixPerspectiveFovLH(XMConvertToRadians(45.0f), aspect, 0.1f, 100.0f);
-
-            // DirectXMath uses row vectors (v * M). HLSL reads matrices column-major by default, so the
-            // matrices are transposed here; shaders then compute mul(v, M).
             gpu::FrameConstants constants{};
-            XMStoreFloat4x4(&constants.view, XMMatrixTranspose(view));
+            XMStoreFloat4x4(&constants.view, XMMatrixTranspose(viewMatrix));
             XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
-            XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(view * projection));
-            XMStoreFloat3(&constants.cameraPosition, eye);
+            XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(viewMatrix * projection));
+            constants.cameraPosition = view.cameraPosition;
             return constants;
         }
     } // namespace
@@ -137,7 +130,7 @@ namespace engine::render {
         m_context.Begin(frame.CommandAllocator());
     }
 
-    void Renderer::Render() {
+    void Renderer::Render(const FrameView &view) {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
@@ -154,7 +147,7 @@ namespace engine::render {
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
-        const gpu::FrameConstants frameConstants = FixedCameraConstants(m_swapChain.Width(), m_swapChain.Height());
+        const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Upload().Allocate(sizeof(frameConstants), rhi::kConstantBufferAlignment);
         std::memcpy(frameCb.cpu, &frameConstants, sizeof(frameConstants));

@@ -15,7 +15,8 @@ engine_target_defaults(sandbox)
 target_link_libraries(sandbox PRIVATE
         engine_core
         engine_rhi
-        engine_render)
+        engine_render
+        engine_scene)
 
 add_dependencies(sandbox compile_shaders)
 engine_copy_agility_runtime(sandbox)

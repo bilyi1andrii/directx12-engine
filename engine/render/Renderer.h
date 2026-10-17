@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <DirectXMath.h>
+
 #include "rhi/Allocator.h"
 #include "rhi/Buffer.h"
 #include "rhi/CommandContext.h"
@@ -16,9 +18,15 @@
 #include "rhi/ValidationStats.h"
 
 namespace engine::render {
+    struct FrameView {
+        DirectX::XMFLOAT4X4 view;
+        DirectX::XMFLOAT4X4 projection;
+        DirectX::XMFLOAT3 cameraPosition; // world space
+    };
+
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height) -> Render() -> EndFrame(vsync).
+    // Per frame: BeginFrame(width, height) -> Render(view) -> EndFrame(vsync).
     // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
@@ -40,8 +48,14 @@ namespace engine::render {
         // (no-op when unchanged) and starts recording
         void BeginFrame(uint32_t width, uint32_t height);
 
-        // Records the frame's commands
-        void Render();
+        // Width / height of the back buffers, for the camera's projection. Valid after BeginFrame; never
+        // 0 or NaN, because the swap chain keeps its last size while the window is minimized.
+        [[nodiscard]] float AspectRatio() const noexcept {
+            return static_cast<float>(m_swapChain.Width()) / static_cast<float>(m_swapChain.Height());
+        }
+
+        // Records the frame's commands, seen through `view`
+        void Render(const FrameView &view);
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
