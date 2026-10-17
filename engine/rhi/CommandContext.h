@@ -54,6 +54,9 @@ namespace engine::rhi {
         // Writes `data` (a multiple of 4 bytes) into the root constants of parameter `rootIndex`.
         // The root signature must be set first.
         void SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data);
+        // Points root CBV parameter `rootIndex` at a constant buffer (256-byte aligned, from an
+        // UploadRing). Only the address is recorded: the data must stay valid until the GPU has read it.
+        void SetGraphicsRootConstantBufferView(uint32_t rootIndex, D3D12_GPU_VIRTUAL_ADDRESS address);
         void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology);
         void SetVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW &view);
         void SetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW &view);
