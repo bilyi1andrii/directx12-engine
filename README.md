@@ -7,9 +7,9 @@ A real-time renderer in C++23 on Direct3D 12, the successor of
 you can fly around with a camera. In place are the build system (CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL
 compiled by DXC at build time), the platform layer in `engine/core` (window, input, timing, logging, error handling),
 the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames in flight, descriptors,
-swap chain, memory through D3D12MA, per-frame upload memory), one global root signature defined in HLSL, a fly camera
-in `engine/scene`, the `Renderer` in `engine/render`, and an automated smoke test. Next: bindless descriptors, then
-instancing, textures and models.
+swap chain, memory through D3D12MA, per-frame upload memory, a bindless descriptor heap), one global root signature
+defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, and an automated smoke test.
+Next: instancing, textures and models.
 
 ## Requirements
 
@@ -116,7 +116,8 @@ apps/sandbox   test application (entry point, --smoke-test)
 cmake/         CMake helper modules (warnings, Agility SDK copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, File, CommandLine (no D3D12)
 engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
-               Allocator (D3D12MA), Buffer, DepthBuffer, UploadRing (per-frame upload memory)
+               Allocator (D3D12MA), Buffer, DepthBuffer, UploadRing (per-frame upload memory),
+               BindlessHeap (the shader-visible descriptor heap; shaders read resources by index)
 engine/scene   Camera and fly-camera controls (no D3D12)
 engine/render  Renderer: owns the frame loop's GPU objects and records each frame
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature

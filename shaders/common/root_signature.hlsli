@@ -7,8 +7,8 @@
 //   [1] b1: Root CBV (FrameConstants) -> UploadRing
 //   [2] b2: Root CBV (PassConstants)  -> UploadRing (DATA_STATIC_WHILE_SET_AT_EXECUTE optimization)
 //
-// Flags: ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT + stage denials.
-// TODO(BindlessHeap): Add CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED.
+// Flags: ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT + stage denials, and CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED (SM 6.6
+// bindless: shaders read ResourceDescriptorHeap[i] from BindlessHeap, which must be bound before the root signature).
 //
 // Static Samplers:
 //   s0: linear-wrap (textures)
@@ -34,6 +34,7 @@ namespace engine::gpu {
 
 #define GLOBAL_ROOT_SIGNATURE                                                                   \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT"                                              \
+    "        | CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED"                                               \
     "        | DENY_HULL_SHADER_ROOT_ACCESS"                                                    \
     "        | DENY_DOMAIN_SHADER_ROOT_ACCESS"                                                  \
     "        | DENY_GEOMETRY_SHADER_ROOT_ACCESS),"                                              \

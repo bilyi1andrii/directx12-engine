@@ -7,6 +7,7 @@
 #include <DirectXMath.h>
 
 #include "rhi/Allocator.h"
+#include "rhi/BindlessHeap.h"
 #include "rhi/Buffer.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
@@ -82,6 +83,8 @@ namespace engine::render {
         // they are released.
         rhi::Device m_device;
         rhi::Allocator m_allocator;
+        // Before the frames: their deferred frees return indices to it, also when they are destroyed
+        rhi::BindlessHeap m_bindlessHeap;
         std::vector<rhi::FrameContext> m_frames;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;

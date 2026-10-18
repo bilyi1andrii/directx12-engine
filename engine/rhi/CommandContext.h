@@ -49,6 +49,8 @@ namespace engine::rhi {
         void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
         // Viewport and scissor covering the whole width x height target
         void SetViewportAndScissor(uint32_t width, uint32_t height);
+        // Binds the shader-visible descriptor heap (BindlessHeap).
+        void SetDescriptorHeap(ID3D12DescriptorHeap *heap);
         void SetGraphicsRootSignature(ID3D12RootSignature *rootSignature);
         void SetPipelineState(ID3D12PipelineState *pipelineState);
         // Writes `data` (a multiple of 4 bytes) into the root constants of parameter `rootIndex`.

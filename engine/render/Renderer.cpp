@@ -84,6 +84,7 @@ namespace engine::render {
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
         : m_device(validation), m_allocator(m_device),
+          m_bindlessHeap(m_device.Native(), rhi::BindlessHeap::kDefaultCapacity, L"Bindless heap"),
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
@@ -128,6 +129,8 @@ namespace engine::render {
         }
 
         m_context.Begin(frame.CommandAllocator());
+        // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
+        m_context.SetDescriptorHeap(m_bindlessHeap.Native());
     }
 
     void Renderer::Render(const FrameView &view) {

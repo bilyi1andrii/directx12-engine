@@ -97,6 +97,13 @@ namespace engine::rhi {
         m_list->RSSetScissorRects(1, &scissor);
     }
 
+    void CommandContext::SetDescriptorHeap(ID3D12DescriptorHeap *heap) {
+        ENGINE_ASSERT(m_recording);
+        // Shaders read ResourceDescriptorHeap[i] from the heap bound here. Only one CBV/SRV/UAV heap can be
+        // bound at a time.
+        m_list->SetDescriptorHeaps(1, &heap);
+    }
+
     void CommandContext::SetGraphicsRootSignature(ID3D12RootSignature *rootSignature) {
         ENGINE_ASSERT(m_recording);
         m_list->SetGraphicsRootSignature(rootSignature);

@@ -4,6 +4,8 @@ add_library(engine_rhi STATIC
         AgilitySdk.h
         Allocator.cpp
         Allocator.h
+        BindlessHeap.cpp
+        BindlessHeap.h
         Buffer.cpp
         Buffer.h
         CommandContext.cpp
