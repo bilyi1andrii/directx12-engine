@@ -1,5 +1,6 @@
 #include <format>
 
+#include <cmath>
 #include <cstdint>
 #include <expected>
 #include <optional>
@@ -37,6 +38,12 @@ namespace {
 #else
     constexpr bool kValidationExpected = false;
 #endif
+
+    // The sandbox scene: a grid of cubes below the origin and one cube spinning at the origin
+    constexpr uint32_t kGridRows = 20;
+    constexpr uint32_t kGridCols = 20;
+    constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
+    constexpr float kGridHeight = -4.0f;
 
     // The renderer's input for one frame, from the camera (scene and render do not know each other)
     engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
@@ -90,12 +97,15 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw, rebuilt every frame: for now one cube at the origin
+        // What to draw, rebuilt every frame like the DX11 dynamic buckets. Grid and spinning cube share one
+        // key, so they land in one bucket: one draw on the instanced path, one draw per cube otherwise.
         engine::render::RenderList renderList;
         const engine::render::BatchKey cubeKey{.mesh = renderer.CubeMesh(), .material = {}};
-        DirectX::XMFLOAT4X4 cubeWorld{};
-        DirectX::XMStoreFloat4x4(&cubeWorld, DirectX::XMMatrixIdentity());
-        const engine::render::RendererSettings settings;
+        DirectX::XMFLOAT4X4 gridBase{};
+        DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
+        DirectX::XMFLOAT4X4 spinningCubeWorld{};
+
+        engine::render::RendererSettings settings; // draw path toggled with I
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
@@ -110,6 +120,13 @@ namespace {
                 vsync = !vsync;
                 LogInfo("VSync {}", vsync ? "on" : "off");
             }
+            if (input.WasKeyPressed('I')) {
+                settings.drawPath = (settings.drawPath == engine::render::DrawPath::Instanced)
+                                        ? engine::render::DrawPath::NonInstanced
+                                        : engine::render::DrawPath::Instanced;
+                LogInfo("Draw path: {}",
+                        settings.drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced");
+            }
 
             if (input.WasKeyPressed(VK_F11) || (input.WasKeyPressed(VK_RETURN) && input.IsKeyDown(VK_MENU))) {
                 window.ToggleFullscreen();
@@ -119,7 +136,11 @@ namespace {
 
             if (frameTimer.FpsUpdated()) {
                 const double fps = frameTimer.Fps();
-                window.SetTitle(std::format(L"D3D12 Engine - {:.1f} FPS ({:.2f} ms)", fps, 1000.0 / fps));
+                // The object count is the previous frame's list; the scene does not change size
+                window.SetTitle(std::format(
+                    L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
+                    settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
+                    renderList.InstanceCount()));
             }
 
             // Everything above has read this frame's input; clear the
@@ -134,8 +155,16 @@ namespace {
                 ::WaitMessage();
                 continue;
             }
+            // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
+            // the angle precise however long the program runs.
+            const float angle =
+                DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
+            DirectX::XMStoreFloat4x4(
+                &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
+
             renderList.Clear();
-            renderList.Add(cubeKey, cubeWorld);
+            engine::render::SubmitGrid(renderList, cubeKey, gridBase, kGridRows, kGridCols, kGridSpacing, kGridSpacing);
+            renderList.Add(cubeKey, spinningCubeWorld);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
@@ -156,6 +185,11 @@ namespace {
                 // the deferred release of the old depth buffer
                 if (frames >= 3 && (framesRendered == frames / 3 || framesRendered == 2 * frames / 3)) {
                     window.ToggleFullscreen();
+                }
+                // The second half runs on the other draw path, so both stay covered by the smoke test
+                if (framesRendered == frames / 2) {
+                    settings.drawPath = engine::render::DrawPath::NonInstanced;
+                    LogInfo("Smoke test: draw path non-instanced from frame {}", framesRendered + 1);
                 }
                 if (framesRendered == frames) {
                     window.Close();
