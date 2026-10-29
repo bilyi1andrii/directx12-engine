@@ -90,6 +90,13 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
+        // What to draw, rebuilt every frame: for now one cube at the origin
+        engine::render::RenderList renderList;
+        const engine::render::BatchKey cubeKey{.mesh = renderer.CubeMesh(), .material = {}};
+        DirectX::XMFLOAT4X4 cubeWorld{};
+        DirectX::XMStoreFloat4x4(&cubeWorld, DirectX::XMMatrixIdentity());
+        const engine::render::RendererSettings settings;
+
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
         bool vsync = true; // toggled with V
@@ -127,10 +134,13 @@ namespace {
                 ::WaitMessage();
                 continue;
             }
+            renderList.Clear();
+            renderList.Add(cubeKey, cubeWorld);
+
             try {
-                renderer.BeginFrame(window.Width(), window.Height());
+                renderer.BeginFrame(window.Width(), window.Height(), settings);
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
-                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()));
+                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList);
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with

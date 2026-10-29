@@ -21,6 +21,14 @@ namespace engine::gpu {
     using float4x4 = DirectX::XMFLOAT4X4;
 #endif
 
+// Per-draw root constants b0 (gpu::kRootDrawConstants): at most kDrawConstantCount 32-bit values.
+// Root constants live in the command list itself, so they can change between two draws at no memory cost.
+struct DrawConstants
+{
+    uint instanceOffset; // element of the draw's first object in the frame's InstanceData buffer
+    uint materialIndex;  // not read yet: there are no materials until textures arrive
+};
+
 // Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli)
 struct FrameConstants
 {

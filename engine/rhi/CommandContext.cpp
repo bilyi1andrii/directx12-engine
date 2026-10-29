@@ -149,6 +149,13 @@ namespace engine::rhi {
         m_list->DrawIndexedInstanced(indexCount, 1, startIndex, baseVertex, 0);
     }
 
+    void CommandContext::DrawIndexedInstanced(uint32_t indexCount, uint32_t instanceCount, uint32_t startIndex,
+                                              int32_t baseVertex) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->DrawIndexedInstanced(indexCount, instanceCount, startIndex, baseVertex, 0);
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();

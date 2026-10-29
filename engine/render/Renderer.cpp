@@ -28,6 +28,9 @@ namespace engine::render {
     using core::ThrowIfFailed;
 
     namespace {
+        static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
+                      "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
+
         // Compiled shader bytecode (DXIL), written by the build to <exe dir>/shaders/<name>.cso
         std::vector<std::byte> LoadShader(std::wstring_view fileName) {
             auto bytecode = core::ReadBinaryFile(core::ExecutableDirectory() / L"shaders" / fileName);
@@ -116,7 +119,9 @@ namespace engine::render {
         }
     }
 
-    void Renderer::BeginFrame(uint32_t width, uint32_t height) {
+    void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
+        m_settings = settings;
+
         // This slot was last used kFramesInFlight frames ago; wait until the GPU has finished that
         // frame before reusing its allocator
         rhi::FrameContext &frame = CurrentFrame();
@@ -133,7 +138,7 @@ namespace engine::render {
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
     }
 
-    void Renderer::Render(const FrameView &view) {
+    void Renderer::Render(const FrameView &view, const RenderList &list) {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
@@ -150,16 +155,86 @@ namespace engine::render {
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
-        const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
+        gpu::FrameConstants frameConstants = MakeFrameConstants(view);
+        frameConstants.instanceBufferIndex = UploadInstances(list);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Upload().Allocate(sizeof(frameConstants), rhi::kConstantBufferAlignment);
         std::memcpy(frameCb.cpu, &frameConstants, sizeof(frameConstants));
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        m_context.SetVertexBuffer(m_cubeVertices.VertexBufferView(sizeof(VertexPosColor)));
-        m_context.SetIndexBuffer(m_cubeIndices.IndexBufferView(DXGI_FORMAT_R16_UINT));
-        m_context.DrawIndexed(static_cast<uint32_t>(kCubeIndices.size()));
+        DrawBuckets(list);
+    }
+
+    uint32_t Renderer::UploadInstances(const RenderList &list) {
+        const size_t instanceCount = list.InstanceCount();
+        if (instanceCount == 0) {
+            return 0; // no draws, so no shader reads the index
+        }
+
+        // All buckets go into one allocation, in bucket order (plan §3.2). Aligned to the element size, so
+        // the allocation starts at a whole element of the page seen as an InstanceData array.
+        constexpr uint64_t kStride = sizeof(gpu::InstanceData);
+        rhi::FrameContext &frame = CurrentFrame();
+        const rhi::UploadAllocation instances = frame.Upload().Allocate(instanceCount * kStride, kStride);
+
+        // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
+        gpu::InstanceData instance{};
+        std::byte *destination = instances.cpu;
+        for (const BatchBucket &bucket : list.Buckets()) {
+            for (const DirectX::XMFLOAT4X4 &world : bucket.worlds) {
+                DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
+                std::memcpy(destination, &instance, kStride);
+                destination += kStride;
+            }
+        }
+
+        // A shader resource view (SRV) over exactly these elements, in a fresh bindless slot: the data
+        // moves around the ring from frame to frame, and a slot must not be rewritten while the previous
+        // frame may still read it. The slot goes back to the heap after this frame's fence.
+        const uint32_t index = m_bindlessHeap.Allocate();
+        frame.DeferFree(m_bindlessHeap, index);
+        m_bindlessHeap.CreateStructuredBufferSrv(index, instances.resource, instances.offset / kStride,
+                                                 static_cast<uint32_t>(instanceCount), kStride);
+        return index;
+    }
+
+    void Renderer::DrawBuckets(const RenderList &list) {
+        // Root constants b0: copied into the command list by each call, so every draw keeps its own values
+        const auto setDrawConstants = [this](const gpu::DrawConstants &constants) {
+            m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, std::as_bytes(std::span(&constants, 1)));
+        };
+
+        // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
+        uint32_t firstInstance = 0;
+        for (const BatchBucket &bucket : list.Buckets()) {
+            const GpuMesh &mesh = Mesh(bucket.key.mesh);
+            m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
+            m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
+
+            const auto objectCount = static_cast<uint32_t>(bucket.worlds.size());
+            gpu::DrawConstants constants{.instanceOffset = firstInstance, .materialIndex = bucket.key.material.index};
+            if (m_settings.drawPath == DrawPath::Instanced) {
+                // One draw for the whole bucket: object i reads element instanceOffset + SV_InstanceID (= i)
+                setDrawConstants(constants);
+                m_context.DrawIndexedInstanced(mesh.indexCount, objectCount);
+            } else {
+                // One draw per object, each with its own element in the root constants (plan §2.6: keeps
+                // the per-draw cost measurable)
+                for (uint32_t i = 0; i < objectCount; ++i) {
+                    constants.instanceOffset = firstInstance + i;
+                    setDrawConstants(constants);
+                    m_context.DrawIndexed(mesh.indexCount);
+                }
+            }
+            firstInstance += objectCount;
+        }
+    }
+
+    const Renderer::GpuMesh &Renderer::Mesh(MeshHandle handle) const {
+        ENGINE_ASSERT_MSG(handle.index < m_meshes.size(), "Mesh handle {} out of range ({} meshes)", handle.index,
+                          m_meshes.size());
+        return m_meshes[handle.index];
     }
 
     void Renderer::EndFrame(bool vsync) {
@@ -183,12 +258,19 @@ namespace engine::render {
         rhi::FrameContext &frame = CurrentFrame();
         m_context.Begin(frame.CommandAllocator());
 
-        m_cubeVertices =
-            rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeVertices)),
-                                        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB");
-        m_cubeIndices =
-            rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeIndices)),
-                                        D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB");
+        GpuMesh cube{
+            .vertices =
+                rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeVertices)),
+                                            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
+            .indices =
+                rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeIndices)),
+                                            D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB"),
+            .vertexStride = sizeof(VertexPosColor),
+            .indexFormat = DXGI_FORMAT_R16_UINT,
+            .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
+        };
+        m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
+        m_meshes.push_back(std::move(cube));
 
         // Must be submitted and signalled before the first BeginFrame: otherwise WaitAndReset would
         // reset an allocator the GPU is still reading

@@ -4,6 +4,7 @@ add_library(engine_render STATIC
         Handles.h
         Renderer.cpp
         Renderer.h
+        RendererSettings.h
         RenderList.cpp
         RenderList.h)
 
