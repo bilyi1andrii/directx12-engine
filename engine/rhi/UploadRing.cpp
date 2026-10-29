@@ -37,7 +37,10 @@ namespace engine::rhi {
 
         Page &page = m_pages[m_currentPage];
         page.offset = AlignUp(page.offset, alignment);
-        const UploadAllocation allocation{.cpu = page.cpuBase + page.offset, .gpu = page.gpuBase + page.offset};
+        const UploadAllocation allocation{.cpu = page.cpuBase + page.offset,
+                                          .gpu = page.gpuBase + page.offset,
+                                          .resource = page.allocation->GetResource(),
+                                          .offset = page.offset};
         page.offset += AlignUp(sizeBytes, alignment);
         return allocation;
     }

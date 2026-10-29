@@ -10,9 +10,13 @@
 #define SHARED_TYPES_HLSLI
 
 #ifdef __cplusplus
+#include <bit>
+#include <cstdint>
+
 #include <DirectXMath.h>
 
 namespace engine::gpu {
+    using uint = uint32_t;
     using float3 = DirectX::XMFLOAT3;
     using float4x4 = DirectX::XMFLOAT4X4;
 #endif
@@ -23,12 +27,22 @@ struct FrameConstants
     float4x4 view;
     float4x4 projection;
     float4x4 viewProjection;
-    float3   cameraPosition; // world space
-    float    pad0;
+    float3   cameraPosition;      // world space
+    uint     instanceBufferIndex; // bindless index of this frame's StructuredBuffer<InstanceData>
+};
+
+// Per-object data: one element of the StructuredBuffer<InstanceData> written into the UploadRing each frame.
+// A draw reads element instanceOffset (root constant b0) + SV_InstanceID.
+struct InstanceData
+{
+    float4x4 world; // object -> world
 };
 
 #ifdef __cplusplus
     static_assert(sizeof(FrameConstants) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
+    // sizeof(InstanceData) is the SRV stride. The SRV's first element is (upload offset / stride), so instance
+    // data is allocated aligned to the stride.
+    static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");
 } // namespace engine::gpu
 #endif
 

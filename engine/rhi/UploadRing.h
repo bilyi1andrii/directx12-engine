@@ -14,10 +14,14 @@ namespace engine::rhi {
     // Constant buffer views (root CBVs included) must start at a multiple of 256 bytes
     inline constexpr uint64_t kConstantBufferAlignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
-    // A piece of upload memory: the CPU writes through `cpu`, shaders read from `gpu`
+    // A piece of upload memory: the CPU writes through `cpu`, shaders read from `gpu`.
+    // `resource` and `offset` locate it inside its page, for views (e.g. a bindless structured-buffer SRV,
+    // whose first element is offset / stride).
     struct UploadAllocation {
         std::byte *cpu = nullptr;
         D3D12_GPU_VIRTUAL_ADDRESS gpu = 0;
+        ID3D12Resource *resource = nullptr; // the page; owned by the ring
+        uint64_t offset = 0;                // bytes from the start of `resource`
     };
 
     // Per-frame upload memory pool for frequently updated data (constants, instances).
