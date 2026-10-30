@@ -1,8 +1,12 @@
-# engine_render: drives the frame on top of engine_rhi (Renderer; later RenderList, FrameGraph, passes)
+# engine_render: drives the frame on top of engine_rhi (Renderer, RenderList; later FrameGraph, passes)
 
 add_library(engine_render STATIC
+        Handles.h
         Renderer.cpp
-        Renderer.h)
+        Renderer.h
+        RendererSettings.h
+        RenderList.cpp
+        RenderList.h)
 
 engine_target_defaults(engine_render)
 

@@ -65,6 +65,11 @@ namespace engine::rhi {
 
         // One non-instanced indexed draw
         void DrawIndexed(uint32_t indexCount, uint32_t startIndex = 0, int32_t baseVertex = 0);
+        // `instanceCount` copies of the same indexed geometry; SV_InstanceID counts 0..instanceCount-1.
+        // No start-instance parameter: in D3D12 it does not offset SV_InstanceID, so shaders get their
+        // first instance from root constants instead.
+        void DrawIndexedInstanced(uint32_t indexCount, uint32_t instanceCount, uint32_t startIndex = 0,
+                                  int32_t baseVertex = 0);
 
         // Flushes barriers and ends recording; the list can then be executed
         void Close();

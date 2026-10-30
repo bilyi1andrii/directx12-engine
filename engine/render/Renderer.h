@@ -18,6 +18,10 @@
 #include "rhi/SwapChain.h"
 #include "rhi/ValidationStats.h"
 
+#include "render/Handles.h"
+#include "render/RenderList.h"
+#include "render/RendererSettings.h"
+
 namespace engine::render {
     struct FrameView {
         DirectX::XMFLOAT4X4 view;
@@ -27,7 +31,7 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height) -> Render(view) -> EndFrame(vsync).
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, list) -> EndFrame(vsync).
     // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
@@ -46,8 +50,8 @@ namespace engine::render {
         Renderer &operator=(Renderer &&) = delete;
 
         // Waits until this frame's slot is free, matches the swap chain to the window's client size
-        // (no-op when unchanged) and starts recording
-        void BeginFrame(uint32_t width, uint32_t height);
+        // (no-op when unchanged), takes this frame's settings and starts recording
+        void BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings);
 
         // Width / height of the back buffers, for the camera's projection. Valid after BeginFrame; never
         // 0 or NaN, because the swap chain keeps its last size while the window is minimized.
@@ -55,8 +59,12 @@ namespace engine::render {
             return static_cast<float>(m_swapChain.Width()) / static_cast<float>(m_swapChain.Height());
         }
 
-        // Records the frame's commands, seen through `view`
-        void Render(const FrameView &view);
+        // Records the frame's commands: draws `list` seen through `view`.
+        // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
+        void Render(const FrameView &view, const RenderList &list);
+
+        // The built-in cube (corners at +-1, vertex colours), until meshes come from AssetCache
+        [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
@@ -67,7 +75,18 @@ namespace engine::render {
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
 
     private:
+        // A mesh's GPU buffers and how to draw them. MeshHandle::index points into m_meshes.
+        struct GpuMesh {
+            rhi::Buffer vertices;
+            rhi::Buffer indices;
+            uint32_t vertexStride = 0;
+            DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
+            uint32_t indexCount = 0;
+        };
+
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
+
+        [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
         // Creates the cube's pipeline state (called once, from the constructor).
         // Temporary: PipelineCache replaces it later in step 2.
@@ -75,6 +94,13 @@ namespace engine::render {
 
         // Uploads the cube's vertex and index buffers (called once, from the constructor)
         void UploadCube();
+
+        // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
+        // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.
+        [[nodiscard]] uint32_t UploadInstances(const RenderList &list);
+
+        // Records the draws of every bucket, on the path chosen in m_settings
+        void DrawBuckets(const RenderList &list);
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
@@ -99,9 +125,10 @@ namespace engine::render {
 
         rhi::ComPtr<ID3D12RootSignature> m_rootSignature; // the global one (shaders/common/root_signature.hlsli)
         rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
-        rhi::Buffer m_cubeVertices;
-        rhi::Buffer m_cubeIndices;
+        std::vector<GpuMesh> m_meshes;
+        MeshHandle m_cubeMesh;
 
+        RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;
     };
 } // namespace engine::render
