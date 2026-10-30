@@ -3,13 +3,15 @@
 A real-time renderer in C++23 on Direct3D 12, the successor of
 [DX11 engine](https://github.com/bilyi1andrii/graphics_hw_bilyi).
 
-**Status:** step 2 of the plan (camera, textures, models, instancing) is in progress. The sandbox shows a cube that
-you can fly around with a camera. In place are the build system (CMake presets, vcpkg, the D3D12 Agility SDK, and HLSL
-compiled by DXC at build time), the platform layer in `engine/core` (window, input, timing, logging, error handling),
-the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames in flight, descriptors,
-swap chain, memory through D3D12MA, per-frame upload memory, a bindless descriptor heap), one global root signature
-defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, and an automated smoke test.
-Next: instancing, textures and models.
+**Status:** step 2 of the plan (camera, textures, models, instancing) is in progress. The sandbox shows a grid of
+400 cubes and one spinning cube that you can fly around with a camera, drawn either instanced (one draw call per mesh
+and material) or with one draw call per object. In place are the build system (CMake presets, vcpkg, the D3D12
+Agility SDK, and HLSL compiled by DXC at build time), the platform layer in `engine/core` (window, input, timing,
+logging, error handling), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues,
+frames in flight, descriptors, swap chain, memory through D3D12MA, per-frame upload memory, a bindless descriptor
+heap), one global root signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` and the `RenderList`
+(objects batched by mesh and material, per-object data in a per-frame instance buffer) in `engine/render`, and an
+automated smoke test. Next: textures and models.
 
 ## Requirements
 
@@ -56,6 +58,7 @@ PowerShell. Debug the exe with the Visual Studio debugger, or another debugger t
 |---|---|
 | Esc | Quit |
 | V | Toggle vsync (the FPS is shown in the title bar) |
+| I | Toggle the draw path: instanced or one draw per object (shown in the title bar; the image stays the same) |
 | F11 or Alt+Enter | Toggle borderless fullscreen |
 | Right mouse button + mouse | Look around |
 | W / A / S / D | Fly forward / left / back / right |
@@ -70,10 +73,10 @@ console window next to the game window. Release builds have no console; capture 
 ### Smoke test
 
 `ctest --preset x64-debug` runs `sandbox.exe --smoke-test 120`: it renders 120 frames, toggles fullscreen twice
-(the screen flashes for about a second) and exits on its own. The test fails if the D3D12 or DXGI debug layer reported
-an error, if objects are still alive at shutdown, if fewer than 120 frames were rendered, or if the app crashes or
-hangs (ctest stops it after 30 s). On failure ctest prints the log; the last lines say why. Run it after every change,
-before committing.
+(the screen flashes for about a second), switches to the non-instanced draw path halfway, and exits on its own. The
+test fails if the D3D12 or DXGI debug layer reported an error, if objects are still alive at shutdown, if fewer than
+120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
+the last lines say why. Run it after every change, before committing.
 
 The exe can also be started directly with `--smoke-test N`. Exit codes:
 
@@ -119,9 +122,12 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
                Allocator (D3D12MA), Buffer, DepthBuffer, UploadRing (per-frame upload memory),
                BindlessHeap (the shader-visible descriptor heap; shaders read resources by index)
 engine/scene   Camera and fly-camera controls (no D3D12)
-engine/render  Renderer: owns the frame loop's GPU objects and records each frame
+engine/render  Renderer: owns the frame loop's GPU objects and records each frame;
+               RenderList: the frame's objects batched by mesh and material (plain CPU data);
+               RendererSettings (e.g. the draw path), Handles (MeshHandle, MaterialHandle)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
-shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants)
+shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
+               per-draw root constants, instance data)
 ```
 
 More engine modules (`engine/assets`, `engine/ui`, …) and the `bench` app are added in the next steps.
