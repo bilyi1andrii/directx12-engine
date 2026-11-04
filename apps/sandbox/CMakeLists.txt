@@ -20,6 +20,7 @@ target_link_libraries(sandbox PRIVATE
 
 add_dependencies(sandbox compile_shaders)
 engine_copy_agility_runtime(sandbox)
+engine_copy_asan_runtime(sandbox)
 
 # Smoke test: renders 120 frames (with two fullscreen toggles) and fails on debug-layer errors, leaks,
 # a crash or an early exit. TIMEOUT turns a hang (e.g. a fence that is never signaled) into a failure
