@@ -6,6 +6,7 @@
 #include <span>
 #include <string_view>
 
+#include "core/Assert.h"
 #include "rhi/Allocator.h"
 #include "rhi/RhiCommon.h"
 
@@ -45,7 +46,10 @@ namespace engine::rhi {
         [[nodiscard]] ID3D12Resource *Native() const noexcept {
             return m_allocation ? m_allocation->GetResource() : nullptr;
         }
-        [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS GpuAddress() const { return Native()->GetGPUVirtualAddress(); }
+        [[nodiscard]] D3D12_GPU_VIRTUAL_ADDRESS GpuAddress() const {
+            ENGINE_ASSERT(IsValid());
+            return Native()->GetGPUVirtualAddress();
+        }
         [[nodiscard]] uint64_t Size() const noexcept { return m_size; }
 
     private:
