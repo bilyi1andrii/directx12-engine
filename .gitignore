@@ -12,8 +12,8 @@ CLAUDE.md
 results/
 captures/
 
-# Large test assets (download separately)
-assets/
+/assets/
+plans/
 
 # IDE
 .idea/
