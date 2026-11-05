@@ -15,11 +15,20 @@ namespace engine::render {
         bool operator==(const MeshHandle &) const = default;
     };
 
-    // A material. There is no material data yet: every draw uses material 0 until textures arrive.
+    // A material. For now a material is just its albedo texture, so index = TextureHandle::index
+    // (a material buffer comes in step 6). The default, 0, is the grey fallback texture.
     struct MaterialHandle {
         uint32_t index = 0;
 
         bool operator==(const MaterialHandle &) const = default;
+    };
+
+    // A texture owned by the renderer. The index is its bindless slot: shaders read ResourceDescriptorHeap[index].
+    // The default, 0, is the grey fallback texture.
+    struct TextureHandle {
+        uint32_t index = 0;
+
+        bool operator==(const TextureHandle &) const = default;
     };
 } // namespace engine::render
 

@@ -25,3 +25,17 @@ function(engine_copy_agility_runtime target)
             COMMAND_EXPAND_LISTS
             COMMENT "Copying Agility SDK runtime for ${target}")
 endfunction()
+
+# ASan builds need the sanitizer runtime next to the exe. It ships beside cl.exe, which is only on PATH
+# in a Developer shell. Does nothing in other builds.
+function(engine_copy_asan_runtime target)
+    if(NOT CMAKE_CXX_FLAGS MATCHES "/fsanitize=address")
+        return()
+    endif()
+    cmake_path(GET CMAKE_CXX_COMPILER PARENT_PATH compilerDir)
+    add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${compilerDir}/clang_rt.asan_dynamic-x86_64.dll"
+            "$<TARGET_FILE_DIR:${target}>"
+            COMMENT "Copying ASan runtime for ${target}")
+endfunction()

@@ -26,24 +26,27 @@ namespace engine::core {
         }
     }
 
-    std::expected<std::vector<std::byte>, std::string> ReadBinaryFile(const std::filesystem::path &path) {
+    std::expected<std::vector<std::byte>, Error> ReadBinaryFile(const std::filesystem::path &path) {
         // Not path.string(): it converts to the ANSI code page, which garbles non-ASCII characters in
         // the UTF-8 log and throws for characters the code page does not have
         std::error_code error;
         const std::uintmax_t size = std::filesystem::file_size(path, error);
         if (error) {
-            return std::unexpected(std::format("{}: {}", ToUtf8(path.native()), error.message()));
+            const ErrorCode code =
+                error == std::errc::no_such_file_or_directory ? ErrorCode::FileNotFound : ErrorCode::ReadFailed;
+            return std::unexpected(Error{code, std::format("{}: {}", ToUtf8(path.native()), error.message())});
         }
 
         std::ifstream file(path, std::ios::binary);
         if (!file) {
-            return std::unexpected(std::format("{}: cannot open the file", ToUtf8(path.native())));
+            return std::unexpected(
+                Error{ErrorCode::ReadFailed, std::format("{}: cannot open the file", ToUtf8(path.native()))});
         }
 
         std::vector<std::byte> data(static_cast<size_t>(size));
         file.read(reinterpret_cast<char *>(data.data()), static_cast<std::streamsize>(data.size()));
         if (!file) {
-            return std::unexpected(std::format("{}: read failed", ToUtf8(path.native())));
+            return std::unexpected(Error{ErrorCode::ReadFailed, std::format("{}: read failed", ToUtf8(path.native()))});
         }
         return data;
     }

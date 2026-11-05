@@ -7,6 +7,7 @@
 #include <span>
 #include <string_view>
 
+#include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
@@ -44,6 +45,8 @@ namespace engine::rhi {
         // src in COPY_SOURCE or GENERIC_READ (upload heap)
         void CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
                         uint64_t size);
+        // Copies a whole texture mip, e.g. from a staging buffer into a texture in COPY_DEST
+        void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst, const D3D12_TEXTURE_COPY_LOCATION &src);
 
         // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
         void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
@@ -53,9 +56,12 @@ namespace engine::rhi {
         void SetDescriptorHeap(ID3D12DescriptorHeap *heap);
         void SetGraphicsRootSignature(ID3D12RootSignature *rootSignature);
         void SetPipelineState(ID3D12PipelineState *pipelineState);
-        // Writes `data` (a multiple of 4 bytes) into the root constants of parameter `rootIndex`.
+        // Writes a struct of 32-bit values into the root constants of parameter `rootIndex`.
         // The root signature must be set first.
-        void SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data);
+        template <GpuCopyable T> void SetGraphicsRootConstants(uint32_t rootIndex, const T &constants) {
+            static_assert(sizeof(T) % 4 == 0, "root constants are 32-bit values");
+            SetGraphicsRootConstantBytes(rootIndex, std::as_bytes(std::span(&constants, 1)));
+        }
         // Points root CBV parameter `rootIndex` at a constant buffer (256-byte aligned, from an
         // UploadRing). Only the address is recorded: the data must stay valid until the GPU has read it.
         void SetGraphicsRootConstantBufferView(uint32_t rootIndex, D3D12_GPU_VIRTUAL_ADDRESS address);
@@ -78,6 +84,8 @@ namespace engine::rhi {
 
     private:
         static constexpr uint32_t kMaxPendingBarriers = 16;
+
+        void SetGraphicsRootConstantBytes(uint32_t rootIndex, std::span<const std::byte> data);
 
         ComPtr<ID3D12GraphicsCommandList> m_list;
         std::array<D3D12_RESOURCE_BARRIER, kMaxPendingBarriers> m_pendingBarriers{};

@@ -20,9 +20,14 @@ add_library(engine_rhi STATIC
         Device.h
         FrameContext.cpp
         FrameContext.h
+        GpuCopyable.h
         RhiCommon.h
         SwapChain.cpp
         SwapChain.h
+        Texture.cpp
+        Texture.h
+        UploadContext.cpp
+        UploadContext.h
         UploadRing.cpp
         UploadRing.h
         ValidationStats.h)

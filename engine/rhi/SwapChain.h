@@ -23,6 +23,10 @@ namespace engine::rhi {
     class SwapChain {
     public:
         static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        // The format the back buffers are drawn through (their RTVs, and every PSO that draws into them).
+        // sRGB, so the GPU converts the shader's linear colours for the display. A flip-model swap chain
+        // cannot use an sRGB format itself, but its buffers can be viewed as one. Revisited in step 5 (tonemapping).
+        static constexpr DXGI_FORMAT kRtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
         SwapChain(const Device &device, CommandQueue &queue, DescriptorAllocator &rtvAllocator, HWND hwnd,
                   uint32_t width, uint32_t height);

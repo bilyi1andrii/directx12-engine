@@ -74,6 +74,13 @@ namespace engine::rhi {
         m_list->CopyBufferRegion(dst, dstOffset, src, srcOffset, size);
     }
 
+    void CommandContext::CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst,
+                                           const D3D12_TEXTURE_COPY_LOCATION &src) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    }
+
     void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
         ENGINE_ASSERT(m_recording);
         m_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
@@ -114,7 +121,7 @@ namespace engine::rhi {
         m_list->SetPipelineState(pipelineState);
     }
 
-    void CommandContext::SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data) {
+    void CommandContext::SetGraphicsRootConstantBytes(uint32_t rootIndex, std::span<const std::byte> data) {
         ENGINE_ASSERT(m_recording);
         ENGINE_ASSERT_MSG(data.size() % 4 == 0, "root constants must be 32-bit values, got {} bytes", data.size());
         // The values are copied into the command list now, so `data` may go away after this call

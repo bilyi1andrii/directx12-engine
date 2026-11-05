@@ -168,7 +168,7 @@ namespace engine::rhi {
                                                   sizeof(allowTearing)))) {
             allowTearing = FALSE;
         }
-        m_tearingSupported = allowTearing == TRUE;
+        m_tearingSupported = allowTearing != FALSE;
     }
 
     void Device::SelectAdapter() {

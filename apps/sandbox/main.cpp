@@ -1,20 +1,26 @@
 #include <format>
 
 #include <cmath>
+#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "SandboxOptions.h"
+#include "assets/TextureLoader.h"
 #include "core/CommandLine.h"
+#include "core/ComScope.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
 #include "core/Window.h"
 #include "core/Input.h"
 #include "core/Assert.h"
+#include "core/Error.h"
 #include "rhi/AgilitySdk.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
@@ -52,6 +58,55 @@ namespace {
         DirectX::XMStoreFloat4x4(&view.projection, engine::scene::ProjectionMatrix(camera, aspectRatio));
         view.cameraPosition = camera.position;
         return view;
+    }
+
+    // Hands a loaded texture to the renderer, converting it to the renderer's own type
+    engine::render::TextureHandle CreateTexture(engine::render::Renderer &renderer,
+                                                const engine::assets::TextureData &data, std::wstring_view name) {
+        const std::span<const std::byte> pixels(data.pixels);
+        std::vector<engine::render::TextureMipUpload> mips;
+        mips.reserve(data.mips.size());
+        for (const engine::assets::TextureMip &mip : data.mips) {
+            mips.push_back({.width = mip.width,
+                            .height = mip.height,
+                            .rowPitch = mip.rowPitch,
+                            .pixels = pixels.subspan(mip.offset, mip.slicePitch)});
+        }
+        return renderer.CreateTexture({.dxgiFormat = data.dxgiFormat, .mips = mips}, name);
+    }
+
+    // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
+    std::expected<engine::assets::TextureData, engine::core::Error> MakeCheckerboard() {
+        constexpr uint32_t kSize = 256;
+        constexpr uint32_t kSquare = 32;
+        std::vector<std::byte> rgba8(size_t{kSize} * kSize * 4);
+        for (uint32_t y = 0; y < kSize; ++y) {
+            for (uint32_t x = 0; x < kSize; ++x) {
+                const bool light = (x / kSquare + y / kSquare) % 2 == 0;
+                const std::byte value{light ? uint8_t{220} : uint8_t{60}};
+                std::byte *pixel = &rgba8[(size_t{y} * kSize + x) * 4];
+                pixel[0] = value;
+                pixel[1] = value;
+                pixel[2] = value;
+                pixel[3] = std::byte{255};
+            }
+        }
+        return engine::assets::CreateTextureFromPixels(rgba8, kSize, kSize, engine::assets::TextureUsage::Diffuse);
+    }
+
+    // The grid's texture: the --texture file or the checkerboard. If loading fails, a warning and grey.
+    engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
+        const std::expected<engine::assets::TextureData, engine::core::Error> texture =
+            options.texturePath
+                ? engine::assets::LoadTexture(*options.texturePath, engine::assets::TextureUsage::Diffuse)
+                : MakeCheckerboard();
+        if (!texture) {
+            LogWarning("Grid texture: {}. Using the grey fallback.", texture.error().message);
+            return renderer.UnloadedTexture();
+        }
+        const std::wstring name =
+            options.texturePath ? L"Grid/" + options.texturePath->filename().wstring() : L"Grid/Checkerboard";
+        return CreateTexture(renderer, *texture, name);
     }
 
     struct RunResult {
@@ -97,10 +152,13 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw, rebuilt every frame like the DX11 dynamic buckets. Grid and spinning cube share one
-        // key, so they land in one bucket: one draw on the instanced path, one draw per cube otherwise.
+        // What to draw, rebuilt every frame like the DX11 dynamic buckets: the textured grid and the
+        // vertex-colour spinning cube, each in its own bucket. A material is its texture for now.
         engine::render::RenderList renderList;
-        const engine::render::BatchKey cubeKey{.mesh = renderer.CubeMesh(), .material = {}};
+        const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
+        const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
+                                               .material = {.index = gridTexture.index}};
+        const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
@@ -163,8 +221,8 @@ namespace {
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, cubeKey, gridBase, kGridRows, kGridCols, kGridSpacing, kGridSpacing);
-            renderList.Add(cubeKey, spinningCubeWorld);
+            engine::render::SubmitGrid(renderList, gridKey, gridBase, kGridRows, kGridCols, kGridSpacing, kGridSpacing);
+            renderList.Add(spinningCubeKey, spinningCubeWorld);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
@@ -271,6 +329,9 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             return kExitBadCommandLine;
         }
         smokeTest = options->smokeTestFrames.has_value();
+
+        // For the whole run: image files are decoded through WIC, which needs COM
+        const engine::core::ComScope com;
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;

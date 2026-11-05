@@ -40,7 +40,8 @@ namespace engine::rhi {
         const UploadAllocation allocation{.cpu = page.cpuBase + page.offset,
                                           .gpu = page.gpuBase + page.offset,
                                           .resource = page.allocation->GetResource(),
-                                          .offset = page.offset};
+                                          .offset = page.offset,
+                                          .size = sizeBytes};
         page.offset += AlignUp(sizeBytes, alignment);
         return allocation;
     }

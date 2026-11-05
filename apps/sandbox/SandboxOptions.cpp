@@ -23,6 +23,16 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
                 return std::unexpected(std::format("--smoke-test needs a frame count >= 1, got '{}'", value));
             }
             options.smokeTestFrames = frames;
+        } else if (arg == "--texture") {
+            if (options.texturePath) {
+                return std::unexpected("--texture is given more than once");
+            }
+            if (i + 1 == args.size() || args[i + 1].empty()) {
+                return std::unexpected("--texture needs a file path");
+            }
+            // The arguments are UTF-8; a u8string tells the path so
+            const std::string &value = args[++i];
+            options.texturePath = std::filesystem::path(std::u8string(value.begin(), value.end()));
         } else {
             return std::unexpected(std::format("Unknown argument '{}'", arg));
         }

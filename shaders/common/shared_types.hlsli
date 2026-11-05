@@ -26,7 +26,7 @@ namespace engine::gpu {
 struct DrawConstants
 {
     uint instanceOffset; // element of the draw's first object in the frame's InstanceData buffer
-    uint materialIndex;  // not read yet: there are no materials until textures arrive
+    uint materialIndex;  // for now: bindless index of the albedo texture
 };
 
 // Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli)

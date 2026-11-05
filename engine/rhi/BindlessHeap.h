@@ -42,6 +42,9 @@ namespace engine::rhi {
         void CreateStructuredBufferSrv(uint32_t index, ID3D12Resource *buffer, uint64_t firstElement,
                                        uint32_t numElements, uint32_t strideBytes);
 
+        // Writes a view of a 2D texture with all its mips into slot `index`, for HLSL Texture2D
+        void CreateTexture2DSrv(uint32_t index, ID3D12Resource *texture, DXGI_FORMAT format, uint32_t mipLevels);
+
         [[nodiscard]] ID3D12DescriptorHeap *Native() const noexcept { return m_heap.Get(); }
         [[nodiscard]] uint32_t Capacity() const noexcept { return m_capacity; }
         [[nodiscard]] uint32_t FreeCount() const noexcept { return static_cast<uint32_t>(m_freeIndices.size()); }

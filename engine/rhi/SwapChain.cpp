@@ -99,13 +99,18 @@ namespace engine::rhi {
     }
 
     void SwapChain::CreateBackBufferViews() {
+        // An RTV describes how the pipeline writes to the texture. This one views the UNORM buffer as sRGB.
+        const D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{
+            .Format = kRtvFormat,
+            .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D,
+            .Texture2D = {.MipSlice = 0, .PlaneSlice = 0},
+        };
         for (UINT i = 0; i < kBackBufferCount; ++i) {
             ThrowIfFailed(m_swapChain->GetBuffer(i, IID_PPV_ARGS(&m_backBuffers[i])));
             ThrowIfFailed(m_backBuffers[i]->SetName(std::format(L"Back buffer {}", i).c_str()));
 
             m_rtvs[i] = m_rtvAllocator.Allocate();
-            // An RTV describes how the pipeline writes to the texture; nullptr = the texture's own format, mip 0
-            m_device->CreateRenderTargetView(m_backBuffers[i].Get(), nullptr, m_rtvs[i].Cpu());
+            m_device->CreateRenderTargetView(m_backBuffers[i].Get(), &rtvDesc, m_rtvs[i].Cpu());
         }
     }
 

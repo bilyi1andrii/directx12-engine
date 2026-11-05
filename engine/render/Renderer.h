@@ -2,6 +2,8 @@
 #define D3D12_ENGINE_RENDERER_H
 
 #include <cstdint>
+#include <span>
+#include <string_view>
 #include <vector>
 
 #include <DirectXMath.h>
@@ -16,11 +18,14 @@
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
 #include "rhi/SwapChain.h"
+#include "rhi/Texture.h"
+#include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
 #include "render/Handles.h"
 #include "render/RenderList.h"
 #include "render/RendererSettings.h"
+#include "render/TextureUpload.h"
 
 namespace engine::render {
     struct FrameView {
@@ -63,8 +68,17 @@ namespace engine::render {
         // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
         void Render(const FrameView &view, const RenderList &list);
 
-        // The built-in cube (corners at +-1, vertex colours), until meshes come from AssetCache
+        // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
+        // TexturedCubeMesh shows its material's texture
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
+        [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
+
+        // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
+        [[nodiscard]] TextureHandle CreateTexture(const TextureUpload &data, std::wstring_view name);
+
+        // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
+        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
+        [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
@@ -82,18 +96,32 @@ namespace engine::render {
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
             uint32_t indexCount = 0;
+            // Temporary: chosen by the mesh's vertex layout until PipelineCache exists
+            ID3D12PipelineState *pipelineState = nullptr;
         };
 
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
-        // Creates the cube's pipeline state (called once, from the constructor).
-        // Temporary: PipelineCache replaces it later in step 2.
-        void CreatePipelineState();
+        // Creates a PSO from two compiled shaders and the vertex layout; all other state is the same for both.
+        // Temporary: PipelineCache replaces it.
+        [[nodiscard]] rhi::ComPtr<ID3D12PipelineState>
+        CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
+                            std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name);
 
-        // Uploads the cube's vertex and index buffers (called once, from the constructor)
-        void UploadCube();
+        // Uploads the vertex and index buffers of both cubes (constructor only)
+        void UploadCubes();
+
+        // Creates the grey and red fallback textures (constructor only)
+        void CreateFallbackTextures();
+
+        // A 1x1 sRGB texture of one colour
+        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
+                                                            std::wstring_view name);
+
+        // Shutdown only: waits for the GPU, then destroys every texture
+        void DestroyTextures() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
         // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.
@@ -104,14 +132,16 @@ namespace engine::render {
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
-        // buffer, texture and deferred release (in the frames) must be gone before it. The frames and
-        // the command list come before the queue: the queue's destructor waits for the GPU before
-        // they are released.
+        // buffer, texture and deferred release (in the frames) must be gone before it. The frames, the
+        // upload context and the command list come before the queue: the queue's destructor waits for
+        // the GPU before they are released, even when the constructor throws.
         rhi::Device m_device;
         rhi::Allocator m_allocator;
         // Before the frames: their deferred frees return indices to it, also when they are destroyed
         rhi::BindlessHeap m_bindlessHeap;
         std::vector<rhi::FrameContext> m_frames;
+        // Uploads of meshes and textures
+        rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
         // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory
@@ -123,10 +153,16 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        rhi::ComPtr<ID3D12RootSignature> m_rootSignature; // the global one (shaders/common/root_signature.hlsli)
-        rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
+        rhi::ComPtr<ID3D12RootSignature> m_rootSignature;       // the global one (shaders/common/root_signature.hlsli)
+        rhi::ComPtr<ID3D12PipelineState> m_vertexColorPipeline; // vs_basic + ps_basic
+        rhi::ComPtr<ID3D12PipelineState> m_unlitPipeline;       // vs_mesh + ps_unlit
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
+        MeshHandle m_texturedCubeMesh;
+        // All textures; a TextureHandle is a bindless index, not a position in this list
+        std::vector<rhi::Texture> m_textures;
+        TextureHandle m_unloadedTexture;
+        TextureHandle m_unhandledTexture;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;
