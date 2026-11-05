@@ -9,6 +9,7 @@
 
 #include "SandboxOptions.h"
 #include "core/CommandLine.h"
+#include "core/ComScope.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
@@ -271,6 +272,9 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             return kExitBadCommandLine;
         }
         smokeTest = options->smokeTestFrames.has_value();
+
+        // For the whole run: image files are decoded through WIC, which needs COM
+        const engine::core::ComScope com;
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;

@@ -35,7 +35,7 @@ namespace engine::render {
         std::vector<std::byte> LoadShader(std::wstring_view fileName) {
             auto bytecode = core::ReadBinaryFile(core::ExecutableDirectory() / L"shaders" / fileName);
             if (!bytecode) {
-                throw std::runtime_error(std::format("Cannot load shader {}", bytecode.error()));
+                throw std::runtime_error(std::format("Cannot load shader {}", bytecode.error().message));
             }
             return std::move(*bytecode);
         }
