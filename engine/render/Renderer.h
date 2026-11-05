@@ -22,10 +22,10 @@
 #include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
-#include "render/Handles.h"
-#include "render/RenderList.h"
-#include "render/RendererSettings.h"
 #include "render/TextureUpload.h"
+#include "renderdata/Handles.h"
+#include "renderdata/RenderList.h"
+#include "renderdata/RendererSettings.h"
 
 namespace engine::render {
     struct FrameView {
