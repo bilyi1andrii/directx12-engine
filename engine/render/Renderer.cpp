@@ -1,5 +1,6 @@
 #include "render/Renderer.h"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -67,6 +68,127 @@ namespace engine::render {
             4, 0, 3, 4, 3, 7, // -Y
         };
 
+        // How the input assembler reads one VertexPosColor from the vertex buffer: must match VSInput in
+        // vs_basic.hlsl (semantic names, formats, byte offsets)
+        constexpr std::array kVertexPosColorLayout{
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "POSITION",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(VertexPosColor, position),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "COLOR",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(VertexPosColor, color),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+        };
+
+        // The mesh vertex: the DX11 Graphics/Vertex.h layout (44 bytes, no padding). Matches vs_mesh.hlsl's VSInput.
+        // Stays here until model loading decides where mesh data types live (with the RenderList question).
+        struct Vertex {
+            DirectX::XMFLOAT3 position;
+            DirectX::XMFLOAT2 uv;
+            DirectX::XMFLOAT3 normal;
+            DirectX::XMFLOAT3 tangent; // direction of +u on the surface, for normal mapping later
+        };
+        static_assert(sizeof(Vertex) == 44, "Vertex must keep the DX11 layout: 44 bytes, no padding");
+
+        constexpr std::array kVertexLayout{
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "POSITION",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(Vertex, position),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "TEXCOORD",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(Vertex, uv),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "NORMAL",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(Vertex, normal),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+            D3D12_INPUT_ELEMENT_DESC{
+                .SemanticName = "TANGENT",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = offsetof(Vertex, tangent),
+                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
+                .InstanceDataStepRate = 0,
+            },
+        };
+
+        // A cube with corners at +-1 and 4 vertices of its own per face (24 in all), so every face has its own
+        // UVs (the whole texture), normal and tangent
+        struct TexturedCube {
+            std::array<Vertex, 24> vertices;
+            std::array<uint16_t, 36> indices;
+        };
+
+        TexturedCube MakeTexturedCube() {
+            using DirectX::XMFLOAT3;
+            // Each face as seen from outside: its normal and the directions of right (+u) and up (-v) on it.
+            // right = cross(up, viewing direction), so every face gets the same clockwise winding.
+            struct Face {
+                XMFLOAT3 normal;
+                XMFLOAT3 right;
+                XMFLOAT3 up;
+            };
+            constexpr std::array<Face, 6> kFaces{{
+                {{0, 0, -1}, {1, 0, 0}, {0, 1, 0}},  // -Z
+                {{0, 0, 1}, {-1, 0, 0}, {0, 1, 0}},  // +Z
+                {{-1, 0, 0}, {0, 0, -1}, {0, 1, 0}}, // -X
+                {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},   // +X
+                {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},   // +Y, seen from above with +Z up
+                {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}}, // -Y, seen from below with -Z up
+            }};
+            // normal + r * right + u * up: a corner of the face (r, u = +-1)
+            const auto corner = [](const Face &face, float r, float u) {
+                return XMFLOAT3{face.normal.x + r * face.right.x + u * face.up.x,
+                                face.normal.y + r * face.right.y + u * face.up.y,
+                                face.normal.z + r * face.right.z + u * face.up.z};
+            };
+
+            TexturedCube cube{};
+            for (uint16_t f = 0; f < kFaces.size(); ++f) {
+                const Face &face = kFaces[f];
+                const auto first = static_cast<uint16_t>(f * 4);
+                // Bottom-left, top-left, top-right, bottom-right; UV (0, 0) is the texture's top-left corner
+                cube.vertices[first + 0] = {corner(face, -1, -1), {0, 1}, face.normal, face.right};
+                cube.vertices[first + 1] = {corner(face, -1, 1), {0, 0}, face.normal, face.right};
+                cube.vertices[first + 2] = {corner(face, 1, 1), {1, 0}, face.normal, face.right};
+                cube.vertices[first + 3] = {corner(face, 1, -1), {1, 1}, face.normal, face.right};
+                // Two clockwise triangles, as in kCubeIndices
+                const std::array<uint16_t, 6> faceIndices{
+                    first, static_cast<uint16_t>(first + 1), static_cast<uint16_t>(first + 2),
+                    first, static_cast<uint16_t>(first + 2), static_cast<uint16_t>(first + 3)};
+                std::ranges::copy(faceIndices, cube.indices.begin() + f * 6);
+            }
+            return cube;
+        }
+
         // The shader's view of FrameView: matrices transposed (DirectXMath uses row vectors, HLSL reads
         // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection
         gpu::FrameConstants MakeFrameConstants(const FrameView &view) {
@@ -105,13 +227,15 @@ namespace engine::render {
         ThrowIfFailed(m_device.Native()->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),
                                                              IID_PPV_ARGS(&m_rootSignature)));
         ThrowIfFailed(m_rootSignature->SetName(L"Global root signature"));
-        CreatePipelineState();
+        m_vertexColorPipeline =
+            CreatePipelineState(L"vs_basic.cso", L"ps_basic.cso", kVertexPosColorLayout, L"Vertex colour PSO");
+        m_unlitPipeline = CreatePipelineState(L"vs_mesh.cso", L"ps_unlit.cso", kVertexLayout, L"Unlit textured PSO");
 
         // All startup uploads in one batch. Submitted before the first frame, so every frame list
         // runs after it on the queue and sees the data; nothing waits for it on the CPU.
         m_upload.Begin(m_queue);
         try {
-            UploadCube();
+            UploadCubes();
             CreateFallbackTextures();
             m_upload.Submit(m_queue);
         } catch (...) {
@@ -215,7 +339,6 @@ namespace engine::render {
         m_context.SetRenderTarget(rtv, m_depth.Dsv());
         m_context.SetViewportAndScissor(m_swapChain.Width(), m_swapChain.Height());
         m_context.SetGraphicsRootSignature(m_rootSignature.Get());
-        m_context.SetPipelineState(m_pipelineState.Get());
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
@@ -268,8 +391,14 @@ namespace engine::render {
 
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
+        ID3D12PipelineState *currentPipeline = nullptr;
         for (const BatchBucket &bucket : list.Buckets()) {
             const GpuMesh &mesh = Mesh(bucket.key.mesh);
+            // Switching PSOs costs CPU and GPU time: only when this bucket needs another one
+            if (mesh.pipelineState != currentPipeline) {
+                m_context.SetPipelineState(mesh.pipelineState);
+                currentPipeline = mesh.pipelineState;
+            }
             m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
             m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
 
@@ -318,8 +447,8 @@ namespace engine::render {
         ++m_frameNumber;
     }
 
-    void Renderer::UploadCube() {
-        GpuMesh cube{
+    void Renderer::UploadCubes() {
+        GpuMesh colorCube{
             .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeVertices,
                                                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
             .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeIndices,
@@ -327,37 +456,32 @@ namespace engine::render {
             .vertexStride = sizeof(VertexPosColor),
             .indexFormat = DXGI_FORMAT_R16_UINT,
             .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
+            .pipelineState = m_vertexColorPipeline.Get(),
         };
         m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
-        m_meshes.push_back(std::move(cube));
+        m_meshes.push_back(std::move(colorCube));
+
+        const TexturedCube cube = MakeTexturedCube();
+        GpuMesh texturedCube{
+            .vertices =
+                rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.vertices,
+                                            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"TexturedCube/VB"),
+            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.indices,
+                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, L"TexturedCube/IB"),
+            .vertexStride = sizeof(Vertex),
+            .indexFormat = DXGI_FORMAT_R16_UINT,
+            .indexCount = static_cast<uint32_t>(cube.indices.size()),
+            .pipelineState = m_unlitPipeline.Get(),
+        };
+        m_texturedCubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
+        m_meshes.push_back(std::move(texturedCube));
     }
 
-    void Renderer::CreatePipelineState() {
-        const std::vector<std::byte> vertexShader = LoadShader(L"vs_basic.cso");
-        const std::vector<std::byte> pixelShader = LoadShader(L"ps_basic.cso");
-
-        // How the input assembler reads one vertex from the vertex buffer: must match VertexPosColor
-        // on the CPU and VSInput in vs_basic.hlsl (semantic names, formats, byte offsets)
-        const std::array inputLayout{
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "POSITION",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(VertexPosColor, position),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "COLOR",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(VertexPosColor, color),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-        };
+    rhi::ComPtr<ID3D12PipelineState>
+    Renderer::CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
+                                  std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name) {
+        const std::vector<std::byte> vertexShader = LoadShader(vertexShaderFile);
+        const std::vector<std::byte> pixelShader = LoadShader(pixelShaderFile);
 
         // A pipeline state object (PSO) bakes shaders and all fixed-function state into one object
         // up front, so the driver compiles everything once instead of at draw time. D3D12 has no
@@ -376,13 +500,16 @@ namespace engine::render {
                             .NumElements = static_cast<UINT>(inputLayout.size())},
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = 1,
-            .RTVFormats = {rhi::SwapChain::kFormat},
+            // The format of the render target VIEW (sRGB), not of the back buffer itself
+            .RTVFormats = {rhi::SwapChain::kRtvFormat},
             // Must match the depth buffer; checked against the bound DSV when drawing
             .DSVFormat = rhi::DepthBuffer::kFormat,
             .SampleDesc = {.Count = 1, .Quality = 0},
         };
 
-        ThrowIfFailed(m_device.Native()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&m_pipelineState)));
-        ThrowIfFailed(m_pipelineState->SetName(L"Cube PSO"));
+        rhi::ComPtr<ID3D12PipelineState> pipelineState;
+        ThrowIfFailed(m_device.Native()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipelineState)));
+        ThrowIfFailed(pipelineState->SetName(std::wstring(name).c_str()));
+        return pipelineState;
     }
 } // namespace engine::render

@@ -15,7 +15,8 @@ namespace engine::render {
         bool operator==(const MeshHandle &) const = default;
     };
 
-    // A material. There is no material data yet: every draw uses material 0 until textures arrive.
+    // A material. Until MaterialGPU (step 6) a material is its albedo texture: index = TextureHandle::index, which
+    // reaches shaders as DrawConstants::materialIndex. The default, 0, is the grey fallback texture.
     struct MaterialHandle {
         uint32_t index = 0;
 

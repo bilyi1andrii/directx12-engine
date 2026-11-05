@@ -13,6 +13,7 @@ target_link_options(sandbox PRIVATE
 engine_target_defaults(sandbox)
 
 target_link_libraries(sandbox PRIVATE
+        engine_assets
         engine_core
         engine_rhi
         engine_render

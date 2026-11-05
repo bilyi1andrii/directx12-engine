@@ -2,6 +2,8 @@
 #define D3D12_ENGINE_RENDERER_H
 
 #include <cstdint>
+#include <span>
+#include <string_view>
 #include <vector>
 
 #include <DirectXMath.h>
@@ -66,8 +68,10 @@ namespace engine::render {
         // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
         void Render(const FrameView &view, const RenderList &list);
 
-        // The built-in cube (corners at +-1, vertex colours), until meshes come from AssetCache
+        // The built-in cubes (corners at +-1), until meshes come from AssetCache. CubeMesh has vertex colours and
+        // ignores the material; TexturedCubeMesh shows the material's texture (MaterialHandle = TextureHandle).
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
+        [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
 
         // Creates a texture holding a copy of `data` (which may go away after the call). The copy joins the
         // current upload batch (one is started if none is recording), which runs before this frame's commands
@@ -95,19 +99,25 @@ namespace engine::render {
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
             uint32_t indexCount = 0;
+            // Temporary: the vertex layout ties the PSO to the mesh. PipelineCache moves the choice to
+            // material + vertex format. Points at one of the renderer's PSOs.
+            ID3D12PipelineState *pipelineState = nullptr;
         };
 
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
-        // Creates the cube's pipeline state (called once, from the constructor).
-        // Temporary: PipelineCache replaces it later in step 2.
-        void CreatePipelineState();
+        // Creates a pipeline state from two compiled shaders (<exe dir>/shaders/*.cso) and the input layout of
+        // the vertex shader. Everything else is shared: default rasterizer/blend/depth, sRGB RTV, D32 depth.
+        // Temporary: PipelineCache replaces it after the textures branch.
+        [[nodiscard]] rhi::ComPtr<ID3D12PipelineState>
+        CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
+                            std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name);
 
-        // Records the upload of the cube's vertex and index buffers into the recording upload batch
-        // (called once, from the constructor)
-        void UploadCube();
+        // Records the upload of both cubes' vertex and index buffers into the recording upload batch
+        // (called once, from the constructor, after the PSOs exist)
+        void UploadCubes();
 
         // Creates the grey and red fallback textures (called once, from the constructor, while the upload
         // batch records). Grey first, so it gets bindless index 0.
@@ -152,10 +162,12 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        rhi::ComPtr<ID3D12RootSignature> m_rootSignature; // the global one (shaders/common/root_signature.hlsli)
-        rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
+        rhi::ComPtr<ID3D12RootSignature> m_rootSignature;       // the global one (shaders/common/root_signature.hlsli)
+        rhi::ComPtr<ID3D12PipelineState> m_vertexColorPipeline; // vs_basic + ps_basic
+        rhi::ComPtr<ID3D12PipelineState> m_unlitPipeline;       // vs_mesh + ps_unlit
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
+        MeshHandle m_texturedCubeMesh;
         // Owns the textures; a TextureHandle is the bindless index, not a position here
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
