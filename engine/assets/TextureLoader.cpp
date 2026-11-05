@@ -18,6 +18,8 @@ namespace engine::assets {
     namespace {
         using core::Error;
         using core::ErrorCode;
+        using render::TextureData;
+        using render::TextureMip;
 
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
             ErrorCode code = ErrorCode::DecodeFailed;
@@ -105,7 +107,7 @@ namespace engine::assets {
         }
     }
 
-    std::expected<TextureData, core::Error> LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
+    std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
         const std::string source = core::ToUtf8(path.native());
         const std::wstring extension = LowerCaseExtension(path);
 
@@ -127,8 +129,8 @@ namespace engine::assets {
         return FinishTexture(std::move(image), usage, source);
     }
 
-    std::expected<TextureData, core::Error> CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width,
-                                                                    uint32_t height, TextureUsage usage) {
+    std::expected<render::TextureData, core::Error>
+    CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
         constexpr std::string_view kSource = "in-memory texture";
         constexpr size_t kBytesPerPixel = 4;
         ENGINE_ASSERT_MSG(rgba8.size() == size_t{width} * height * kBytesPerPixel,

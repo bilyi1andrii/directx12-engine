@@ -5,9 +5,7 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
-#include <span>
 #include <string>
-#include <string_view>
 #include <vector>
 
 #include "SandboxOptions.h"
@@ -60,23 +58,8 @@ namespace {
         return view;
     }
 
-    // Hands a loaded texture to the renderer, converting it to the renderer's own type
-    engine::render::TextureHandle CreateTexture(engine::render::Renderer &renderer,
-                                                const engine::assets::TextureData &data, std::wstring_view name) {
-        const std::span<const std::byte> pixels(data.pixels);
-        std::vector<engine::render::TextureMipUpload> mips;
-        mips.reserve(data.mips.size());
-        for (const engine::assets::TextureMip &mip : data.mips) {
-            mips.push_back({.width = mip.width,
-                            .height = mip.height,
-                            .rowPitch = mip.rowPitch,
-                            .pixels = pixels.subspan(mip.offset, mip.slicePitch)});
-        }
-        return renderer.CreateTexture({.dxgiFormat = data.dxgiFormat, .mips = mips}, name);
-    }
-
     // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
-    std::expected<engine::assets::TextureData, engine::core::Error> MakeCheckerboard() {
+    std::expected<engine::render::TextureData, engine::core::Error> MakeCheckerboard() {
         constexpr uint32_t kSize = 256;
         constexpr uint32_t kSquare = 32;
         std::vector<std::byte> rgba8(size_t{kSize} * kSize * 4);
@@ -96,7 +79,7 @@ namespace {
 
     // The grid's texture: the --texture file or the checkerboard. If loading fails, a warning and grey.
     engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
-        const std::expected<engine::assets::TextureData, engine::core::Error> texture =
+        const std::expected<engine::render::TextureData, engine::core::Error> texture =
             options.texturePath
                 ? engine::assets::LoadTexture(*options.texturePath, engine::assets::TextureUsage::Diffuse)
                 : MakeCheckerboard();
@@ -106,7 +89,7 @@ namespace {
         }
         const std::wstring name =
             options.texturePath ? L"Grid/" + options.texturePath->filename().wstring() : L"Grid/Checkerboard";
-        return CreateTexture(renderer, *texture, name);
+        return renderer.CreateTexture(*texture, name);
     }
 
     struct RunResult {

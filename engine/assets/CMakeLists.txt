@@ -12,6 +12,8 @@ target_include_directories(engine_assets PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 target_link_libraries(engine_assets
         PUBLIC
         engine_core
+        # TextureLoader.h returns render::TextureData
+        engine_renderdata
         # PRIVATE: DirectXTex.h is used only in .cpp files
         PRIVATE
         Microsoft::DirectXTex)

@@ -3,8 +3,7 @@
 
 add_library(engine_render STATIC
         Renderer.cpp
-        Renderer.h
-        TextureUpload.h)
+        Renderer.h)
 
 engine_target_defaults(engine_render)
 
