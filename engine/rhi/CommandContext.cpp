@@ -114,7 +114,7 @@ namespace engine::rhi {
         m_list->SetPipelineState(pipelineState);
     }
 
-    void CommandContext::SetGraphicsRootConstants(uint32_t rootIndex, std::span<const std::byte> data) {
+    void CommandContext::SetGraphicsRootConstantBytes(uint32_t rootIndex, std::span<const std::byte> data) {
         ENGINE_ASSERT(m_recording);
         ENGINE_ASSERT_MSG(data.size() % 4 == 0, "root constants must be 32-bit values, got {} bytes", data.size());
         // The values are copied into the command list now, so `data` may go away after this call

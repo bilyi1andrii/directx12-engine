@@ -16,6 +16,7 @@
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
 #include "rhi/SwapChain.h"
+#include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
 #include "render/Handles.h"
@@ -92,7 +93,8 @@ namespace engine::render {
         // Temporary: PipelineCache replaces it later in step 2.
         void CreatePipelineState();
 
-        // Uploads the cube's vertex and index buffers (called once, from the constructor)
+        // Records the upload of the cube's vertex and index buffers into the recording upload batch
+        // (called once, from the constructor)
         void UploadCube();
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
@@ -104,14 +106,16 @@ namespace engine::render {
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
-        // buffer, texture and deferred release (in the frames) must be gone before it. The frames and
-        // the command list come before the queue: the queue's destructor waits for the GPU before
-        // they are released.
+        // buffer, texture and deferred release (in the frames) must be gone before it. The frames, the
+        // upload context and the command list come before the queue: the queue's destructor waits for
+        // the GPU before they are released (also when the constructor throws and ~Renderer never runs).
         rhi::Device m_device;
         rhi::Allocator m_allocator;
         // Before the frames: their deferred frees return indices to it, also when they are destroyed
         rhi::BindlessHeap m_bindlessHeap;
         std::vector<rhi::FrameContext> m_frames;
+        // Static uploads (meshes, later textures); its staging buffers live until their batch's fence
+        rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
         // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory

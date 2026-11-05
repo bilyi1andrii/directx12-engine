@@ -3,16 +3,17 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <ranges>
 #include <span>
 #include <string_view>
 
 #include "core/Assert.h"
 #include "rhi/Allocator.h"
+#include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
-    class CommandContext;
-    class FrameContext;
+    class UploadContext;
 
     // A GPU buffer in the default heap (GPU-local memory), e.g. a static vertex or index buffer.
     // Created through rhi::Allocator.
@@ -30,14 +31,16 @@ namespace engine::rhi {
         Buffer(Buffer &&) noexcept = default;
         Buffer &operator=(Buffer &&) noexcept = default;
 
-        // Creates a buffer holding a copy of `data` and records the upload into `context`
-        // (which must be recording). The temporary upload buffer goes to `frame`'s deferred-release
-        // list, so `frame`'s fence value must be set after the list is submitted. Later commands in
-        // this list see the buffer in `finalState`; in later lists it has decayed to COMMON and is
-        // promoted again implicitly on use.
-        [[nodiscard]] static Buffer CreateWithData(Allocator &allocator, CommandContext &context, FrameContext &frame,
-                                                   std::span<const std::byte> data, D3D12_RESOURCE_STATES finalState,
-                                                   std::wstring_view name);
+        // Creates a buffer holding a copy of `data` (an array, vector or span of vertices, indices, bytes, ...)
+        // and records the copy into `upload`'s batch, which must be recording. The buffer is ready for command
+        // lists submitted after that batch. Later commands in the batch see it in `finalState`; in later lists it
+        // has decayed to COMMON and is promoted again implicitly on use.
+        template <std::ranges::contiguous_range R>
+            requires std::ranges::sized_range<R> && GpuCopyable<std::ranges::range_value_t<R>>
+        [[nodiscard]] static Buffer CreateWithData(Allocator &allocator, UploadContext &upload, const R &data,
+                                                   D3D12_RESOURCE_STATES finalState, std::wstring_view name) {
+            return CreateWithBytes(allocator, upload, std::as_bytes(std::span(data)), finalState, name);
+        }
 
         [[nodiscard]] D3D12_VERTEX_BUFFER_VIEW VertexBufferView(uint32_t strideBytes) const;
         [[nodiscard]] D3D12_INDEX_BUFFER_VIEW IndexBufferView(DXGI_FORMAT format) const;
@@ -53,6 +56,10 @@ namespace engine::rhi {
         [[nodiscard]] uint64_t Size() const noexcept { return m_size; }
 
     private:
+        [[nodiscard]] static Buffer CreateWithBytes(Allocator &allocator, UploadContext &upload,
+                                                    std::span<const std::byte> data, D3D12_RESOURCE_STATES finalState,
+                                                    std::wstring_view name);
+
         Allocation m_allocation;
         uint64_t m_size = 0;
     };

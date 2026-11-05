@@ -1,12 +1,10 @@
 #include "render/Renderer.h"
 
 #include <array>
-#include <cstring>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <format>
-#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -88,6 +86,7 @@ namespace engine::render {
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
         : m_device(validation), m_allocator(m_device),
           m_bindlessHeap(m_device.Native(), rhi::BindlessHeap::kDefaultCapacity, L"Bindless heap"),
+          m_upload(m_device.Native(), m_allocator, L"Upload"),
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
@@ -106,7 +105,12 @@ namespace engine::render {
                                                              IID_PPV_ARGS(&m_rootSignature)));
         ThrowIfFailed(m_rootSignature->SetName(L"Global root signature"));
         CreatePipelineState();
+
+        // All startup uploads in one batch. Submitted before the first frame, so every frame list
+        // runs after it on the queue and sees the data; nothing waits for it on the CPU.
+        m_upload.Begin(m_queue);
         UploadCube();
+        m_upload.Submit(m_queue);
     }
 
     Renderer::~Renderer() {
@@ -126,6 +130,8 @@ namespace engine::render {
         // frame before reusing its allocator
         rhi::FrameContext &frame = CurrentFrame();
         frame.WaitAndReset(m_queue);
+        // Frees the staging memory of the last upload batch once the GPU has run it (never waits)
+        m_upload.ReleaseCompleted(m_queue);
 
         // After WaitAndReset: objects a resize defers into this slot must survive until this
         // frame's fence, not be dropped by the reset
@@ -158,8 +164,7 @@ namespace engine::render {
         gpu::FrameConstants frameConstants = MakeFrameConstants(view);
         frameConstants.instanceBufferIndex = UploadInstances(list);
         const rhi::UploadAllocation frameCb =
-            CurrentFrame().Upload().Allocate(sizeof(frameConstants), rhi::kConstantBufferAlignment);
-        std::memcpy(frameCb.cpu, &frameConstants, sizeof(frameConstants));
+            CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -180,12 +185,12 @@ namespace engine::render {
 
         // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
         gpu::InstanceData instance{};
-        std::byte *destination = instances.cpu;
+        uint64_t offset = 0;
         for (const BatchBucket &bucket : list.Buckets()) {
             for (const DirectX::XMFLOAT4X4 &world : bucket.worlds) {
                 DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
-                std::memcpy(destination, &instance, kStride);
-                destination += kStride;
+                instances.Write(offset, instance);
+                offset += kStride;
             }
         }
 
@@ -200,10 +205,8 @@ namespace engine::render {
     }
 
     void Renderer::DrawBuckets(const RenderList &list) {
-        // Root constants b0: copied into the command list by each call, so every draw keeps its own values
-        const auto setDrawConstants = [this](const gpu::DrawConstants &constants) {
-            m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, std::as_bytes(std::span(&constants, 1)));
-        };
+        // Root constants b0 (DrawConstants) are copied into the command list by each
+        // SetGraphicsRootConstants call, so every draw keeps its own values.
 
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
@@ -216,14 +219,14 @@ namespace engine::render {
             gpu::DrawConstants constants{.instanceOffset = firstInstance, .materialIndex = bucket.key.material.index};
             if (m_settings.drawPath == DrawPath::Instanced) {
                 // One draw for the whole bucket: object i reads element instanceOffset + SV_InstanceID (= i)
-                setDrawConstants(constants);
+                m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                 m_context.DrawIndexedInstanced(mesh.indexCount, objectCount);
             } else {
                 // One draw per object, each with its own element in the root constants (plan §2.6: keeps
                 // the per-draw cost measurable)
                 for (uint32_t i = 0; i < objectCount; ++i) {
                     constants.instanceOffset = firstInstance + i;
-                    setDrawConstants(constants);
+                    m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                     m_context.DrawIndexed(mesh.indexCount);
                 }
             }
@@ -242,6 +245,12 @@ namespace engine::render {
                              D3D12_RESOURCE_STATE_PRESENT);
         m_context.Close();
 
+        // An upload batch still recording (e.g. a texture created during this frame) goes first: this
+        // frame's list may already use its resources, and on one queue lists run in submission order
+        if (m_upload.IsRecording()) {
+            m_upload.Submit(m_queue);
+        }
+
         // Submit, present, and remember which fence value marks the end of this frame's GPU work
         m_queue.ExecuteCommandList(m_context.Native());
         m_swapChain.Present(vsync);
@@ -252,31 +261,17 @@ namespace engine::render {
     }
 
     void Renderer::UploadCube() {
-        // Recorded into the slot frame 0 uses: frame 0's BeginFrame waits for this fence value, then
-        // resets the allocator and releases the upload buffers. No extra flush needed.
-        ENGINE_ASSERT(m_frameNumber == 0);
-        rhi::FrameContext &frame = CurrentFrame();
-        m_context.Begin(frame.CommandAllocator());
-
         GpuMesh cube{
-            .vertices =
-                rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeVertices)),
-                                            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
-            .indices =
-                rhi::Buffer::CreateWithData(m_allocator, m_context, frame, std::as_bytes(std::span(kCubeIndices)),
-                                            D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB"),
+            .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeVertices,
+                                                    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
+            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeIndices,
+                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB"),
             .vertexStride = sizeof(VertexPosColor),
             .indexFormat = DXGI_FORMAT_R16_UINT,
             .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
         };
         m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
         m_meshes.push_back(std::move(cube));
-
-        // Must be submitted and signalled before the first BeginFrame: otherwise WaitAndReset would
-        // reset an allocator the GPU is still reading
-        m_context.Close();
-        m_queue.ExecuteCommandList(m_context.Native());
-        frame.SetFenceValue(m_queue.Signal());
     }
 
     void Renderer::CreatePipelineState() {

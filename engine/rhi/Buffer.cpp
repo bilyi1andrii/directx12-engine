@@ -1,17 +1,13 @@
 #include "rhi/Buffer.h"
 
-#include <cstring>
 #include <string>
-#include <utility>
 
 #include "core/Assert.h"
-#include "core/ThrowIfFailed.h"
 #include "rhi/CommandContext.h"
-#include "rhi/FrameContext.h"
+#include "rhi/UploadContext.h"
+#include "rhi/UploadRing.h"
 
 namespace engine::rhi {
-    using core::ThrowIfFailed;
-
     namespace {
         D3D12_RESOURCE_DESC BufferDesc(uint64_t size) {
             return {
@@ -29,9 +25,8 @@ namespace engine::rhi {
         }
     } // namespace
 
-    Buffer Buffer::CreateWithData(Allocator &allocator, CommandContext &context, FrameContext &frame,
-                                  std::span<const std::byte> data, D3D12_RESOURCE_STATES finalState,
-                                  std::wstring_view name) {
+    Buffer Buffer::CreateWithBytes(Allocator &allocator, UploadContext &upload, std::span<const std::byte> data,
+                                   D3D12_RESOURCE_STATES finalState, std::wstring_view name) {
         ENGINE_ASSERT_MSG(!data.empty(), "Buffer::CreateWithData with no data");
 
         Buffer buffer;
@@ -43,27 +38,17 @@ namespace engine::rhi {
         buffer.m_allocation = allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, BufferDesc(buffer.m_size),
                                                        D3D12_RESOURCE_STATE_COMMON, nullptr, bufferName);
 
-        // Upload heap: CPU-writable memory the GPU reads over PCIe. It must stay in GENERIC_READ.
-        // The data goes there first, then the GPU copies it into the default-heap buffer.
-        Allocation upload =
-            allocator.CreateResource(D3D12_HEAP_TYPE_UPLOAD, BufferDesc(buffer.m_size),
-                                     D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, bufferName + L" upload");
-        ID3D12Resource *uploadResource = upload->GetResource();
-        void *mapped = nullptr;
-        const D3D12_RANGE noRead{.Begin = 0, .End = 0}; // the CPU will not read from it
-        ThrowIfFailed(uploadResource->Map(0, &noRead, &mapped));
-        std::memcpy(mapped, data.data(), data.size_bytes());
-        uploadResource->Unmap(0, nullptr); // nullptr: the whole buffer may have been written
+        // The data goes into a staging buffer first, then the GPU copies it into the default-heap buffer.
+        // The batch keeps the staging buffer until the GPU has run the copy.
+        const UploadAllocation staging = upload.AllocateStaging(buffer.m_size, bufferName + L" upload");
+        staging.WriteRange(0, data);
 
         // The copy promotes the buffer from COMMON to COPY_DEST implicitly (no barrier needed).
         // The explicit transition afterwards is optional: buffers decay back to COMMON when the
         // command list has finished and are promoted again on their next use.
-        context.CopyBuffer(buffer.Native(), 0, uploadResource, 0, buffer.m_size);
-        context.Transition(buffer.Native(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
-
-        // The GPU reads the upload buffer when it runs the copy, after this function has returned.
-        // Deferring the allocation keeps both the resource and its memory until then.
-        frame.DeferRelease(std::move(upload));
+        CommandContext &commands = upload.Commands();
+        commands.CopyBuffer(buffer.Native(), 0, staging.resource, staging.offset, buffer.m_size);
+        commands.Transition(buffer.Native(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
         return buffer;
     }
 
