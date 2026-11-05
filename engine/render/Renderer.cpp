@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <exception>
 #include <format>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -109,18 +110,75 @@ namespace engine::render {
         // All startup uploads in one batch. Submitted before the first frame, so every frame list
         // runs after it on the queue and sees the data; nothing waits for it on the CPU.
         m_upload.Begin(m_queue);
-        UploadCube();
-        m_upload.Submit(m_queue);
+        try {
+            UploadCube();
+            CreateFallbackTextures();
+            m_upload.Submit(m_queue);
+        } catch (...) {
+            // ~Renderer does not run when the constructor throws: hand the textures back before the members go
+            DestroyTextures();
+            throw;
+        }
     }
 
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
-        // swap chain (depth buffer, PSO, meshes) are released before its flush, so wait here.
+        // swap chain (depth buffer, PSO, meshes) are released before its flush, so wait here
+        // (DestroyTextures flushes first).
+        DestroyTextures();
+    }
+
+    TextureHandle Renderer::CreateTexture(const TextureUpload &data, std::wstring_view name) {
+        std::array<rhi::TextureMipData, D3D12_REQ_MIP_LEVELS> mips{};
+        ENGINE_ASSERT_MSG(!data.mips.empty() && data.mips.size() <= mips.size(), "Texture with {} mip levels",
+                          data.mips.size());
+        for (size_t i = 0; i < data.mips.size(); ++i) {
+            const TextureMipUpload &mip = data.mips[i];
+            mips[i] = {.width = mip.width, .height = mip.height, .rowPitch = mip.rowPitch, .pixels = mip.pixels};
+        }
+
+        // A batch still recording at EndFrame is submitted before the frame's own list
+        if (!m_upload.IsRecording()) {
+            m_upload.Begin(m_queue);
+        }
+        rhi::Texture texture =
+            rhi::Texture::Create(m_allocator, m_upload, m_bindlessHeap, static_cast<DXGI_FORMAT>(data.dxgiFormat),
+                                 std::span(mips).first(data.mips.size()), name);
+        const TextureHandle handle{.index = texture.BindlessIndex()};
+        m_textures.push_back(std::move(texture));
+        return handle;
+    }
+
+    void Renderer::CreateFallbackTextures() {
+        // Grey first, so it gets bindless index 0: a default handle (TextureHandle{}, MaterialHandle{}) then reads
+        // a texture, never another resource such as the per-frame instance buffer
+        m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
+        ENGINE_ASSERT_MSG(m_unloadedTexture.index == 0, "The grey fallback texture got bindless index {}, not 0",
+                          m_unloadedTexture.index);
+        m_unhandledTexture = CreateSolidColorTexture(250, 0, 0, L"Fallback/Unhandled (red)");
+    }
+
+    TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
+        const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
+        const TextureMipUpload mip{.width = 1, .height = 1, .rowPitch = pixel.size(), .pixels = pixel};
+        // sRGB like colour textures (assets::IsSrgbUsage): the bytes are sRGB-encoded, the shader reads them linear
+        return CreateTexture({.dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, .mips = std::span(&mip, 1)}, name);
+    }
+
+    void Renderer::DestroyTextures() noexcept {
         try {
             m_queue.Flush();
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
+        // The GPU is idle (or the device is lost), but Destroy still defers: the frame slot's lists are released
+        // when the frames are destroyed, after the textures' owner and before the heap and the allocator
+        for (rhi::Texture &texture : m_textures) {
+            if (texture.IsValid()) {
+                texture.Destroy(CurrentFrame(), m_bindlessHeap);
+            }
+        }
+        m_textures.clear();
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {

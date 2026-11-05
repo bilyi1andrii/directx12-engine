@@ -45,6 +45,9 @@ namespace engine::rhi {
         // src in COPY_SOURCE or GENERIC_READ (upload heap)
         void CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
                         uint64_t size);
+        // Copies a whole subresource: from a buffer footprint into a texture mip (uploads), or back.
+        // A texture destination must be in COPY_DEST; an upload-heap source stays in GENERIC_READ.
+        void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst, const D3D12_TEXTURE_COPY_LOCATION &src);
 
         // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
         void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);

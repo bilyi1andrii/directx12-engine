@@ -76,6 +76,19 @@ namespace engine::rhi {
         m_device->CreateShaderResourceView(buffer, &desc, CpuHandle(index));
     }
 
+    void BindlessHeap::CreateTexture2DSrv(uint32_t index, ID3D12Resource *texture, DXGI_FORMAT format,
+                                          uint32_t mipLevels) {
+        ENGINE_ASSERT_MSG(index < m_capacity && m_allocated[index], "Bindless index {} is not allocated", index);
+
+        const D3D12_SHADER_RESOURCE_VIEW_DESC desc{
+            .Format = format,
+            .ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D,
+            .Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING,
+            .Texture2D = {.MostDetailedMip = 0, .MipLevels = mipLevels, .PlaneSlice = 0, .ResourceMinLODClamp = 0.0f},
+        };
+        m_device->CreateShaderResourceView(texture, &desc, CpuHandle(index));
+    }
+
     D3D12_CPU_DESCRIPTOR_HANDLE BindlessHeap::CpuHandle(uint32_t index) const noexcept {
         // The size of one descriptor differs between GPUs, so slot i is at start + i * size
         return {m_cpuStart.ptr + static_cast<SIZE_T>(index) * m_descriptorSize};

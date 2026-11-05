@@ -74,6 +74,14 @@ namespace engine::rhi {
         m_list->CopyBufferRegion(dst, dstOffset, src, srcOffset, size);
     }
 
+    void CommandContext::CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst,
+                                           const D3D12_TEXTURE_COPY_LOCATION &src) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        // (0, 0, 0) and no source box: the whole source lands at the destination's origin
+        m_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+    }
+
     void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
         ENGINE_ASSERT(m_recording);
         m_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);

@@ -21,6 +21,14 @@ namespace engine::render {
 
         bool operator==(const MaterialHandle &) const = default;
     };
+
+    // A texture owned by the renderer. The index is its bindless slot (shaders read ResourceDescriptorHeap[index]),
+    // so it needs no table lookup. The default, 0, is the grey "unloaded" fallback texture.
+    struct TextureHandle {
+        uint32_t index = 0;
+
+        bool operator==(const TextureHandle &) const = default;
+    };
 } // namespace engine::render
 
 #endif // D3D12_ENGINE_HANDLES_H

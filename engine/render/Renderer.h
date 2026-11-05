@@ -16,12 +16,14 @@
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
 #include "rhi/SwapChain.h"
+#include "rhi/Texture.h"
 #include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
 #include "render/Handles.h"
 #include "render/RenderList.h"
 #include "render/RendererSettings.h"
+#include "render/TextureUpload.h"
 
 namespace engine::render {
     struct FrameView {
@@ -67,6 +69,16 @@ namespace engine::render {
         // The built-in cube (corners at +-1, vertex colours), until meshes come from AssetCache
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
 
+        // Creates a texture holding a copy of `data` (which may go away after the call). The copy joins the
+        // current upload batch (one is started if none is recording), which runs before this frame's commands
+        // at the latest. The texture lives as long as the renderer; releasing single textures comes with AssetCache.
+        [[nodiscard]] TextureHandle CreateTexture(const TextureUpload &data, std::wstring_view name);
+
+        // 1x1 fallback textures (colours of the DX11 Color.h): grey for a texture that failed to load (bindless
+        // index 0, also the default TextureHandle), red for a texture type the engine does not handle
+        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
+        [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
+
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
 
@@ -96,6 +108,19 @@ namespace engine::render {
         // Records the upload of the cube's vertex and index buffers into the recording upload batch
         // (called once, from the constructor)
         void UploadCube();
+
+        // Creates the grey and red fallback textures (called once, from the constructor, while the upload
+        // batch records). Grey first, so it gets bindless index 0.
+        void CreateFallbackTextures();
+
+        // A 1x1 sRGB texture of one colour
+        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
+                                                            std::wstring_view name);
+
+        // Shutdown only: waits for the GPU, then hands every texture to the current frame slot, which
+        // releases it and returns its bindless index when the frames are destroyed. Called by ~Renderer and,
+        // because ~Renderer does not run then, by a constructor that throws.
+        void DestroyTextures() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
         // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.
@@ -131,6 +156,10 @@ namespace engine::render {
         rhi::ComPtr<ID3D12PipelineState> m_pipelineState;
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
+        // Owns the textures; a TextureHandle is the bindless index, not a position here
+        std::vector<rhi::Texture> m_textures;
+        TextureHandle m_unloadedTexture;
+        TextureHandle m_unhandledTexture;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;
