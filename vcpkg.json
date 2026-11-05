@@ -7,6 +7,8 @@
     "directx-headers",
     "directx12-agility",
     "directx-dxc",
-    "d3d12-memory-allocator"
+    "d3d12-memory-allocator",
+    "gtest",
+    { "name": "directxtex", "default-features": false }
   ]
 }
