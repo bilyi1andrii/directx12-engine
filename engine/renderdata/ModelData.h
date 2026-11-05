@@ -9,19 +9,18 @@
 #include "renderdata/MeshData.h"
 
 namespace engine::render {
-    // A compressed image stored inside a model file (.png/.jpg/.dds inside .glb/.fbx), not decoded yet.
-    // Uncompressed embedded images are not supported (DX11 did not support them either).
+    // An image stored inside a model file, still compressed (.png, .jpg, .dds)
     struct EmbeddedTextureData {
         std::vector<std::byte> bytes;
-        std::string formatHint; // aiTexture::achFormatHint ("png", "jpg", "dds", ...): picks the decoder
+        std::string formatHint; // file type, e.g. "png"; picks the decoder
     };
 
-    // Everything read from one model file: what the model importer returns. CPU only.
+    // Everything loaded from one model file
     struct ModelData {
         MeshData mesh;
-        std::vector<MeshNode> nodes; // where each submesh is drawn; a submesh may appear in several nodes
+        std::vector<MeshNode> nodes; // where each submesh is drawn
         std::vector<MaterialDesc> materials;
-        std::vector<EmbeddedTextureData> embeddedTextures; // EmbeddedTexture::index points here
+        std::vector<EmbeddedTextureData> embeddedTextures;
     };
 } // namespace engine::render
 

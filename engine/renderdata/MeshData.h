@@ -9,32 +9,26 @@
 #include "renderdata/Vertex.h"
 
 namespace engine::render {
-    // One part of a model drawn with one material (one aiMesh): a range of the model's shared index array.
-    // The renderer turns each submesh into its own MeshHandle.
+    // A part of a model drawn with one material: a range of the model's index array
     struct SubmeshData {
-        uint32_t firstIndex = 0; // into MeshData::indices
+        uint32_t firstIndex = 0;
         uint32_t indexCount = 0;
-        int32_t baseVertex = 0;     // added to each index: where this submesh's vertices start in MeshData::vertices
+        int32_t baseVertex = 0;     // first vertex of this submesh; its indices count from here
         uint32_t materialIndex = 0; // into ModelData::materials
     };
 
-    // The geometry of a whole model file, in model space: one vertex and one index array shared by all
-    // submeshes. CPU only; Renderer::CreateMesh copies it to the GPU.
+    // A model's geometry: one vertex array and one index array, shared by all its submeshes
     struct MeshData {
         std::vector<Vertex> vertices;
-        // 32-bit for simplicity. Indices are relative to their submesh's baseVertex, so the renderer may
-        // narrow them to 16-bit later.
         std::vector<uint32_t> indices;
         std::vector<SubmeshData> submeshes;
     };
 
-    // Where a submesh is placed in its model: one per (node, mesh) pair of the model file. Kept apart from the
-    // geometry, so a mesh used by several nodes stays one MeshHandle and its copies can be drawn instanced.
-    // World matrix of a copy = transform * the entity's world (DX11 GeometrySystem: mesh transform * object world).
+    // One place where a submesh is drawn inside its model. A submesh drawn in several places is still one mesh,
+    // so its copies can be drawn instanced. A copy's world matrix is transform * the object's world matrix.
     struct MeshNode {
         uint32_t submesh = 0; // into MeshData::submeshes
-        // Node -> model space, accumulated over the parent nodes. DirectXMath row-vector convention, like the
-        // RenderList worlds: Assimp's matrix transposed (DX11 Model::ProcessNode). Identity by default.
+        // Submesh -> model space, in the row-vector convention of the RenderList. Identity by default.
         DirectX::XMFLOAT4X4 transform{1.0f, 0.0f, 0.0f, 0.0f, //
                                       0.0f, 1.0f, 0.0f, 0.0f, //
                                       0.0f, 0.0f, 1.0f, 0.0f, //

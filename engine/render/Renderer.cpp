@@ -247,7 +247,7 @@ namespace engine::render {
         const std::span<const std::byte> pixels(data.pixels);
         for (size_t i = 0; i < data.mips.size(); ++i) {
             const TextureMip &mip = data.mips[i];
-            // Written so it cannot overflow; a level outside the pixels would make subspan undefined behaviour
+            // The mip must lie inside the pixels (checked in a way that cannot overflow)
             ENGINE_ASSERT_MSG(mip.offset <= pixels.size() && mip.slicePitch <= pixels.size() - mip.offset,
                               "Mip {} ({} bytes at offset {}) lies outside the texture's {} bytes", i, mip.slicePitch,
                               mip.offset, pixels.size());

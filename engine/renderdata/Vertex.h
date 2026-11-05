@@ -4,12 +4,9 @@
 #include <DirectXMath.h>
 
 namespace engine::render {
-    // The mesh vertex: what the model importer produces and the renderer's vertex buffers hold.
-    // Same layout as DX11 Graphics/Vertex.h.
-    //
-    // Shared with HLSL, but not through common/shared_types.hlsli (a recorded exception to that rule): shaders
-    // receive it through the input assembler, by semantic (VSInput in vs_mesh.hlsl), not as memory they index.
-    // Its layout is described to D3D12 by kVertexLayout in Renderer.cpp. Keep the three in step.
+    // A mesh vertex, with the same layout as in the DX11 engine.
+    // Must match VSInput in vs_mesh.hlsl and kVertexLayout in Renderer.cpp. It is not in shared_types.hlsli
+    // because shaders receive it through the input layout, not by reading memory.
     struct Vertex {
         DirectX::XMFLOAT3 position;
         DirectX::XMFLOAT2 uv;
