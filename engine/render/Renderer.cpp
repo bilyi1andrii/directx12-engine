@@ -19,6 +19,7 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "renderdata/Vertex.h"
 #include "rhi/UploadRing.h"
 
 #include "common/root_signature.hlsli"
@@ -90,16 +91,7 @@ namespace engine::render {
             },
         };
 
-        // The mesh vertex, same layout as DX11 Graphics/Vertex.h. Must match VSInput in vs_mesh.hlsl.
-        // Lives here until model loading needs it elsewhere.
-        struct Vertex {
-            DirectX::XMFLOAT3 position;
-            DirectX::XMFLOAT2 uv;
-            DirectX::XMFLOAT3 normal;
-            DirectX::XMFLOAT3 tangent; // for normal mapping later
-        };
-        static_assert(sizeof(Vertex) == 44, "Vertex must keep the DX11 layout: 44 bytes, no padding");
-
+        // How the GPU reads one Vertex (renderdata/Vertex.h): must match VSInput in vs_mesh.hlsl
         constexpr std::array kVertexLayout{
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
