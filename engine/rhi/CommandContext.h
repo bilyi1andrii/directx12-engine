@@ -45,8 +45,7 @@ namespace engine::rhi {
         // src in COPY_SOURCE or GENERIC_READ (upload heap)
         void CopyBuffer(ID3D12Resource *dst, uint64_t dstOffset, ID3D12Resource *src, uint64_t srcOffset,
                         uint64_t size);
-        // Copies a whole subresource: from a buffer footprint into a texture mip (uploads), or back.
-        // A texture destination must be in COPY_DEST; an upload-heap source stays in GENERIC_READ.
+        // Copies a whole texture mip, e.g. from a staging buffer into a texture in COPY_DEST
         void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst, const D3D12_TEXTURE_COPY_LOCATION &src);
 
         // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
@@ -57,7 +56,7 @@ namespace engine::rhi {
         void SetDescriptorHeap(ID3D12DescriptorHeap *heap);
         void SetGraphicsRootSignature(ID3D12RootSignature *rootSignature);
         void SetPipelineState(ID3D12PipelineState *pipelineState);
-        // Writes `constants` (a struct of 32-bit values) into the root constants of parameter `rootIndex`.
+        // Writes a struct of 32-bit values into the root constants of parameter `rootIndex`.
         // The root signature must be set first.
         template <GpuCopyable T> void SetGraphicsRootConstants(uint32_t rootIndex, const T &constants) {
             static_assert(sizeof(T) % 4 == 0, "root constants are 32-bit values");

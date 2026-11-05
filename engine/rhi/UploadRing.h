@@ -19,26 +19,22 @@ namespace engine::rhi {
     // Constant buffer views (root CBVs included) must start at a multiple of 256 bytes
     inline constexpr uint64_t kConstantBufferAlignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
-    // A piece of upload memory: the CPU writes through `cpu`, shaders read from `gpu`.
-    // `resource` and `offset` locate it inside its buffer (an UploadRing page or an UploadContext staging buffer),
-    // for views (e.g. a bindless structured-buffer SRV, whose first element is offset / stride) and copies.
-    //
-    // Write data with Write/WriteRange, not through a typed pointer: the mapped memory holds bytes, not C++
-    // objects. It is write-combined (fast to write in order, very slow to read), so never read it back.
-    // ASan cannot see this memory, so the writes check their bounds themselves (Debug builds).
+    // A piece of upload memory: the CPU writes it, the GPU reads it at `gpu`.
+    // Fill it with Write/WriteRange (they check the bounds in Debug builds) and never read it back:
+    // this memory is very slow for the CPU to read.
     struct UploadAllocation {
         std::byte *cpu = nullptr;
         D3D12_GPU_VIRTUAL_ADDRESS gpu = 0;
-        ID3D12Resource *resource = nullptr; // owned by the ring or the upload context
-        uint64_t offset = 0;                // bytes from the start of `resource`
+        ID3D12Resource *resource = nullptr; // the buffer it lives in
+        uint64_t offset = 0;                // where it starts in `resource`
         uint64_t size = 0;                  // bytes requested
 
-        // Copies `value` to `byteOffset` bytes into this allocation
+        // Copies `value` to `byteOffset`
         template <GpuCopyable T> void Write(uint64_t byteOffset, const T &value) const {
             WriteBytes(byteOffset, std::as_bytes(std::span(&value, 1)));
         }
 
-        // Copies all elements of `values` (an array, vector, span, ...) to `byteOffset` bytes into this allocation
+        // Copies an array, vector or span to `byteOffset`
         template <std::ranges::contiguous_range R>
             requires std::ranges::sized_range<R> && GpuCopyable<std::ranges::range_value_t<R>>
         void WriteRange(uint64_t byteOffset, const R &values) const {
@@ -77,8 +73,7 @@ namespace engine::rhi {
         // Throws std::length_error if `sizeBytes` is larger than a page.
         [[nodiscard]] UploadAllocation Allocate(uint64_t sizeBytes, uint64_t alignment);
 
-        // Allocates sizeof(T) bytes and copies `value` into them, e.g. a constant buffer
-        // (alignment kConstantBufferAlignment)
+        // Allocates and fills memory for one value, e.g. a constant buffer
         template <GpuCopyable T> [[nodiscard]] UploadAllocation Write(const T &value, uint64_t alignment) {
             const UploadAllocation allocation = Allocate(sizeof(T), alignment);
             allocation.Write(0, value);

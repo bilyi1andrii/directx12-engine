@@ -41,20 +41,18 @@ namespace engine::assets {
 
     // A decoded 2D texture with its mip chain, ready to be copied to the GPU. CPU only.
     struct TextureData {
-        uint32_t dxgiFormat = 0;      // value of DXGI_FORMAT: this layer does not include DXGI headers
-        bool isSrgb = false;          // false for a colour texture whose format has no sRGB variant (e.g. R8_UNORM)
+        uint32_t dxgiFormat = 0;      // a DXGI_FORMAT value (this layer does not include DXGI headers)
+        bool isSrgb = false;          // false if the format has no sRGB version, even for a colour texture
         std::vector<TextureMip> mips; // [0] is the full-size level
         std::vector<std::byte> pixels;
     };
 
-    // Loads a texture by file extension: .dds, .tga, anything else through WIC (.png, .jpg, ...).
-    // WIC needs a core::ComScope on this thread. Generates mips on the CPU unless the file has its own or is
-    // compressed. Array, cube and volume textures return UnsupportedFormat.
+    // Loads a .dds, .tga, .png, .jpg, ... file and generates its mips. Needs a core::ComScope on this thread.
+    // Only plain 2D textures: arrays, cube maps and 3D textures return UnsupportedFormat.
     [[nodiscard]] std::expected<TextureData, core::Error> LoadTexture(const std::filesystem::path &path,
                                                                       TextureUsage usage);
 
-    // Builds a texture from `width` x `height` tightly packed RGBA8 pixels (e.g. made in code) and generates its
-    // mips. `rgba8` must hold exactly width * height * 4 bytes. Needs no COM.
+    // Builds a texture from RGBA8 pixels made in code (exactly width * height * 4 bytes) and generates its mips
     [[nodiscard]] std::expected<TextureData, core::Error>
     CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage);
 } // namespace engine::assets

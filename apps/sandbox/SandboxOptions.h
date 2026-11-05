@@ -13,7 +13,7 @@
 struct SandboxOptions {
     // --smoke-test N: render N frames, then exit; the exit code reports debug-layer errors and leaks
     std::optional<uint32_t> smokeTestFrames;
-    // --texture PATH: image shown on the cube grid instead of the procedural checkerboard (.png, .jpg, .dds, ...)
+    // --texture PATH: image for the cube grid instead of the checkerboard (.png, .jpg, .dds, ...)
     std::optional<std::filesystem::path> texturePath;
 };
 

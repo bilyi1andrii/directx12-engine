@@ -15,16 +15,16 @@ namespace engine::render {
         bool operator==(const MeshHandle &) const = default;
     };
 
-    // A material. Until MaterialGPU (step 6) a material is its albedo texture: index = TextureHandle::index, which
-    // reaches shaders as DrawConstants::materialIndex. The default, 0, is the grey fallback texture.
+    // A material. For now a material is just its albedo texture, so index = TextureHandle::index
+    // (a material buffer comes in step 6). The default, 0, is the grey fallback texture.
     struct MaterialHandle {
         uint32_t index = 0;
 
         bool operator==(const MaterialHandle &) const = default;
     };
 
-    // A texture owned by the renderer. The index is its bindless slot (shaders read ResourceDescriptorHeap[index]),
-    // so it needs no table lookup. The default, 0, is the grey "unloaded" fallback texture.
+    // A texture owned by the renderer. The index is its bindless slot: shaders read ResourceDescriptorHeap[index].
+    // The default, 0, is the grey fallback texture.
     struct TextureHandle {
         uint32_t index = 0;
 

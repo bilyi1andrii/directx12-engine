@@ -99,8 +99,7 @@ namespace engine::rhi {
     }
 
     void SwapChain::CreateBackBufferViews() {
-        // An RTV describes how the pipeline writes to the texture: here mip 0, seen as kRtvFormat (sRGB) instead of
-        // the buffer's own kFormat (UNORM). The two formats only differ in how the values are encoded.
+        // An RTV describes how the pipeline writes to the texture. This one views the UNORM buffer as sRGB.
         const D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{
             .Format = kRtvFormat,
             .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D,

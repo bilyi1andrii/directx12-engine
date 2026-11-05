@@ -16,17 +16,16 @@ namespace engine::rhi {
     inline constexpr uint32_t kBackBufferCount = 3;
 
     // The window's swap chain: the back buffers the frame is rendered into and Present() that hands
-    // them to Windows for display. Flip model (DXGI_SWAP_EFFECT_FLIP_DISCARD), 8-bit UNORM buffers drawn
-    // through sRGB views, tearing allowed when supported (vsync off without waiting for vblank).
+    // them to Windows for display. Flip model (DXGI_SWAP_EFFECT_FLIP_DISCARD), 8-bit UNORM, tearing
+    // allowed when supported (vsync off without waiting for vblank).
     //
     // Not copyable or movable. The queue and the RTV allocator must outlive it.
     class SwapChain {
     public:
         static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-        // Format of the render target views (RTVs) of the back buffers, and so of every PSO that draws into them.
-        // A flip-model swap chain cannot be created with an _SRGB format, but its buffers may be viewed as one:
-        // the GPU then encodes the shader's linear output to sRGB on write, which the display expects. Temporary
-        // until the tonemap pass (step 5) decides the final output encoding.
+        // The format the back buffers are drawn through (their RTVs, and every PSO that draws into them).
+        // sRGB, so the GPU converts the shader's linear colours for the display. A flip-model swap chain
+        // cannot use an sRGB format itself, but its buffers can be viewed as one. Revisited in step 5 (tonemapping).
         static constexpr DXGI_FORMAT kRtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
         SwapChain(const Device &device, CommandQueue &queue, DescriptorAllocator &rtvAllocator, HWND hwnd,

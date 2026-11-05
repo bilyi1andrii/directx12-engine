@@ -1,6 +1,5 @@
-// Output of vs_mesh.hlsl and input of the mesh pixel shaders ("common/vs_output.hlsli").
-// One struct for both stages, so their signatures cannot drift apart (in DX11, vs_instanced's VS_OUT had a
-// tangent that ps_nolight's PS_IN lacked).
+// Output of vs_mesh.hlsl and input of the mesh pixel shaders.
+// One struct for both stages, so the two always match.
 
 #ifndef VS_OUTPUT_HLSLI
 #define VS_OUTPUT_HLSLI

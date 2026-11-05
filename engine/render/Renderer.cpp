@@ -68,8 +68,7 @@ namespace engine::render {
             4, 0, 3, 4, 3, 7, // -Y
         };
 
-        // How the input assembler reads one VertexPosColor from the vertex buffer: must match VSInput in
-        // vs_basic.hlsl (semantic names, formats, byte offsets)
+        // How the GPU reads one VertexPosColor: must match VSInput in vs_basic.hlsl
         constexpr std::array kVertexPosColorLayout{
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
@@ -91,13 +90,13 @@ namespace engine::render {
             },
         };
 
-        // The mesh vertex: the DX11 Graphics/Vertex.h layout (44 bytes, no padding). Matches vs_mesh.hlsl's VSInput.
-        // Stays here until model loading decides where mesh data types live (with the RenderList question).
+        // The mesh vertex, same layout as DX11 Graphics/Vertex.h. Must match VSInput in vs_mesh.hlsl.
+        // Lives here until model loading needs it elsewhere.
         struct Vertex {
             DirectX::XMFLOAT3 position;
             DirectX::XMFLOAT2 uv;
             DirectX::XMFLOAT3 normal;
-            DirectX::XMFLOAT3 tangent; // direction of +u on the surface, for normal mapping later
+            DirectX::XMFLOAT3 tangent; // for normal mapping later
         };
         static_assert(sizeof(Vertex) == 44, "Vertex must keep the DX11 layout: 44 bytes, no padding");
 
@@ -140,8 +139,7 @@ namespace engine::render {
             },
         };
 
-        // A cube with corners at +-1 and 4 vertices of its own per face (24 in all), so every face has its own
-        // UVs (the whole texture), normal and tangent
+        // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal
         struct TexturedCube {
             std::array<Vertex, 24> vertices;
             std::array<uint16_t, 36> indices;
@@ -149,8 +147,7 @@ namespace engine::render {
 
         TexturedCube MakeTexturedCube() {
             using DirectX::XMFLOAT3;
-            // Each face as seen from outside: its normal and the directions of right (+u) and up (-v) on it.
-            // right = cross(up, viewing direction), so every face gets the same clockwise winding.
+            // Each face as seen from outside: its normal and which way is right and up on it
             struct Face {
                 XMFLOAT3 normal;
                 XMFLOAT3 right;
@@ -164,7 +161,7 @@ namespace engine::render {
                 {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},   // +Y, seen from above with +Z up
                 {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}}, // -Y, seen from below with -Z up
             }};
-            // normal + r * right + u * up: a corner of the face (r, u = +-1)
+            // A corner of the face: r and u are -1 or +1
             const auto corner = [](const Face &face, float r, float u) {
                 return XMFLOAT3{face.normal.x + r * face.right.x + u * face.up.x,
                                 face.normal.y + r * face.right.y + u * face.up.y,
@@ -175,12 +172,12 @@ namespace engine::render {
             for (uint16_t f = 0; f < kFaces.size(); ++f) {
                 const Face &face = kFaces[f];
                 const auto first = static_cast<uint16_t>(f * 4);
-                // Bottom-left, top-left, top-right, bottom-right; UV (0, 0) is the texture's top-left corner
+                // Bottom-left, top-left, top-right, bottom-right. UV (0, 0) is the top-left of the texture.
                 cube.vertices[first + 0] = {corner(face, -1, -1), {0, 1}, face.normal, face.right};
                 cube.vertices[first + 1] = {corner(face, -1, 1), {0, 0}, face.normal, face.right};
                 cube.vertices[first + 2] = {corner(face, 1, 1), {1, 0}, face.normal, face.right};
                 cube.vertices[first + 3] = {corner(face, 1, -1), {1, 1}, face.normal, face.right};
-                // Two clockwise triangles, as in kCubeIndices
+                // Two clockwise triangles
                 const std::array<uint16_t, 6> faceIndices{
                     first, static_cast<uint16_t>(first + 1), static_cast<uint16_t>(first + 2),
                     first, static_cast<uint16_t>(first + 2), static_cast<uint16_t>(first + 3)};
@@ -231,15 +228,14 @@ namespace engine::render {
             CreatePipelineState(L"vs_basic.cso", L"ps_basic.cso", kVertexPosColorLayout, L"Vertex colour PSO");
         m_unlitPipeline = CreatePipelineState(L"vs_mesh.cso", L"ps_unlit.cso", kVertexLayout, L"Unlit textured PSO");
 
-        // All startup uploads in one batch. Submitted before the first frame, so every frame list
-        // runs after it on the queue and sees the data; nothing waits for it on the CPU.
+        // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
         try {
             UploadCubes();
             CreateFallbackTextures();
             m_upload.Submit(m_queue);
         } catch (...) {
-            // ~Renderer does not run when the constructor throws: hand the textures back before the members go
+            // ~Renderer does not run when the constructor throws, so clean up the textures here
             DestroyTextures();
             throw;
         }
@@ -248,7 +244,7 @@ namespace engine::render {
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
         // swap chain (depth buffer, PSO, meshes) are released before its flush, so wait here
-        // (DestroyTextures flushes first).
+        // (DestroyTextures flushes).
         DestroyTextures();
     }
 
@@ -261,7 +257,7 @@ namespace engine::render {
             mips[i] = {.width = mip.width, .height = mip.height, .rowPitch = mip.rowPitch, .pixels = mip.pixels};
         }
 
-        // A batch still recording at EndFrame is submitted before the frame's own list
+        // EndFrame submits this batch before the frame
         if (!m_upload.IsRecording()) {
             m_upload.Begin(m_queue);
         }
@@ -274,8 +270,7 @@ namespace engine::render {
     }
 
     void Renderer::CreateFallbackTextures() {
-        // Grey first, so it gets bindless index 0: a default handle (TextureHandle{}, MaterialHandle{}) then reads
-        // a texture, never another resource such as the per-frame instance buffer
+        // Grey first, so it gets bindless index 0: a default handle then points to a texture
         m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
         ENGINE_ASSERT_MSG(m_unloadedTexture.index == 0, "The grey fallback texture got bindless index {}, not 0",
                           m_unloadedTexture.index);
@@ -285,7 +280,7 @@ namespace engine::render {
     TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
         const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
         const TextureMipUpload mip{.width = 1, .height = 1, .rowPitch = pixel.size(), .pixels = pixel};
-        // sRGB like colour textures (assets::IsSrgbUsage): the bytes are sRGB-encoded, the shader reads them linear
+        // sRGB, like all colour textures
         return CreateTexture({.dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, .mips = std::span(&mip, 1)}, name);
     }
 
@@ -295,8 +290,7 @@ namespace engine::render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
-        // The GPU is idle (or the device is lost), but Destroy still defers: the frame slot's lists are released
-        // when the frames are destroyed, after the textures' owner and before the heap and the allocator
+        // Destroy hands each texture to a frame slot; the slots free them when the renderer is destroyed
         for (rhi::Texture &texture : m_textures) {
             if (texture.IsValid()) {
                 texture.Destroy(CurrentFrame(), m_bindlessHeap);
@@ -312,7 +306,7 @@ namespace engine::render {
         // frame before reusing its allocator
         rhi::FrameContext &frame = CurrentFrame();
         frame.WaitAndReset(m_queue);
-        // Frees the staging memory of the last upload batch once the GPU has run it (never waits)
+        // Frees the staging memory of a finished upload batch
         m_upload.ReleaseCompleted(m_queue);
 
         // After WaitAndReset: objects a resize defers into this slot must survive until this
@@ -386,15 +380,14 @@ namespace engine::render {
     }
 
     void Renderer::DrawBuckets(const RenderList &list) {
-        // Root constants b0 (DrawConstants) are copied into the command list by each
-        // SetGraphicsRootConstants call, so every draw keeps its own values.
+        // Root constants (b0) are copied into the command list, so every draw keeps its own values
 
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
         ID3D12PipelineState *currentPipeline = nullptr;
         for (const BatchBucket &bucket : list.Buckets()) {
             const GpuMesh &mesh = Mesh(bucket.key.mesh);
-            // Switching PSOs costs CPU and GPU time: only when this bucket needs another one
+            // Switch PSOs only when needed: it costs CPU and GPU time
             if (mesh.pipelineState != currentPipeline) {
                 m_context.SetPipelineState(mesh.pipelineState);
                 currentPipeline = mesh.pipelineState;
@@ -432,8 +425,7 @@ namespace engine::render {
                              D3D12_RESOURCE_STATE_PRESENT);
         m_context.Close();
 
-        // An upload batch still recording (e.g. a texture created during this frame) goes first: this
-        // frame's list may already use its resources, and on one queue lists run in submission order
+        // Uploads first: this frame may already use them, and the GPU runs lists in submission order
         if (m_upload.IsRecording()) {
             m_upload.Submit(m_queue);
         }
@@ -500,7 +492,7 @@ namespace engine::render {
                             .NumElements = static_cast<UINT>(inputLayout.size())},
             .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = 1,
-            // The format of the render target VIEW (sRGB), not of the back buffer itself
+            // The RTV's format (sRGB), not the back buffer's
             .RTVFormats = {rhi::SwapChain::kRtvFormat},
             // Must match the depth buffer; checked against the bound DSV when drawing
             .DSVFormat = rhi::DepthBuffer::kFormat,

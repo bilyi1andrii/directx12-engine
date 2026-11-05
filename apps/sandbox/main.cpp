@@ -60,8 +60,7 @@ namespace {
         return view;
     }
 
-    // Hands a decoded texture to the renderer. Render cannot include assets, so the app converts
-    // assets::TextureData into the renderer's TextureUpload (spans into `data`; CreateTexture copies them).
+    // Hands a loaded texture to the renderer, converting it to the renderer's own type
     engine::render::TextureHandle CreateTexture(engine::render::Renderer &renderer,
                                                 const engine::assets::TextureData &data, std::wstring_view name) {
         const std::span<const std::byte> pixels(data.pixels);
@@ -76,8 +75,7 @@ namespace {
         return renderer.CreateTexture({.dxgiFormat = data.dxgiFormat, .mips = mips}, name);
     }
 
-    // 256x256 checkerboard of 32-pixel squares, light and dark grey, as an sRGB colour texture. Distant cubes
-    // use its small mips, which average to an even grey; without mips they would shimmer.
+    // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
     std::expected<engine::assets::TextureData, engine::core::Error> MakeCheckerboard() {
         constexpr uint32_t kSize = 256;
         constexpr uint32_t kSquare = 32;
@@ -96,8 +94,7 @@ namespace {
         return engine::assets::CreateTextureFromPixels(rgba8, kSize, kSize, engine::assets::TextureUsage::Diffuse);
     }
 
-    // The grid's texture: the file given with --texture, else the checkerboard. A texture that cannot be loaded
-    // logs a warning and falls back to grey (DX11's "unloaded" colour), so the app still runs.
+    // The grid's texture: the --texture file or the checkerboard. If loading fails, a warning and grey.
     engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
         const std::expected<engine::assets::TextureData, engine::core::Error> texture =
             options.texturePath
@@ -155,9 +152,8 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw, rebuilt every frame like the DX11 dynamic buckets. Two keys, so two buckets: the
-        // textured grid (one draw on the instanced path, one per cube otherwise) and the vertex-colour spinning
-        // cube. Until MaterialGPU a material is its albedo texture (MaterialHandle index = TextureHandle index).
+        // What to draw, rebuilt every frame like the DX11 dynamic buckets: the textured grid and the
+        // vertex-colour spinning cube, each in its own bucket. A material is its texture for now.
         engine::render::RenderList renderList;
         const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
         const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),

@@ -68,18 +68,15 @@ namespace engine::render {
         // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
         void Render(const FrameView &view, const RenderList &list);
 
-        // The built-in cubes (corners at +-1), until meshes come from AssetCache. CubeMesh has vertex colours and
-        // ignores the material; TexturedCubeMesh shows the material's texture (MaterialHandle = TextureHandle).
+        // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
+        // TexturedCubeMesh shows its material's texture
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
         [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
 
-        // Creates a texture holding a copy of `data` (which may go away after the call). The copy joins the
-        // current upload batch (one is started if none is recording), which runs before this frame's commands
-        // at the latest. The texture lives as long as the renderer; releasing single textures comes with AssetCache.
+        // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureUpload &data, std::wstring_view name);
 
-        // 1x1 fallback textures (colours of the DX11 Color.h): grey for a texture that failed to load (bindless
-        // index 0, also the default TextureHandle), red for a texture type the engine does not handle
+        // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
@@ -99,8 +96,7 @@ namespace engine::render {
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
             uint32_t indexCount = 0;
-            // Temporary: the vertex layout ties the PSO to the mesh. PipelineCache moves the choice to
-            // material + vertex format. Points at one of the renderer's PSOs.
+            // Temporary: chosen by the mesh's vertex layout until PipelineCache exists
             ID3D12PipelineState *pipelineState = nullptr;
         };
 
@@ -108,28 +104,23 @@ namespace engine::render {
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
-        // Creates a pipeline state from two compiled shaders (<exe dir>/shaders/*.cso) and the input layout of
-        // the vertex shader. Everything else is shared: default rasterizer/blend/depth, sRGB RTV, D32 depth.
-        // Temporary: PipelineCache replaces it after the textures branch.
+        // Creates a PSO from two compiled shaders and the vertex layout; all other state is the same for both.
+        // Temporary: PipelineCache replaces it.
         [[nodiscard]] rhi::ComPtr<ID3D12PipelineState>
         CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
                             std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name);
 
-        // Records the upload of both cubes' vertex and index buffers into the recording upload batch
-        // (called once, from the constructor, after the PSOs exist)
+        // Uploads the vertex and index buffers of both cubes (constructor only)
         void UploadCubes();
 
-        // Creates the grey and red fallback textures (called once, from the constructor, while the upload
-        // batch records). Grey first, so it gets bindless index 0.
+        // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
 
         // A 1x1 sRGB texture of one colour
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then hands every texture to the current frame slot, which
-        // releases it and returns its bindless index when the frames are destroyed. Called by ~Renderer and,
-        // because ~Renderer does not run then, by a constructor that throws.
+        // Shutdown only: waits for the GPU, then destroys every texture
         void DestroyTextures() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
@@ -143,13 +134,13 @@ namespace engine::render {
         // live-object report sees everything else released. The resource allocator is next: every
         // buffer, texture and deferred release (in the frames) must be gone before it. The frames, the
         // upload context and the command list come before the queue: the queue's destructor waits for
-        // the GPU before they are released (also when the constructor throws and ~Renderer never runs).
+        // the GPU before they are released, even when the constructor throws.
         rhi::Device m_device;
         rhi::Allocator m_allocator;
         // Before the frames: their deferred frees return indices to it, also when they are destroyed
         rhi::BindlessHeap m_bindlessHeap;
         std::vector<rhi::FrameContext> m_frames;
-        // Static uploads (meshes, later textures); its staging buffers live until their batch's fence
+        // Uploads of meshes and textures
         rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
@@ -168,7 +159,7 @@ namespace engine::render {
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
         MeshHandle m_texturedCubeMesh;
-        // Owns the textures; a TextureHandle is the bindless index, not a position here
+        // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
         TextureHandle m_unhandledTexture;

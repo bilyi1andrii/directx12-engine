@@ -4,14 +4,11 @@
 #include <type_traits>
 
 namespace engine::rhi {
-    // A type whose bytes can be copied as they are into memory the GPU reads (upload heap, root constants):
-    // - trivially copyable: memcpy is a valid copy (no user-written copy, no virtual functions);
-    // - standard layout: members lie in declaration order with no hidden data, so their offsets can match an
-    //   HLSL struct (the packing itself is checked by the static_asserts in shaders/common/shared_types.hlsli);
+    // A type that can be copied byte for byte into memory the GPU reads:
+    // - trivially copyable: memcpy is a valid copy;
+    // - standard layout: members are laid out in order, so they can match an HLSL struct;
     // - not a pointer: a CPU address means nothing to the GPU.
-    //
-    // The upload APIs (UploadAllocation::Write, UploadRing::Write, Buffer::CreateWithData,
-    // CommandContext::SetGraphicsRootConstants) only accept such types, so a typed copy cannot skip the check.
+    // All functions that copy typed data to the GPU require it.
     template <typename T>
     concept GpuCopyable = std::is_trivially_copyable_v<T> && std::is_standard_layout_v<T> && !std::is_pointer_v<T>;
 } // namespace engine::rhi

@@ -2,15 +2,10 @@
 #define D3D12_ENGINE_COMSCOPE_H
 
 namespace engine::core {
-    // Starts the COM runtime on this thread for the object's lifetime. WIC (the Windows image decoder behind
-    // DirectXTex) is created through it. D3D12 and DXGI do not need it: their objects are only reference-counted.
+    // Starts COM on this thread while it exists. Loading images (WIC, used by DirectXTex) needs it.
     //
-    // Create one at the start of the thread and keep it until the last image is loaded. Do not create one per
-    // load or per test: DirectXTex keeps its WIC factory for the whole process, and ending the last scope would
-    // leave that pointer stale.
-    //
-    // Multithreaded mode (MTA): needs no message pump from COM and suits loader threads later.
-    // Not copyable or movable: it must end on the thread that started it.
+    // Create one per thread for the whole run, never one per load: DirectXTex keeps a COM object for the
+    // whole process, and it would break once COM is shut down.
     class ComScope {
     public:
         // Throws HResultError on failure, e.g. if this thread already chose another COM mode

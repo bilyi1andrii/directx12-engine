@@ -78,7 +78,6 @@ namespace engine::rhi {
                                            const D3D12_TEXTURE_COPY_LOCATION &src) {
         ENGINE_ASSERT(m_recording);
         FlushBarriers();
-        // (0, 0, 0) and no source box: the whole source lands at the destination's origin
         m_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
     }
 

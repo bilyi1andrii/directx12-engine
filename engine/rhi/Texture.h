@@ -15,24 +15,19 @@ namespace engine::rhi {
     class FrameContext;
     class UploadContext;
 
-    // One mip level of a texture's initial data, as the CPU holds it
+    // One mip level of a texture's pixels in CPU memory
     struct TextureMipData {
         uint32_t width = 0;
         uint32_t height = 0;
-        uint64_t rowPitch = 0;             // bytes from one row to the next (a row of 4x4 blocks if compressed)
+        uint64_t rowPitch = 0;             // bytes per row
         std::span<const std::byte> pixels; // the whole level
     };
 
-    // A 2D texture in the default heap (GPU-local memory) with its mip chain and a permanent bindless shader
-    // resource view (SRV): shaders read it as ResourceDescriptorHeap[BindlessIndex()]. It stays in
-    // PIXEL_SHADER_RESOURCE (textures, unlike buffers, keep their state between command lists).
+    // A 2D texture in GPU memory with all its mips. Shaders read it as ResourceDescriptorHeap[BindlessIndex()].
     //
-    // Created through rhi::Allocator; its data is copied by an UploadContext batch, so it is ready for command
-    // lists submitted after that batch.
-    //
-    // Release it with Destroy(), which waits for a frame's fence like every GPU resource. The destructor asserts
-    // that it was called (except while an exception unwinds). Move-constructible only: assigning would drop the
-    // target without Destroy(). A default-constructed Texture is empty.
+    // Release it with Destroy(), not just the destructor: the GPU may still be using it, so the release has to
+    // wait for a frame. The destructor checks that Destroy() was called. It can be moved but not assigned,
+    // because assigning would throw the old texture away without Destroy().
     class Texture {
     public:
         Texture() = default;
@@ -43,14 +38,13 @@ namespace engine::rhi {
         Texture(Texture &&) noexcept = default;
         Texture &operator=(Texture &&) = delete;
 
-        // Creates a texture of `format` with mips.size() levels. mips[0] is the full size, every next level half
-        // the previous one (rounded down, at least 1). Records the copy of all levels into `upload`'s batch (which
-        // must be recording) and writes the SRV into a new slot of `heap`.
+        // Creates the texture, records the copy of `mips` into the upload batch and gives it a bindless slot.
+        // mips[0] is the full size; each next level is half as large.
         [[nodiscard]] static Texture Create(Allocator &allocator, UploadContext &upload, BindlessHeap &heap,
                                             DXGI_FORMAT format, std::span<const TextureMipData> mips,
                                             std::wstring_view name);
 
-        // Releases the texture and its bindless slot once the GPU has finished `frame`; this object becomes empty
+        // Frees the texture and its slot once the GPU has finished `frame`
         void Destroy(FrameContext &frame, BindlessHeap &heap);
 
         [[nodiscard]] bool IsValid() const noexcept { return m_allocation != nullptr; }

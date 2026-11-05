@@ -30,7 +30,7 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
             if (i + 1 == args.size() || args[i + 1].empty()) {
                 return std::unexpected("--texture needs a file path");
             }
-            // The arguments are UTF-8 (core::CommandLineArgs); a char8_t string makes the path decode them as such
+            // The arguments are UTF-8; a u8string tells the path so
             const std::string &value = args[++i];
             options.texturePath = std::filesystem::path(std::u8string(value.begin(), value.end()));
         } else {

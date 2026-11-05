@@ -31,10 +31,8 @@ namespace engine::rhi {
         Buffer(Buffer &&) noexcept = default;
         Buffer &operator=(Buffer &&) noexcept = default;
 
-        // Creates a buffer holding a copy of `data` (an array, vector or span of vertices, indices, bytes, ...)
-        // and records the copy into `upload`'s batch, which must be recording. The buffer is ready for command
-        // lists submitted after that batch. Later commands in the batch see it in `finalState`; in later lists it
-        // has decayed to COMMON and is promoted again implicitly on use.
+        // Creates a buffer holding a copy of `data` (an array, vector or span) and records the copy into the
+        // upload batch. The buffer is ready once that batch has been submitted.
         template <std::ranges::contiguous_range R>
             requires std::ranges::sized_range<R> && GpuCopyable<std::ranges::range_value_t<R>>
         [[nodiscard]] static Buffer CreateWithData(Allocator &allocator, UploadContext &upload, const R &data,
