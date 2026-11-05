@@ -19,6 +19,7 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "renderdata/Vertex.h"
 #include "rhi/UploadRing.h"
 
 #include "common/root_signature.hlsli"
@@ -90,16 +91,7 @@ namespace engine::render {
             },
         };
 
-        // The mesh vertex, same layout as DX11 Graphics/Vertex.h. Must match VSInput in vs_mesh.hlsl.
-        // Lives here until model loading needs it elsewhere.
-        struct Vertex {
-            DirectX::XMFLOAT3 position;
-            DirectX::XMFLOAT2 uv;
-            DirectX::XMFLOAT3 normal;
-            DirectX::XMFLOAT3 tangent; // for normal mapping later
-        };
-        static_assert(sizeof(Vertex) == 44, "Vertex must keep the DX11 layout: 44 bytes, no padding");
-
+        // How the GPU reads one Vertex (renderdata/Vertex.h): must match VSInput in vs_mesh.hlsl
         constexpr std::array kVertexLayout{
             D3D12_INPUT_ELEMENT_DESC{
                 .SemanticName = "POSITION",
@@ -248,13 +240,21 @@ namespace engine::render {
         DestroyTextures();
     }
 
-    TextureHandle Renderer::CreateTexture(const TextureUpload &data, std::wstring_view name) {
+    TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
         std::array<rhi::TextureMipData, D3D12_REQ_MIP_LEVELS> mips{};
         ENGINE_ASSERT_MSG(!data.mips.empty() && data.mips.size() <= mips.size(), "Texture with {} mip levels",
                           data.mips.size());
+        const std::span<const std::byte> pixels(data.pixels);
         for (size_t i = 0; i < data.mips.size(); ++i) {
-            const TextureMipUpload &mip = data.mips[i];
-            mips[i] = {.width = mip.width, .height = mip.height, .rowPitch = mip.rowPitch, .pixels = mip.pixels};
+            const TextureMip &mip = data.mips[i];
+            // The mip must lie inside the pixels (checked in a way that cannot overflow)
+            ENGINE_ASSERT_MSG(mip.offset <= pixels.size() && mip.slicePitch <= pixels.size() - mip.offset,
+                              "Mip {} ({} bytes at offset {}) lies outside the texture's {} bytes", i, mip.slicePitch,
+                              mip.offset, pixels.size());
+            mips[i] = {.width = mip.width,
+                       .height = mip.height,
+                       .rowPitch = mip.rowPitch,
+                       .pixels = pixels.subspan(mip.offset, mip.slicePitch)};
         }
 
         // EndFrame submits this batch before the frame
@@ -278,10 +278,14 @@ namespace engine::render {
     }
 
     TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
-        const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
-        const TextureMipUpload mip{.width = 1, .height = 1, .rowPitch = pixel.size(), .pixels = pixel};
         // sRGB, like all colour textures
-        return CreateTexture({.dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, .mips = std::span(&mip, 1)}, name);
+        const TextureData data{
+            .dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+            .isSrgb = true,
+            .mips = {TextureMip{.width = 1, .height = 1, .offset = 0, .rowPitch = 4, .slicePitch = 4}},
+            .pixels = {std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}},
+        };
+        return CreateTexture(data, name);
     }
 
     void Renderer::DestroyTextures() noexcept {

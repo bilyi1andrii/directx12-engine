@@ -3,6 +3,8 @@
 add_executable(engine_tests
         main.cpp
         FileTests.cpp
+        ModelDataTests.cpp
+        RenderListTests.cpp
         TestFiles.h
         TextureLoaderTests.cpp)
 
@@ -11,6 +13,7 @@ engine_target_defaults(engine_tests)
 target_link_libraries(engine_tests PRIVATE
         engine_core
         engine_assets
+        engine_renderdata
         GTest::gtest) # not gtest_main: main.cpp holds the process-wide core::ComScope
 
 # Before gtest_discover_tests: discovery runs the exe at build time, so the runtime must already be next to it

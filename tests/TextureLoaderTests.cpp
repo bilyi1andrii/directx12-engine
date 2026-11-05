@@ -14,8 +14,8 @@
 using engine::assets::CreateTextureFromPixels;
 using engine::assets::IsSrgbUsage;
 using engine::assets::LoadTexture;
-using engine::assets::TextureData;
 using engine::assets::TextureUsage;
+using engine::render::TextureData;
 using engine::core::ErrorCode;
 using engine::tests::MissingFile;
 using engine::tests::TempFile;

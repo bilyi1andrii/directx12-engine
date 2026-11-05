@@ -10,8 +10,9 @@ D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer i
 logging, error handling), texture loading in `engine/assets` (DirectXTex, mips generated on the CPU), the D3D12
 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames in flight, descriptors, swap
 chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless descriptor heap), one global root
-signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` and the `RenderList` (objects batched by
-mesh and material) in `engine/render`, unit tests and an automated smoke test. Next: pipeline cache and models.
+signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it
+draws from in `engine/renderdata` (the `RenderList` of objects batched by mesh and material, plus the texture, mesh and
+material types that model loading will fill), unit tests and an automated smoke test. Next: pipeline cache and models.
 
 ## Requirements
 
@@ -139,9 +140,11 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index)
 engine/scene   Camera and fly-camera controls (no D3D12)
-engine/render  Renderer: owns the frame loop's GPU objects and records each frame;
-               RenderList: the frame's objects batched by mesh and material (plain CPU data);
-               RendererSettings (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle)
+engine/renderdata
+               plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
+               and material), RendererSettings (e.g. the draw path), Handles (MeshHandle, MaterialHandle,
+               TextureHandle), TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
+engine/render  Renderer: owns the frame loop's GPU objects and records each frame
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)

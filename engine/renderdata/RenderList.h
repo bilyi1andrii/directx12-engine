@@ -8,7 +8,7 @@
 
 #include <DirectXMath.h>
 
-#include "render/Handles.h"
+#include "renderdata/Handles.h"
 
 namespace engine::render {
     // Objects with the same key can be drawn together: same mesh, same material

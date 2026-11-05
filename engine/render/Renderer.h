@@ -22,10 +22,10 @@
 #include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
-#include "render/Handles.h"
-#include "render/RenderList.h"
-#include "render/RendererSettings.h"
-#include "render/TextureUpload.h"
+#include "renderdata/Handles.h"
+#include "renderdata/RenderList.h"
+#include "renderdata/RendererSettings.h"
+#include "renderdata/TextureData.h"
 
 namespace engine::render {
     struct FrameView {
@@ -74,7 +74,7 @@ namespace engine::render {
         [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
-        [[nodiscard]] TextureHandle CreateTexture(const TextureUpload &data, std::wstring_view name);
+        [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
 
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
