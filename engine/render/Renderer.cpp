@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <exception>
 #include <format>
+#include <limits>
 #include <span>
 #include <stdexcept>
 #include <string_view>
@@ -285,13 +286,14 @@ namespace engine::render {
             }
         }
         m_textures.clear();
-        for (GpuMesh &mesh : m_meshes) {
-            for (rhi::Buffer *buffer : {&mesh.vertices, &mesh.indices}) {
+        for (GpuGeometry &geometry : m_geometries) {
+            for (rhi::Buffer *buffer : {&geometry.vertices, &geometry.indices}) {
                 if (buffer->IsValid()) {
                     buffer->Destroy(CurrentFrame());
                 }
             }
         }
+        m_geometries.clear();
         m_meshes.clear();
     }
 
@@ -381,30 +383,37 @@ namespace engine::render {
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
         rhi::PipelineHandle currentPipeline;
+        uint32_t currentGeometry = std::numeric_limits<uint32_t>::max(); // none bound yet
         for (const BatchBucket &bucket : list.Buckets()) {
             const GpuMesh &mesh = Mesh(bucket.key.mesh);
+            const GpuGeometry &geometry = m_geometries[mesh.geometry];
             // Switch PSOs only when needed: it costs CPU and GPU time
-            const rhi::PipelineHandle pipeline = PipelineFor(mesh.vertexFormat, bucket.key.material);
+            const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, bucket.key.material);
             if (pipeline != currentPipeline) {
                 m_context.SetPipelineState(m_pipelines.Native(pipeline));
                 currentPipeline = pipeline;
             }
-            m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
-            m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
+            // The meshes of one model share their buffers, so consecutive buckets often need no rebinding
+            if (mesh.geometry != currentGeometry) {
+                m_context.SetVertexBuffer(geometry.vertices.VertexBufferView(geometry.vertexStride));
+                m_context.SetIndexBuffer(geometry.indices.IndexBufferView(geometry.indexFormat));
+                currentGeometry = mesh.geometry;
+            }
 
+            // Every draw reads indexCount indices from firstIndex on, and the GPU adds baseVertex to each
             const auto objectCount = static_cast<uint32_t>(bucket.worlds.size());
             gpu::DrawConstants constants{.instanceOffset = firstInstance, .materialIndex = bucket.key.material.index};
             if (m_settings.drawPath == DrawPath::Instanced) {
                 // One draw for the whole bucket: object i reads element instanceOffset + SV_InstanceID (= i)
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                m_context.DrawIndexedInstanced(mesh.indexCount, objectCount);
+                m_context.DrawIndexedInstanced(mesh.indexCount, objectCount, mesh.firstIndex, mesh.baseVertex);
             } else {
                 // One draw per object, each with its own element in the root constants (plan §2.6: keeps
                 // the per-draw cost measurable)
                 for (uint32_t i = 0; i < objectCount; ++i) {
                     constants.instanceOffset = firstInstance + i;
                     m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                    m_context.DrawIndexed(mesh.indexCount);
+                    m_context.DrawIndexed(mesh.indexCount, mesh.firstIndex, mesh.baseVertex);
                 }
             }
             firstInstance += objectCount;
@@ -415,6 +424,18 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(handle.index < m_meshes.size(), "Mesh handle {} out of range ({} meshes)", handle.index,
                           m_meshes.size());
         return m_meshes[handle.index];
+    }
+
+    uint32_t Renderer::AddGeometry(GpuGeometry geometry) {
+        m_geometries.push_back(std::move(geometry));
+        return static_cast<uint32_t>(m_geometries.size() - 1);
+    }
+
+    MeshHandle Renderer::AddMesh(const GpuMesh &mesh) {
+        ENGINE_ASSERT_MSG(mesh.geometry < m_geometries.size(), "Mesh of geometry {} out of range ({} geometries)",
+                          mesh.geometry, m_geometries.size());
+        m_meshes.push_back(mesh);
+        return MeshHandle{.index = static_cast<uint32_t>(m_meshes.size() - 1)};
     }
 
     void Renderer::EndFrame(bool vsync) {
@@ -437,21 +458,20 @@ namespace engine::render {
     }
 
     void Renderer::UploadCubes() {
-        GpuMesh colorCube{
+        // Each cube is a geometry with a single mesh that covers all of it
+        const uint32_t colorCube = AddGeometry({
             .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeVertices,
                                                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
             .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeIndices,
                                                    D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB"),
             .vertexStride = sizeof(VertexPosColor),
             .indexFormat = DXGI_FORMAT_R16_UINT,
-            .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
             .vertexFormat = VertexFormat::PositionColor,
-        };
-        m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
-        m_meshes.push_back(std::move(colorCube));
+        });
+        m_cubeMesh = AddMesh({.geometry = colorCube, .indexCount = static_cast<uint32_t>(kCubeIndices.size())});
 
         const TexturedCube cube = MakeTexturedCube();
-        GpuMesh texturedCube{
+        const uint32_t texturedCube = AddGeometry({
             .vertices =
                 rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.vertices,
                                             D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"TexturedCube/VB"),
@@ -459,11 +479,10 @@ namespace engine::render {
                                                    D3D12_RESOURCE_STATE_INDEX_BUFFER, L"TexturedCube/IB"),
             .vertexStride = sizeof(Vertex),
             .indexFormat = DXGI_FORMAT_R16_UINT,
-            .indexCount = static_cast<uint32_t>(cube.indices.size()),
             .vertexFormat = VertexFormat::Mesh,
-        };
-        m_texturedCubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
-        m_meshes.push_back(std::move(texturedCube));
+        });
+        m_texturedCubeMesh =
+            AddMesh({.geometry = texturedCube, .indexCount = static_cast<uint32_t>(cube.indices.size())});
     }
 
     void Renderer::CreatePipelines() {

@@ -98,19 +98,31 @@ namespace engine::render {
             Count,
         };
 
-        // A mesh's GPU buffers and how to draw them. MeshHandle::index points into m_meshes.
-        struct GpuMesh {
+        // A vertex buffer and an index buffer shared by all meshes of one model (or one built-in cube)
+        struct GpuGeometry {
             rhi::Buffer vertices;
             rhi::Buffer indices;
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
+            VertexFormat vertexFormat = VertexFormat::Mesh; // one layout for every mesh in these buffers
+        };
+
+        // One drawable part of a geometry: a range of its index buffer. MeshHandle::index points into m_meshes.
+        struct GpuMesh {
+            uint32_t geometry = 0; // into m_geometries
+            uint32_t firstIndex = 0;
             uint32_t indexCount = 0;
-            VertexFormat vertexFormat = VertexFormat::Mesh;
+            int32_t baseVertex = 0; // added by the GPU to every index of this mesh
         };
 
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
+
+        // Takes ownership of `geometry`; returns its index in m_geometries
+        [[nodiscard]] uint32_t AddGeometry(GpuGeometry geometry);
+        // Registers a range of a geometry as a mesh
+        [[nodiscard]] MeshHandle AddMesh(const GpuMesh &mesh);
 
         void CreatePipelines();
 
@@ -163,6 +175,7 @@ namespace engine::render {
         rhi::PipelineCache m_pipelines;
         // Filled by CreatePipelines; indexed by VertexFormat
         std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
+        std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
         MeshHandle m_texturedCubeMesh;
