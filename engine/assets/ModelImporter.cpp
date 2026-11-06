@@ -20,6 +20,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#include "assets/Paths.h"
 #include "core/Log.h"
 #include "core/Utf8.h"
 
@@ -99,17 +100,6 @@ namespace engine::assets {
             for (unsigned i = 0; i < node.mNumChildren; ++i) {
                 AddNodes(*node.mChildren[i], transform, nodes);
             }
-        }
-
-        // Normalizes path for asset deduplication.
-        [[nodiscard]] std::filesystem::path NormalizedPath(const std::filesystem::path &path) {
-            std::error_code ec;
-            std::filesystem::path result = std::filesystem::weakly_canonical(path, ec);
-            if (!ec) {
-                return result;
-            }
-            result = std::filesystem::absolute(path, ec);
-            return (ec ? path : result).lexically_normal();
         }
 
         [[nodiscard]] std::optional<std::filesystem::path> PathFromUtf8(std::string_view text) {

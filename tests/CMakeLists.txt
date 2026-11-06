@@ -2,6 +2,7 @@
 
 add_executable(engine_tests
         main.cpp
+        AssetCacheTests.cpp
         FileTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
