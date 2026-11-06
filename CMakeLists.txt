@@ -23,6 +23,7 @@ find_package(directx12-agility CONFIG REQUIRED)
 find_package(directx-dxc CONFIG REQUIRED)
 find_package(D3D12MemoryAllocator CONFIG REQUIRED)
 find_package(directxtex CONFIG REQUIRED)
+find_package(assimp CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 
