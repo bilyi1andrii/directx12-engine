@@ -26,6 +26,7 @@
 #include "rhi/ValidationStats.h"
 
 #include "renderdata/Handles.h"
+#include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
@@ -75,6 +76,12 @@ namespace engine::render {
         // TexturedCubeMesh shows its material's texture
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
         [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
+
+        // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
+        // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
+        // can be drawn in the same frame and live as long as the renderer. `mesh` must have vertices and indices,
+        // and every submesh range must lie inside them (ModelImporter guarantees both).
+        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name);
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
@@ -128,7 +135,11 @@ namespace engine::render {
 
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
 
-        // Uploads the vertex and index buffers of both cubes (constructor only)
+        // Makes sure an upload batch is open for `bytes` more staging memory. Submits the open batch first if it
+        // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
+        void PrepareUpload(uint64_t bytes);
+
+        // Uploads both built-in cubes (constructor only)
         void UploadCubes();
 
         // Creates the grey and red fallback textures (constructor only)

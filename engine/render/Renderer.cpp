@@ -123,13 +123,9 @@ namespace engine::render {
             },
         };
 
-        // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal
-        struct TexturedCube {
-            std::array<Vertex, 24> vertices;
-            std::array<uint16_t, 36> indices;
-        };
-
-        TexturedCube MakeTexturedCube() {
+        // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal.
+        // One submesh, as a model with one part would have.
+        MeshData MakeTexturedCube() {
             using DirectX::XMFLOAT3;
             // Each face as seen from outside: its normal and which way is right and up on it
             struct Face {
@@ -152,21 +148,20 @@ namespace engine::render {
                                 face.normal.z + r * face.right.z + u * face.up.z};
             };
 
-            TexturedCube cube{};
-            for (uint16_t f = 0; f < kFaces.size(); ++f) {
-                const Face &face = kFaces[f];
-                const auto first = static_cast<uint16_t>(f * 4);
+            MeshData cube;
+            cube.vertices.reserve(kFaces.size() * 4);
+            cube.indices.reserve(kFaces.size() * 6);
+            for (const Face &face : kFaces) {
+                const auto first = static_cast<uint32_t>(cube.vertices.size());
                 // Bottom-left, top-left, top-right, bottom-right. UV (0, 0) is the top-left of the texture.
-                cube.vertices[first + 0] = {corner(face, -1, -1), {0, 1}, face.normal, face.right};
-                cube.vertices[first + 1] = {corner(face, -1, 1), {0, 0}, face.normal, face.right};
-                cube.vertices[first + 2] = {corner(face, 1, 1), {1, 0}, face.normal, face.right};
-                cube.vertices[first + 3] = {corner(face, 1, -1), {1, 1}, face.normal, face.right};
+                cube.vertices.push_back({corner(face, -1, -1), {0, 1}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, -1, 1), {0, 0}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, 1, 1), {1, 0}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, 1, -1), {1, 1}, face.normal, face.right});
                 // Two clockwise triangles
-                const std::array<uint16_t, 6> faceIndices{
-                    first, static_cast<uint16_t>(first + 1), static_cast<uint16_t>(first + 2),
-                    first, static_cast<uint16_t>(first + 2), static_cast<uint16_t>(first + 3)};
-                std::ranges::copy(faceIndices, cube.indices.begin() + f * 6);
+                cube.indices.insert(cube.indices.end(), {first, first + 1, first + 2, first, first + 2, first + 3});
             }
+            cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
             return cube;
         }
 
@@ -225,6 +220,58 @@ namespace engine::render {
         DestroyGpuResources();
     }
 
+    std::vector<MeshHandle> Renderer::CreateMesh(const MeshData &mesh, std::wstring_view name) {
+        ENGINE_ASSERT_MSG(!mesh.vertices.empty() && !mesh.indices.empty(), "CreateMesh with {} vertices and {} indices",
+                          mesh.vertices.size(), mesh.indices.size());
+
+        // EndFrame submits this batch before the frame, so the meshes can be drawn right away
+        PrepareUpload(std::span(mesh.vertices).size_bytes() + std::span(mesh.indices).size_bytes());
+        const std::wstring prefix(name);
+        const uint32_t geometry = AddGeometry({
+            .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.vertices,
+                                                    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, prefix + L"/VB"),
+            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.indices,
+                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, prefix + L"/IB"),
+            .vertexStride = sizeof(Vertex),
+            .indexFormat = DXGI_FORMAT_R32_UINT, // MeshData's indices are 32-bit: models can exceed 65536 vertices
+            .vertexFormat = VertexFormat::Mesh,
+        });
+
+        std::vector<MeshHandle> handles;
+        handles.reserve(mesh.submeshes.size());
+        for (const SubmeshData &submesh : mesh.submeshes) {
+            // A range outside the arrays would draw parts of other submeshes, or read past the buffers
+            ENGINE_ASSERT_MSG(submesh.firstIndex <= mesh.indices.size() &&
+                                  submesh.indexCount <= mesh.indices.size() - submesh.firstIndex,
+                              "Submesh indices {}+{} outside the {} indices", submesh.firstIndex, submesh.indexCount,
+                              mesh.indices.size());
+            ENGINE_ASSERT_MSG(submesh.baseVertex >= 0 && static_cast<size_t>(submesh.baseVertex) < mesh.vertices.size(),
+                              "Submesh base vertex {} outside the {} vertices", submesh.baseVertex,
+                              mesh.vertices.size());
+            handles.push_back(AddMesh({
+                .geometry = geometry,
+                .firstIndex = submesh.firstIndex,
+                .indexCount = submesh.indexCount,
+                .baseVertex = submesh.baseVertex,
+            }));
+        }
+        return handles;
+    }
+
+    void Renderer::PrepareUpload(uint64_t bytes) {
+        // Staging memory is freed only when its whole batch has finished on the GPU. A batch per ~64 MB keeps it
+        // bounded while a large model or its textures load. Begin then waits for the submitted batch: a CPU wait,
+        // allowed for upload completion, and only while loading.
+        constexpr uint64_t kUploadBatchBytes = 64ull * 1024 * 1024;
+        if (m_upload.IsRecording() && m_upload.StagingBytes() > 0 &&
+            m_upload.StagingBytes() + bytes > kUploadBatchBytes) {
+            m_upload.Submit(m_queue);
+        }
+        if (!m_upload.IsRecording()) {
+            m_upload.Begin(m_queue);
+        }
+    }
+
     TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
         std::array<rhi::TextureMipData, D3D12_REQ_MIP_LEVELS> mips{};
         ENGINE_ASSERT_MSG(!data.mips.empty() && data.mips.size() <= mips.size(), "Texture with {} mip levels",
@@ -243,9 +290,7 @@ namespace engine::render {
         }
 
         // EndFrame submits this batch before the frame
-        if (!m_upload.IsRecording()) {
-            m_upload.Begin(m_queue);
-        }
+        PrepareUpload(pixels.size_bytes());
         rhi::Texture texture =
             rhi::Texture::Create(m_allocator, m_upload, m_bindlessHeap, static_cast<DXGI_FORMAT>(data.dxgiFormat),
                                  std::span(mips).first(data.mips.size()), name);
@@ -458,7 +503,7 @@ namespace engine::render {
     }
 
     void Renderer::UploadCubes() {
-        // Each cube is a geometry with a single mesh that covers all of it
+        // A geometry with a single mesh that covers all of it, in its own vertex format
         const uint32_t colorCube = AddGeometry({
             .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeVertices,
                                                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
@@ -470,19 +515,8 @@ namespace engine::render {
         });
         m_cubeMesh = AddMesh({.geometry = colorCube, .indexCount = static_cast<uint32_t>(kCubeIndices.size())});
 
-        const TexturedCube cube = MakeTexturedCube();
-        const uint32_t texturedCube = AddGeometry({
-            .vertices =
-                rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.vertices,
-                                            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"TexturedCube/VB"),
-            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.indices,
-                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, L"TexturedCube/IB"),
-            .vertexStride = sizeof(Vertex),
-            .indexFormat = DXGI_FORMAT_R16_UINT,
-            .vertexFormat = VertexFormat::Mesh,
-        });
-        m_texturedCubeMesh =
-            AddMesh({.geometry = texturedCube, .indexCount = static_cast<uint32_t>(cube.indices.size())});
+        // Built like a model, so every run also goes through CreateMesh
+        m_texturedCubeMesh = CreateMesh(MakeTexturedCube(), L"TexturedCube").front();
     }
 
     void Renderer::CreatePipelines() {
