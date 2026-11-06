@@ -211,8 +211,8 @@ namespace engine::render {
             CreateFallbackTextures();
             m_upload.Submit(m_queue);
         } catch (...) {
-            // ~Renderer does not run when the constructor throws, so clean up the textures here
-            DestroyTextures();
+            // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
+            DestroyGpuResources();
             throw;
         }
     }
@@ -220,8 +220,8 @@ namespace engine::render {
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
         // swap chain (depth buffer, PSO, meshes) are released before its flush, so wait here
-        // (DestroyTextures flushes).
-        DestroyTextures();
+        // (DestroyGpuResources flushes).
+        DestroyGpuResources();
     }
 
     TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
@@ -272,19 +272,27 @@ namespace engine::render {
         return CreateTexture(data, name);
     }
 
-    void Renderer::DestroyTextures() noexcept {
+    void Renderer::DestroyGpuResources() noexcept {
         try {
             m_queue.Flush();
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
-        // Destroy hands each texture to a frame slot; the slots free them when the renderer is destroyed
+        // Destroy hands each resource to a frame slot; the slots free them when the renderer is destroyed
         for (rhi::Texture &texture : m_textures) {
             if (texture.IsValid()) {
                 texture.Destroy(CurrentFrame(), m_bindlessHeap);
             }
         }
         m_textures.clear();
+        for (GpuMesh &mesh : m_meshes) {
+            for (rhi::Buffer *buffer : {&mesh.vertices, &mesh.indices}) {
+                if (buffer->IsValid()) {
+                    buffer->Destroy(CurrentFrame());
+                }
+            }
+        }
+        m_meshes.clear();
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {

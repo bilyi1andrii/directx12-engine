@@ -48,6 +48,9 @@ namespace engine::rhi {
 
         [[nodiscard]] bool IsRecording() const noexcept { return m_recording; }
 
+        // Staging memory taken by the batch being recorded, so callers can submit before it grows too large
+        [[nodiscard]] uint64_t StagingBytes() const noexcept { return m_stagingBytes; }
+
     private:
         Allocator *m_allocator;
         ComPtr<ID3D12CommandAllocator> m_commandAllocator;
@@ -55,6 +58,7 @@ namespace engine::rhi {
         bool m_recording = false;
 
         std::vector<Allocation> m_staging;          // staging buffers of the batch being recorded
+        uint64_t m_stagingBytes = 0;                // their total size
         std::vector<Allocation> m_submittedStaging; // staging buffers of the last submitted batch, until its fence
         uint64_t m_submittedFenceValue = 0;         // 0: nothing submitted yet, always complete
     };

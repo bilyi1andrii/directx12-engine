@@ -13,23 +13,24 @@
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
+    class FrameContext;
     class UploadContext;
 
     // A GPU buffer in the default heap (GPU-local memory), e.g. a static vertex or index buffer.
     // Created through rhi::Allocator.
     //
-    // Destroying it releases the buffer and its memory at once: the owner must make sure the GPU is idle
-    // (Renderer flushes the queue first).
-    //
-    // Move-only. A default-constructed Buffer is empty.
+    // Release it with Destroy(), not just the destructor: the GPU may still be using it, so the release has to
+    // wait for a frame. The destructor checks that Destroy() was called. It can be moved but not assigned,
+    // because assigning would throw the old buffer away without Destroy(). A default-constructed Buffer is empty.
     class Buffer {
     public:
         Buffer() = default;
+        ~Buffer();
 
         Buffer(const Buffer &) = delete;
         Buffer &operator=(const Buffer &) = delete;
         Buffer(Buffer &&) noexcept = default;
-        Buffer &operator=(Buffer &&) noexcept = default;
+        Buffer &operator=(Buffer &&) = delete;
 
         // Creates a buffer holding a copy of `data` (an array, vector or span) and records the copy into the
         // upload batch. The buffer is ready once that batch has been submitted.
@@ -39,6 +40,9 @@ namespace engine::rhi {
                                                    D3D12_RESOURCE_STATES finalState, std::wstring_view name) {
             return CreateWithBytes(allocator, upload, std::as_bytes(std::span(data)), finalState, name);
         }
+
+        // Frees the buffer once the GPU has finished `frame`
+        void Destroy(FrameContext &frame);
 
         [[nodiscard]] D3D12_VERTEX_BUFFER_VIEW VertexBufferView(uint32_t strideBytes) const;
         [[nodiscard]] D3D12_INDEX_BUFFER_VIEW IndexBufferView(DXGI_FORMAT format) const;

@@ -126,8 +126,8 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then destroys every texture
-        void DestroyTextures() noexcept;
+        // Shutdown only: waits for the GPU, then destroys every texture and mesh buffer
+        void DestroyGpuResources() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
         // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.

@@ -1,9 +1,12 @@
 #include "rhi/Buffer.h"
 
+#include <exception>
 #include <string>
+#include <utility>
 
 #include "core/Assert.h"
 #include "rhi/CommandContext.h"
+#include "rhi/FrameContext.h"
 #include "rhi/UploadContext.h"
 #include "rhi/UploadRing.h"
 
@@ -24,6 +27,20 @@ namespace engine::rhi {
             };
         }
     } // namespace
+
+    Buffer::~Buffer() {
+        // Skipped while an exception unwinds: the assert would hide the real error
+        ENGINE_ASSERT_MSG(!IsValid() || std::uncaught_exceptions() > 0,
+                          "Buffer of {} bytes destroyed without Destroy()", m_size);
+    }
+
+    void Buffer::Destroy(FrameContext &frame) {
+        ENGINE_ASSERT_MSG(IsValid(), "Buffer::Destroy on an empty buffer");
+        // Frames still running on the GPU may read it, so it is freed after `frame` finishes
+        frame.DeferRelease(std::move(m_allocation));
+        m_allocation = nullptr;
+        m_size = 0;
+    }
 
     Buffer Buffer::CreateWithBytes(Allocator &allocator, UploadContext &upload, std::span<const std::byte> data,
                                    D3D12_RESOURCE_STATES finalState, std::wstring_view name) {
