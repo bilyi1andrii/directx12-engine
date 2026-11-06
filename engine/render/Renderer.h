@@ -26,6 +26,7 @@
 #include "rhi/UploadRing.h"
 #include "rhi/ValidationStats.h"
 
+#include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/MeshData.h"
@@ -47,13 +48,14 @@ namespace engine::render {
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
-    class Renderer {
+    // Asset loading creates meshes and textures through its GpuUploader interface.
+    class Renderer final : public GpuUploader {
     public:
         // `validation` collects debug-layer errors and leaks (Debug builds) and must outlive the renderer:
         // the device writes the live-object count when it is destroyed, after everything else
         Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation);
         // Waits for the GPU before any member is released
-        ~Renderer();
+        ~Renderer() override;
 
         Renderer(const Renderer &) = delete;
         Renderer &operator=(const Renderer &) = delete;
@@ -85,13 +87,13 @@ namespace engine::render {
         // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
         // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
         // can be drawn in the same frame and live as long as the renderer.
-        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name);
+        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name) override;
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
-        [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
+        [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) override;
 
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
-        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
+        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
         // Submits the frame, presents it and remembers the fence value that marks its end
