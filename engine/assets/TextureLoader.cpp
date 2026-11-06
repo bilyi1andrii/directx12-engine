@@ -1,6 +1,7 @@
 #include "assets/TextureLoader.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cwctype>
 #include <format>
 #include <cstring>
@@ -122,6 +123,31 @@ namespace engine::assets {
             // instead of WIC's native BGRA.
             hr = DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_IGNORE_SRGB | DirectX::WIC_FLAGS_FORCE_RGB,
                                           nullptr, image);
+        }
+        if (FAILED(hr)) {
+            return std::unexpected(ErrorFromHResult(hr, source));
+        }
+        return FinishTexture(std::move(image), usage, source);
+    }
+
+    std::expected<render::TextureData, core::Error>
+    LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage) {
+        std::string hint(formatHint);
+        std::ranges::transform(hint, hint.begin(),
+                               [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
+        const std::string source = std::format("embedded texture ({})", hint.empty() ? "no format hint" : hint);
+
+        // Same decoders and flags as LoadTexture
+        DirectX::ScratchImage image;
+        HRESULT hr = S_OK;
+        if (hint == "dds") {
+            hr = DirectX::LoadFromDDSMemory(bytes.data(), bytes.size(), DirectX::DDS_FLAGS_NONE, nullptr, image);
+        } else if (hint == "tga") {
+            hr = DirectX::LoadFromTGAMemory(bytes.data(), bytes.size(), DirectX::TGA_FLAGS_IGNORE_SRGB, nullptr, image);
+        } else {
+            hr = DirectX::LoadFromWICMemory(bytes.data(), bytes.size(),
+                                            DirectX::WIC_FLAGS_IGNORE_SRGB | DirectX::WIC_FLAGS_FORCE_RGB, nullptr,
+                                            image);
         }
         if (FAILED(hr)) {
             return std::unexpected(ErrorFromHResult(hr, source));

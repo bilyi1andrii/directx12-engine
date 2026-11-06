@@ -6,6 +6,7 @@
 #include <expected>
 #include <filesystem>
 #include <span>
+#include <string_view>
 
 #include "core/Error.h"
 #include "renderdata/TextureData.h"
@@ -34,6 +35,13 @@ namespace engine::assets {
     // Only plain 2D textures: arrays, cube maps and 3D textures return UnsupportedFormat.
     [[nodiscard]] std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path,
                                                                               TextureUsage usage);
+
+    // Same as LoadTexture, from the bytes of an image file held in memory: a texture stored inside a model file.
+    // `formatHint` is the file type without the dot, any case ("png", "jpg", "dds", "tga"; render::EmbeddedTextureData
+    // keeps Assimp's). It picks the decoder like the extension does in LoadTexture; for anything but dds and tga
+    // WIC reads the type from the bytes.
+    [[nodiscard]] std::expected<render::TextureData, core::Error>
+    LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage);
 
     // Builds a texture from RGBA8 pixels made in code (exactly width * height * 4 bytes) and generates its mips
     [[nodiscard]] std::expected<render::TextureData, core::Error>
