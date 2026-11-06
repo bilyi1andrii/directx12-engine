@@ -57,6 +57,15 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
             // The arguments are UTF-8; a u8string tells the path so
             const std::string &value = args[++i];
             options.texturePath = std::filesystem::path(std::u8string(value.begin(), value.end()));
+        } else if (arg == "--model") {
+            if (options.modelPath) {
+                return std::unexpected("--model is given more than once");
+            }
+            if (i + 1 == args.size() || args[i + 1].empty()) {
+                return std::unexpected("--model needs a file path");
+            }
+            const std::string &value = args[++i];
+            options.modelPath = std::filesystem::path(std::u8string(value.begin(), value.end()));
         } else {
             return std::unexpected(std::format("Unknown argument '{}'", arg));
         }

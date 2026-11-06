@@ -17,16 +17,19 @@ struct SandboxOptions {
     std::optional<std::filesystem::path> texturePath;
     // --count N: cubes in the grid (0 or more), rounded up to a square n x n; without it, kDefaultGridCount
     std::optional<uint32_t> gridCount;
+    // --model PATH: model file shown on the grid instead of the spinning cube (.gltf, .glb, .obj, .fbx, ...)
+    std::optional<std::filesystem::path> modelPath;
 };
 
 // The grid without --count: 20 x 20
 inline constexpr uint32_t kDefaultGridCount = 400;
 
 inline constexpr std::string_view kSandboxUsage =
-    "Usage: sandbox.exe [--smoke-test FRAMES] [--count CUBES] [--texture PATH]\n"
+    "Usage: sandbox.exe [--smoke-test FRAMES] [--count CUBES] [--texture PATH] [--model PATH]\n"
     "  --smoke-test FRAMES  render FRAMES (>= 1) frames, then exit with the test result\n"
     "  --count CUBES        cubes in the grid, rounded up to a square n x n (default 400 = 20 x 20)\n"
-    "  --texture PATH       image file shown on the grid instead of the checkerboard";
+    "  --texture PATH       image file shown on the grid instead of the checkerboard\n"
+    "  --model PATH         model file shown on the grid instead of the spinning cube";
 
 // args: the arguments without the program name. On failure the error says which argument is wrong.
 [[nodiscard]] std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const std::string> args);

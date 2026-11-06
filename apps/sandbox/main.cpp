@@ -1,15 +1,18 @@
 #include <format>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include "SandboxOptions.h"
+#include "assets/AssetCache.h"
 #include "assets/TextureLoader.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
@@ -102,6 +105,33 @@ namespace {
         return renderer.CreateTexture(*texture, name);
     }
 
+    // Places the model in `path` centred on the grid, standing on it, scaled so its largest side is kModelSize.
+    // False, with a warning, if it cannot be loaded.
+    bool AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets, const std::filesystem::path &path) {
+        using namespace DirectX;
+        constexpr float kModelSize = 8.0f;
+
+        const auto model = assets.LoadModel(path);
+        if (!model) {
+            LogWarning("Model: {}. Showing the spinning cube instead.", model.error().message);
+            return false;
+        }
+        const engine::render::Aabb &bounds = (*model)->bounds;
+        const float extent =
+            std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
+        const float scale = kModelSize / extent;
+        // Row vectors: centre on the origin with the bottom at 0, scale, then lift onto the grid's top
+        // (the grid cubes reach up to kGridHeight + 1)
+        XMFLOAT4X4 world{};
+        XMStoreFloat4x4(&world, XMMatrixTranslation(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y,
+                                                    -(bounds.min.z + bounds.max.z) / 2) *
+                                    XMMatrixScaling(scale, scale, scale) *
+                                    XMMatrixTranslation(0.0f, kGridHeight + 1.0f, 0.0f));
+        scene.Instantiate(**model, world);
+        LogInfo("Model: {} parts, largest side {:.2f} -> scaled by {:.4f}", (*model)->parts.size(), extent, scale);
+        return true;
+    }
+
     struct RunResult {
         int exitCode = 0; // the window's
         uint64_t framesRendered = 0;
@@ -163,11 +193,17 @@ namespace {
         const size_t staticObjectCount = 0;
         // gridList.Clear(); // the matrices are in GPU memory now
 
+        // After the renderer, so it is destroyed first: the renderer owns what the cache created
+        engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
+        // The --model file stands on the grid; without one, or if it fails to load, the spinning cube does
+        const bool modelShown = options.modelPath && AddModel(scene, assets, *options.modelPath);
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
         DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
-        const engine::scene::Entity spinningCube =
-            scene.Add({.mesh = renderer.CubeMesh(), .material = {}}, spinningCubeWorld);
+        std::optional<engine::scene::Entity> spinningCube;
+        if (!modelShown) {
+            spinningCube = scene.Add({.mesh = renderer.CubeMesh(), .material = {}}, spinningCubeWorld);
+        }
 
         engine::render::RendererSettings settings; // draw path toggled with I
 
@@ -219,13 +255,15 @@ namespace {
                 ::WaitMessage();
                 continue;
             }
-            // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
-            // the angle precise however long the program runs.
-            const float angle =
-                DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
-            DirectX::XMStoreFloat4x4(
-                &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
-            scene.SetWorld(spinningCube, spinningCubeWorld);
+            if (spinningCube) {
+                // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
+                // the angle precise however long the program runs.
+                const float angle =
+                    DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
+                DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixRotationAxis(
+                                                                 DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
+                scene.SetWorld(*spinningCube, spinningCubeWorld);
+            }
 
             renderList.Clear();
             engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
