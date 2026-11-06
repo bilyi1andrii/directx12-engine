@@ -138,7 +138,8 @@ engine/assets  TextureLoader: loads images with DirectXTex and generates mips (C
 engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
                Allocator (D3D12MA), Buffer, DepthBuffer, Texture, UploadRing (per-frame upload memory),
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
-               resources by index)
+               resources by index), PipelineCache (PSOs built from a description and cached; the global
+               root signature)
 engine/scene   Camera and fly-camera controls (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
