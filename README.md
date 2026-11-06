@@ -10,11 +10,12 @@ D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer i
 logging, error handling), asset loading in `engine/assets` (models through Assimp; textures through DirectXTex, mips
 generated on the CPU), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames
 in flight, descriptors, swap chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless
-descriptor heap, a pipeline cache), one global root signature defined in HLSL, a fly camera in `engine/scene`, the
-`Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the `RenderList` of objects
-batched by mesh and material, plus the texture, mesh and material types that model loading fills), per-frame
+descriptor heap, a pipeline cache), one global root signature defined in HLSL, a scene of entities and a fly camera
+in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the
+`RenderList` of objects batched by mesh and material, plus the texture, mesh, material and model types), per-frame
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
-grid), unit tests and an automated smoke test. Next: uploading imported models and drawing Sponza.
+grid), unit tests and an automated smoke test. Models from files (glTF, OBJ, FBX, ...) are shown on the cube grid.
+Next: a benchmark app and ImGui.
 
 ## Requirements
 
@@ -58,7 +59,11 @@ Command-line options of `sandbox.exe`:
 |---|---|
 | `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of the checkerboard |
 | `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
+| `--model PATH` | Show this model file (`.gltf`, `.glb`, `.obj`, `.fbx`, ...) on the grid. Without it, every model in the repo's `assets/` folder is shown in a row (except in a smoke test); without any model, a spinning cube |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
+
+Models are not committed: put them in `assets/` at the repository root (gitignored), each in its own folder with its
+textures, e.g. `assets/fantasy_town/scene.gltf`. Credit the authors as their licenses require.
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
 run the `sandbox` target. The IDE must either set up the MSVC environment itself or be started from a Developer
@@ -133,24 +138,27 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point, --smoke-test, --count, --texture)
+apps/sandbox   test application (entry point, --smoke-test, --count, --texture, --model)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
 engine/assets  ModelImporter: reads model files with Assimp into geometry, node placements and materials;
-               TextureLoader: loads images (files or bytes inside a model) with DirectXTex and generates mips
-               (CPU only, no D3D12)
+               TextureLoader: loads images (files or bytes inside a model) with DirectXTex and generates mips;
+               AssetCache: loads each model and texture once and uploads it through the renderer's GpuUploader
+               interface (no D3D12)
 engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
                Allocator (D3D12MA), Buffer, DepthBuffer, Texture, UploadRing (per-frame upload memory),
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index), PipelineCache (PSOs built from a description and cached; the global
                root signature)
-engine/scene   Camera and fly-camera controls (no D3D12)
+engine/scene   Scene (entities with a transform and a mesh + material; Instantiate places a model, Extract fills
+               the RenderList), Camera and fly-camera controls (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
                and material), InstanceChunks (how instance data is split into upload pages), RendererSettings
                (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle, StaticListHandle),
-               TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
+               TextureData, Vertex, MeshData, MaterialDesc, ModelData for model loading, Model (a loaded model's
+               parts) and GpuUploader (the interface asset loading creates GPU data through)
 engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
                once) and the frame's RenderList (uploaded every frame); CreateMesh uploads a model's geometry
                into one vertex and one index buffer and returns a MeshHandle per submesh
