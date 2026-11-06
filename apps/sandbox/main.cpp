@@ -25,6 +25,7 @@
 #include "render/Renderer.h"
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
+#include "scene/Scene.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -144,14 +145,12 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw: the textured grid and the vertex-colour spinning cube (a material is its texture for
-        // now). The grid never moves, so it is a static list, uploaded once; the spinning cube is rebuilt and
-        // uploaded every frame.
+        // What to draw: the textured grid (a stress test, submitted straight into the list) and the scene's
+        // entities (a material is its texture for now). Both are rebuilt and uploaded every frame.
         engine::render::RenderList renderList; // this frame's dynamic objects
         const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
         const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
                                                .material = {.index = gridTexture.index}};
-        const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
         // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
@@ -163,7 +162,12 @@ namespace {
         // const size_t staticObjectCount = gridList.InstanceCount();
         const size_t staticObjectCount = 0;
         // gridList.Clear(); // the matrices are in GPU memory now
+
+        engine::scene::Scene scene;
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
+        DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
+        const engine::scene::Entity spinningCube =
+            scene.Add({.mesh = renderer.CubeMesh(), .material = {}}, spinningCubeWorld);
 
         engine::render::RendererSettings settings; // draw path toggled with I
 
@@ -221,10 +225,11 @@ namespace {
                 DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
             DirectX::XMStoreFloat4x4(
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
+            scene.SetWorld(spinningCube, spinningCubeWorld);
 
             renderList.Clear();
             engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
-            renderList.Add(spinningCubeKey, spinningCubeWorld);
+            engine::scene::Extract(scene, renderList);
 
 
             try {
