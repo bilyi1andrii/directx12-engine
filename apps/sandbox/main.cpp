@@ -5,10 +5,13 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cwctype>
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "SandboxOptions.h"
@@ -16,9 +19,11 @@
 #include "assets/TextureLoader.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
+#include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
+#include "core/Utf8.h"
 #include "core/Window.h"
 #include "core/Input.h"
 #include "core/Assert.h"
@@ -105,15 +110,39 @@ namespace {
         return renderer.CreateTexture(*texture, name);
     }
 
-    // Places the model in `path` centred on the grid, standing on it, scaled so its largest side is kModelSize.
+    // Models are scaled so their largest side is this long, and stand this far apart in a row
+    constexpr float kModelSize = 8.0f;
+    constexpr float kModelSpacing = 10.0f;
+
+    // Every model file in the repository's assets/ folder (gitignored: models are not committed), sorted by path.
+    // Found from the executable (build/<preset>/bin), so it works from any working directory.
+    std::vector<std::filesystem::path> FindAssetModels() {
+        const std::filesystem::path root =
+            (engine::core::ExecutableDirectory() / L"../../../assets").lexically_normal();
+        std::vector<std::filesystem::path> models;
+        std::error_code ec;
+        for (auto it = std::filesystem::recursive_directory_iterator(root, ec);
+             !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+            std::wstring extension = it->path().extension().native();
+            std::ranges::transform(extension, extension.begin(),
+                                   [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+            if (extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx") {
+                models.push_back(it->path());
+            }
+        }
+        std::ranges::sort(models);
+        return models;
+    }
+
+    // Places the model in `path` on the grid at x = `x`, standing on it, scaled so its largest side is kModelSize.
     // False, with a warning, if it cannot be loaded.
-    bool AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets, const std::filesystem::path &path) {
+    bool AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets, const std::filesystem::path &path,
+                  float x) {
         using namespace DirectX;
-        constexpr float kModelSize = 8.0f;
 
         const auto model = assets.LoadModel(path);
         if (!model) {
-            LogWarning("Model: {}. Showing the spinning cube instead.", model.error().message);
+            LogWarning("Model: {}", model.error().message);
             return false;
         }
         const engine::render::Aabb &bounds = (*model)->bounds;
@@ -126,10 +155,23 @@ namespace {
         XMStoreFloat4x4(&world, XMMatrixTranslation(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y,
                                                     -(bounds.min.z + bounds.max.z) / 2) *
                                     XMMatrixScaling(scale, scale, scale) *
-                                    XMMatrixTranslation(0.0f, kGridHeight + 1.0f, 0.0f));
+                                    XMMatrixTranslation(x, kGridHeight + 1.0f, 0.0f));
         scene.Instantiate(**model, world);
-        LogInfo("Model: {} parts, largest side {:.2f} -> scaled by {:.4f}", (*model)->parts.size(), extent, scale);
+        LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}",
+                engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring()),
+                (*model)->parts.size(), extent, scale);
         return true;
+    }
+
+    // Puts `paths` in a row along X, centred on the origin. Returns how many loaded.
+    size_t AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
+                     std::span<const std::filesystem::path> paths) {
+        size_t added = 0;
+        for (size_t i = 0; i < paths.size(); ++i) {
+            const float x = (static_cast<float>(i) - static_cast<float>(paths.size() - 1) / 2) * kModelSpacing;
+            added += AddModel(scene, assets, paths[i], x) ? 1 : 0;
+        }
+        return added;
     }
 
     struct RunResult {
@@ -196,12 +238,19 @@ namespace {
         // After the renderer, so it is destroyed first: the renderer owns what the cache created
         engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
-        // The --model file stands on the grid; without one, or if it fails to load, the spinning cube does
-        const bool modelShown = options.modelPath && AddModel(scene, assets, *options.modelPath);
+        // Models stand on the grid in a row: the --model file, else every model in assets/. A smoke test skips
+        // assets/ so it does not depend on files outside git. Without any model, the spinning cube stands there.
+        std::vector<std::filesystem::path> modelPaths;
+        if (options.modelPath) {
+            modelPaths.push_back(*options.modelPath);
+        } else if (!smokeTestFrames) {
+            modelPaths = FindAssetModels();
+        }
+        const size_t modelsShown = AddModels(scene, assets, modelPaths);
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
         DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
         std::optional<engine::scene::Entity> spinningCube;
-        if (!modelShown) {
+        if (modelsShown == 0) {
             spinningCube = scene.Add({.mesh = renderer.CubeMesh(), .material = {}}, spinningCubeWorld);
         }
 

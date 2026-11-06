@@ -67,13 +67,14 @@ namespace engine::assets {
             return std::unexpected(data.error());
         }
 
-        const std::wstring name = path.stem().wstring();
+        // Folder and file name: model files are often all called scene.gltf, in a folder named after the model
+        const std::wstring name = (path.parent_path().filename() / path.stem()).generic_wstring();
         const std::vector<render::MeshHandle> meshes = m_gpu->CreateMesh(data->mesh, L"Model/" + name);
 
         // Only the materials a part uses get textures; each embedded image is decoded once
         std::vector<std::optional<MaterialHandle>> materials(data->materials.size());
         std::vector<std::optional<TextureHandle>> embedded(data->embeddedTextures.size());
-        size_t texturesBefore = TextureCount();
+        const size_t texturesBefore = TextureCount();
 
         render::Model model;
         model.bounds = Bounds(*data);
@@ -91,8 +92,8 @@ namespace engine::assets {
                 render::ModelPart{.mesh = meshes[node.submesh], .material = *material, .transform = node.transform});
         }
 
-        core::LogInfo("AssetCache: {} in {:.0f} ms: {} parts, {} new textures", core::ToUtf8(path.filename().native()),
-                      timer.ElapsedMs(), model.parts.size(), TextureCount() - texturesBefore);
+        core::LogInfo("AssetCache: {} in {:.0f} ms: {} parts, {} new textures", core::ToUtf8(name), timer.ElapsedMs(),
+                      model.parts.size(), TextureCount() - texturesBefore);
         return &m_models.emplace(key, std::move(model)).first->second;
     }
 
