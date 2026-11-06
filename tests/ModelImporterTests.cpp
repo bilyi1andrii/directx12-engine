@@ -1,10 +1,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <format>
 #include <span>
 #include <string>
 #include <string_view>
+#include <variant>
 
 #include <gtest/gtest.h>
 
@@ -14,6 +16,11 @@
 
 using engine::assets::ImportModel;
 using engine::core::ErrorCode;
+using engine::render::AlphaMode;
+using engine::render::EmbeddedTexture;
+using engine::render::MaterialDesc;
+using engine::render::ModelData;
+using engine::render::TextureSource;
 using engine::tests::MissingFile;
 using engine::tests::TempFile;
 
@@ -42,8 +49,9 @@ namespace {
                                                 "f 4 5 6\n";
 
     // A .gltf whose mesh 0 is one triangle. The buffer holds the positions (0,0,0), (1,0,0), (0,1,0) as floats,
-    // then the indices 0, 1, 2 as uint16 and 2 bytes of padding. `scenesAndNodes` places the mesh.
-    [[nodiscard]] std::string TriangleGltf(std::string_view scenesAndNodes) {
+    // then the indices 0, 1, 2 as uint16 and 2 bytes of padding. `rest` places the mesh (and adds materials);
+    // with `withMaterial` the triangle uses material 0.
+    [[nodiscard]] std::string TriangleGltf(std::string_view rest, bool withMaterial = false) {
         return std::format(R"({{
   "asset": {{"version": "2.0"}},
   "buffers": [{{"byteLength": 44,
@@ -53,11 +61,34 @@ namespace {
   "accessors": [{{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
                  "min": [0, 0, 0], "max": [1, 1, 0]}},
                 {{"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}}],
-  "meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0}}, "indices": 1}}]}}],
+  "meshes": [{{"primitives": [{{"attributes": {{"POSITION": 0}}, "indices": 1{}}}]}}],
   {}
 }})",
-                           scenesAndNodes);
+                           withMaterial ? R"(, "material": 0)" : "", rest);
     }
+
+    // The file a texture slot points to, or "" if it is not a file. gtest cannot print a TextureSource.
+    [[nodiscard]] std::wstring FileOf(const TextureSource &texture) {
+        const auto *path = std::get_if<std::filesystem::path>(&texture);
+        return path != nullptr ? path->native() : std::wstring{};
+    }
+
+    // The index of the image stored in the model file a texture slot points to, or -1
+    [[nodiscard]] int EmbeddedIndexOf(const TextureSource &texture) {
+        const auto *embedded = std::get_if<EmbeddedTexture>(&texture);
+        return embedded != nullptr ? static_cast<int>(embedded->index) : -1;
+    }
+
+    // What the importer should record for `file`: absolute, normalized, letter case as on disk
+    [[nodiscard]] std::wstring Normalized(const std::filesystem::path &file) {
+        return std::filesystem::weakly_canonical(file).native();
+    }
+
+    [[nodiscard]] const MaterialDesc &MaterialOfFirstSubmesh(const ModelData &model) {
+        return model.materials.at(model.mesh.submeshes.at(0).materialIndex);
+    }
+
+    constexpr std::span<const std::byte> kEmpty;
 } // namespace
 
 TEST(ImportModel, MissingFileReturnsFileNotFound) {
@@ -176,4 +207,86 @@ TEST(ImportModel, NodeTransformsIncludeTheirParents) {
     const auto &other = result->nodes[1].transform;
     EXPECT_NEAR(other(3, 0), 5.0f, 1e-5f);
     EXPECT_NEAR(other(3, 1), 0.0f, 1e-5f);
+}
+
+// A material without PBR textures (OBJ): the diffuse texture shown as it is, the opacity, and the other maps found
+// next to the model by the material's name. The texture path is written in another letter case than the file: it
+// still names the file as it is on disk, so both spellings load the same texture.
+TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
+    const TempFile mtl(L"engine_test_mat.mtl", Bytes("newmtl engine_test_brick\n"
+                                                     "Kd 0.5 0.25 1\n"
+                                                     "d 0.5\n"
+                                                     "map_Kd ENGINE_TEST_BRICK_ALBEDO.PNG\n"));
+    const TempFile albedo(L"engine_test_brick_albedo.png", kEmpty);
+    const TempFile normal(L"engine_test_brick_n.png", kEmpty);
+    const TempFile occlusion(L"engine_test_brick_ao.jpg", kEmpty);
+    const TempFile obj(
+        L"engine_test_mat.obj",
+        Bytes(std::string("mtllib engine_test_mat.mtl\nusemtl engine_test_brick\n") + std::string(kTriangleObj)));
+
+    const auto result = ImportModel(obj.Path());
+
+    ASSERT_TRUE(result.has_value()) << result.error().message;
+    const MaterialDesc &material = MaterialOfFirstSubmesh(*result);
+    EXPECT_EQ(material.name, "engine_test_brick");
+    EXPECT_EQ(FileOf(material.albedo), Normalized(albedo.Path()));
+    EXPECT_EQ(material.baseColor.x, 1.0f) << "a texture is not tinted by the diffuse colour";
+    EXPECT_EQ(material.baseColor.y, 1.0f);
+    EXPECT_EQ(material.baseColor.z, 1.0f);
+    EXPECT_FLOAT_EQ(material.baseColor.w, 0.5f);
+    EXPECT_EQ(material.alphaMode, AlphaMode::Blend);
+    EXPECT_EQ(FileOf(material.normal), Normalized(normal.Path()));
+    EXPECT_EQ(FileOf(material.ambientOcclusion), Normalized(occlusion.Path()));
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(material.metallic)) << "no engine_test_brick_m file";
+    EXPECT_FALSE(material.packedMetallicRoughness);
+    EXPECT_TRUE(result->embeddedTextures.empty());
+}
+
+// A glTF material: the file's factors and alpha mode, metallic and roughness packed in one texture, and an image
+// stored in the file used by two slots but copied once
+TEST(ImportModel, GltfMaterialKeepsTheFileValues) {
+    const std::string gltf = TriangleGltf(R"("scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"mesh": 0}],
+  "materials": [{"name": "leaf", "alphaMode": "MASK", "alphaCutoff": 0.3, "doubleSided": true,
+                 "emissiveFactor": [0.1, 0.2, 0.3],
+                 "pbrMetallicRoughness": {"baseColorFactor": [1, 0.5, 0.25, 0.75],
+                                          "metallicFactor": 0.2, "roughnessFactor": 0.7,
+                                          "baseColorTexture": {"index": 0},
+                                          "metallicRoughnessTexture": {"index": 1}},
+                 "occlusionTexture": {"index": 1}}],
+  "textures": [{"source": 0}, {"source": 1}],
+  "images": [{"uri": "engine_test_leaf.png"}, {"uri": "data:image/png;base64,AQIDBA=="}])",
+                                          true);
+    const TempFile file(L"engine_test_material.gltf", Bytes(gltf));
+
+    const auto result = ImportModel(file.Path());
+
+    ASSERT_TRUE(result.has_value()) << result.error().message;
+    const MaterialDesc &material = MaterialOfFirstSubmesh(*result);
+    EXPECT_EQ(material.name, "leaf");
+    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
+    EXPECT_FLOAT_EQ(material.alphaCutoff, 0.3f);
+    EXPECT_TRUE(material.doubleSided);
+    EXPECT_FLOAT_EQ(material.baseColor.x, 1.0f);
+    EXPECT_FLOAT_EQ(material.baseColor.y, 0.5f);
+    EXPECT_FLOAT_EQ(material.baseColor.z, 0.25f);
+    EXPECT_FLOAT_EQ(material.baseColor.w, 0.75f);
+    EXPECT_FLOAT_EQ(material.metallicFactor, 0.2f);
+    EXPECT_FLOAT_EQ(material.roughnessFactor, 0.7f);
+    EXPECT_FLOAT_EQ(material.emissiveFactor.x, 0.1f);
+    EXPECT_FLOAT_EQ(material.emissiveFactor.y, 0.2f);
+    EXPECT_FLOAT_EQ(material.emissiveFactor.z, 0.3f);
+    EXPECT_EQ(FileOf(material.albedo), Normalized(file.Path().parent_path() / "engine_test_leaf.png"));
+
+    EXPECT_TRUE(material.packedMetallicRoughness);
+    EXPECT_EQ(EmbeddedIndexOf(material.metallic), 0);
+    EXPECT_EQ(EmbeddedIndexOf(material.roughness), 0);
+    EXPECT_EQ(EmbeddedIndexOf(material.ambientOcclusion), 0);
+    ASSERT_EQ(result->embeddedTextures.size(), 1u);
+    const auto &image = result->embeddedTextures[0];
+    EXPECT_EQ(image.formatHint, "png");
+    ASSERT_EQ(image.bytes.size(), 4u);
+    EXPECT_EQ(image.bytes[0], std::byte{1});
+    EXPECT_EQ(image.bytes[3], std::byte{4});
 }
