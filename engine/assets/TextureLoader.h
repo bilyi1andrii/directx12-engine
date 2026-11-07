@@ -36,10 +36,6 @@ namespace engine::assets {
     [[nodiscard]] std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path,
                                                                               TextureUsage usage);
 
-    // Same as LoadTexture, from the bytes of an image file held in memory: a texture stored inside a model file.
-    // `formatHint` is the file type without the dot, any case ("png", "jpg", "dds", "tga"; render::EmbeddedTextureData
-    // keeps Assimp's). It picks the decoder like the extension does in LoadTexture; for anything but dds and tga
-    // WIC reads the type from the bytes.
     [[nodiscard]] std::expected<render::TextureData, core::Error>
     LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage);
 

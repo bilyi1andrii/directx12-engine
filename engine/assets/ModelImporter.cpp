@@ -38,16 +38,11 @@ namespace engine::assets {
         using render::TextureSource;
         using render::Vertex;
 
-        // Flags:
-        // - Triangulate: polygons become triangles, the only primitive the renderer draws.
-        // - ConvertToLeftHanded: D3D's left-handed space, clockwise front faces and UVs with v down.
-        // - GenSmoothNormals: only for meshes that have no normals.
-        // - CalcTangentSpace: tangents for normal mapping later; needs normals and UVs.
+        // Flags: Triangulate, Left-Handed space, smooth normals, and tangent space generation.
         constexpr unsigned kImportFlags = aiProcess_Triangulate | aiProcess_ConvertToLeftHanded |
                                           aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
 
-        // Appends `mesh` to the model's shared vertex and index arrays as one submesh.
-        // Its indices stay relative to its own first vertex (baseVertex), as Assimp stores them.
+        // Appends mesh data to model's vertex/index buffers.
         void AddSubmesh(const aiMesh &mesh, std::string_view source, MeshData &geometry) {
             SubmeshData submesh{
                 .firstIndex = static_cast<uint32_t>(geometry.indices.size()),
@@ -62,18 +57,15 @@ namespace engine::assets {
                 if (mesh.HasTextureCoords(0)) {
                     vertex.uv = {mesh.mTextureCoords[0][i].x, mesh.mTextureCoords[0][i].y};
                 }
-                // Missing only on meshes of points or lines: GenSmoothNormals fills them for triangles
                 if (mesh.HasNormals()) {
                     vertex.normal = {mesh.mNormals[i].x, mesh.mNormals[i].y, mesh.mNormals[i].z};
                 }
-                // Missing when the mesh has no UVs (CalcTangentSpace needs them); DX11 uses +X then too
                 vertex.tangent = mesh.HasTangentsAndBitangents()
                                      ? DirectX::XMFLOAT3{mesh.mTangents[i].x, mesh.mTangents[i].y, mesh.mTangents[i].z}
                                      : DirectX::XMFLOAT3{1.0f, 0.0f, 0.0f};
                 geometry.vertices.push_back(vertex);
             }
 
-            // After Triangulate a face has 3 indices, or fewer for points and lines, which are not drawn
             unsigned skippedFaces = 0;
             geometry.indices.reserve(geometry.indices.size() + size_t{mesh.mNumFaces} * 3);
             for (unsigned i = 0; i < mesh.mNumFaces; ++i) {
@@ -93,16 +85,14 @@ namespace engine::assets {
             geometry.submeshes.push_back(submesh);
         }
 
-        // Adds a MeshNode for every mesh of `node` and its children. `parent` is the
-        // parent's node -> model transform.
+        // Recursively builds node hierarchy and bakes transforms.
         void AddNodes(const aiNode &node, DirectX::FXMMATRIX parent, std::vector<MeshNode> &nodes) {
-            // Assimp matrices multiply column vectors (translation in the last column); the engine multiplies
-            // row vectors, so each one is transposed. A child is placed in its parent's space: local * parent.
+            // Transpose Assimp column-major matrix to engine's row-major space.
             const DirectX::XMMATRIX transform = DirectX::XMMatrixMultiply(
                 DirectX::XMMatrixTranspose(DirectX::XMMATRIX(&node.mTransformation.a1)), parent);
 
             for (unsigned i = 0; i < node.mNumMeshes; ++i) {
-                MeshNode meshNode{.submesh = node.mMeshes[i]}; // submesh i is aiMesh i
+                MeshNode meshNode{.submesh = node.mMeshes[i]};
                 DirectX::XMStoreFloat4x4(&meshNode.transform, transform);
                 nodes.push_back(meshNode);
             }
@@ -111,8 +101,7 @@ namespace engine::assets {
             }
         }
 
-        // Absolute and normalized, so one file always gives the same path (AssetCache deduplicates by it).
-        // weakly_canonical also resolves "..", links and, for files that exist, the letter case on disk.
+        // Normalizes path for asset deduplication.
         [[nodiscard]] std::filesystem::path NormalizedPath(const std::filesystem::path &path) {
             std::error_code ec;
             std::filesystem::path result = std::filesystem::weakly_canonical(path, ec);
@@ -123,7 +112,6 @@ namespace engine::assets {
             return (ec ? path : result).lexically_normal();
         }
 
-        // Assimp strings are UTF-8. Nothing if they are not: the path conversion would throw.
         [[nodiscard]] std::optional<std::filesystem::path> PathFromUtf8(std::string_view text) {
             try {
                 return std::filesystem::path(
@@ -137,12 +125,11 @@ namespace engine::assets {
             return !std::holds_alternative<std::monostate>(texture);
         }
 
-        // Reads the materials of one model. Textures in separate files become normalized paths relative to the
-        // model's folder; textures stored in the file are copied into ModelData::embeddedTextures, each once.
+        // Helper to read and parse materials and textures.
         struct MaterialReader {
             const aiScene &scene;
-            std::filesystem::path directory; // the model's folder
-            std::string_view source;         // the model file, for warnings
+            std::filesystem::path directory;
+            std::string_view source;
             ModelData &model;
             std::unordered_map<const aiTexture *, uint32_t> embeddedIndices{};
 
@@ -155,18 +142,15 @@ namespace engine::assets {
 
                 ReadFactors(material, desc);
 
-                // Texture slots any kind of file can fill
                 desc.normal = FirstTexture(material, aiTextureType_NORMALS);
                 desc.emissive = FirstTexture(material, aiTextureType_EMISSIVE);
                 desc.height = FirstTexture(material, aiTextureType_HEIGHT);
                 desc.opacityMap = FirstTexture(material, aiTextureType_OPACITY);
                 desc.ambientOcclusion = FirstTexture(material, aiTextureType_AMBIENT_OCCLUSION);
                 if (!IsSet(desc.ambientOcclusion)) {
-                    desc.ambientOcclusion = FirstTexture(material, aiTextureType_LIGHTMAP); // glTF occlusion
+                    desc.ambientOcclusion = FirstTexture(material, aiTextureType_LIGHTMAP);
                 }
 
-                // PBR textures, as glTF and PBR exports state them. glTF packs metallic (blue) and roughness (green)
-                // into one texture.
                 desc.albedo = FirstTexture(material, aiTextureType_BASE_COLOR);
                 if (TextureSource packed = FirstTexture(material, aiTextureType_GLTF_METALLIC_ROUGHNESS);
                     IsSet(packed)) {
@@ -186,8 +170,6 @@ namespace engine::assets {
 
         private:
             static void ReadFactors(const aiMaterial &material, MaterialDesc &desc) {
-                // A PBR base colour carries the opacity in its alpha; otherwise the diffuse colour and the opacity
-                // are separate
                 aiColor4D baseColor;
                 aiColor3D diffuse;
                 float opacity = 1.0f;
@@ -202,7 +184,6 @@ namespace engine::assets {
                     }
                 }
 
-                // Each Get leaves the default in place when the file does not state the value
                 material.Get(AI_MATKEY_METALLIC_FACTOR, desc.metallicFactor);
                 material.Get(AI_MATKEY_ROUGHNESS_FACTOR, desc.roughnessFactor);
                 aiColor3D emissive;
@@ -210,7 +191,6 @@ namespace engine::assets {
                     desc.emissiveFactor = {emissive.r, emissive.g, emissive.b};
                 }
 
-                // The file's alpha mode when it states one (glTF), else transparent when not fully opaque
                 aiString alphaMode;
                 if (material.Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == AI_SUCCESS) {
                     const std::string_view mode = alphaMode.C_Str();
@@ -228,13 +208,10 @@ namespace engine::assets {
                 }
             }
 
-            // Materials without PBR textures (OBJ, most FBX): the diffuse texture, and the other maps as files next
-            // to the model named after the material, such as brick_n.png for the normal map of "brick". The
-            // file's own textures win over these.
+            // Fallback rules for non-PBR formats (OBJ, older FBX).
             void ApplyNonPbrRules(const aiMaterial &material, MaterialDesc &desc) {
                 desc.albedo = FirstTexture(material, aiTextureType_DIFFUSE);
                 if (IsSet(desc.albedo)) {
-                    // The texture is shown as it is, not tinted by the diffuse colour
                     desc.baseColor = {1.0f, 1.0f, 1.0f, desc.baseColor.w};
                 }
 
@@ -249,7 +226,6 @@ namespace engine::assets {
                     }
                 }
 
-                // Shown as it is, unless the file states an emissive colour to multiply it with
                 const auto &factor = desc.emissiveFactor;
                 if (IsSet(desc.emissive) && factor.x == 0.0f && factor.y == 0.0f && factor.z == 0.0f) {
                     desc.emissiveFactor = {1.0f, 1.0f, 1.0f};
@@ -264,7 +240,7 @@ namespace engine::assets {
                 return Resolve(path);
             }
 
-            // An image stored in the file ("*N" or its name), or a file path relative to the model
+            // Resolves embedded or external texture paths.
             [[nodiscard]] TextureSource Resolve(const aiString &path) {
                 const std::string_view text(path.C_Str(), path.length);
                 if (text.empty()) {
@@ -272,7 +248,6 @@ namespace engine::assets {
                 }
 
                 if (const aiTexture *texture = scene.GetEmbeddedTexture(path.C_Str())) {
-                    // mHeight 0: compressed file bytes (png, jpg, ...), mWidth of them. Otherwise raw texels.
                     if (texture->mHeight != 0) {
                         LogWarning("{}: texture \"{}\" is stored uncompressed in the file, which is not supported",
                                    source, text);
@@ -296,7 +271,6 @@ namespace engine::assets {
                 return NormalizedPath(directory / *file);
             }
 
-            // <material name><suffix>.png, .jpg or .jpeg next to the model, if one exists
             [[nodiscard]] TextureSource FindBySuffix(std::string_view materialName, std::string_view suffix) const {
                 for (const std::string_view extension : {".png", ".jpg", ".jpeg"}) {
                     const std::optional<std::filesystem::path> file =
@@ -312,7 +286,6 @@ namespace engine::assets {
     } // namespace
 
     std::expected<render::ModelData, core::Error> ImportModel(const std::filesystem::path &path) {
-        // Assimp takes UTF-8 paths and converts them back to UTF-16 to open the file on Windows
         const std::string source = core::ToUtf8(path.native());
 
         std::error_code ec;
@@ -327,7 +300,6 @@ namespace engine::assets {
                 Error{ErrorCode::UnsupportedFormat, std::format("{}: Assimp cannot read {} files", source, extension)});
         }
 
-        // The scene belongs to the importer and is freed with it
         const aiScene *scene = importer.ReadFile(source.c_str(), kImportFlags);
         if (scene == nullptr) {
             return std::unexpected(
@@ -343,7 +315,6 @@ namespace engine::assets {
         }
         AddNodes(*scene->mRootNode, DirectX::XMMatrixIdentity(), model.nodes);
 
-        // Material i is Assimp material i, as SubmeshData::materialIndex expects
         MaterialReader materials{
             .scene = *scene, .directory = NormalizedPath(path).parent_path(), .source = source, .model = model};
         model.materials.reserve(scene->mNumMaterials);

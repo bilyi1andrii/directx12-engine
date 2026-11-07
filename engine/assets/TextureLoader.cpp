@@ -137,7 +137,6 @@ namespace engine::assets {
                                [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
         const std::string source = std::format("embedded texture ({})", hint.empty() ? "no format hint" : hint);
 
-        // Same decoders and flags as LoadTexture
         DirectX::ScratchImage image;
         HRESULT hr = S_OK;
         if (hint == "dds") {
