@@ -1,5 +1,5 @@
-# engine_assets: asset loading (TextureLoader, ModelImporter, AssetCache). Reaches the GPU only through the
-# render::GpuUploader interface. Must never link engine_render, engine_rhi, d3d12 or dxgi.
+# engine_assets: TextureLoader, ModelImporter, AssetCache, Primitives. Reaches the GPU only through
+# render::GpuUploader; must never link engine_render, engine_rhi, d3d12 or dxgi.
 
 add_library(engine_assets STATIC
         AssetCache.cpp

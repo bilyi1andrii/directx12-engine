@@ -14,8 +14,8 @@ namespace engine::scene {
         DirectX::XMFLOAT3 direction; // unit length
     };
 
-    // The ray from the camera through the point (x, y) of a view `width` x `height` pixels large, (0, 0) at its
-    // top-left corner: what is under the mouse at (x, y). width and height must be > 0.
+    // The ray from the camera through pixel (x, y) of a `width` x `height` view ((0, 0) top-left), e.g. under the
+    // mouse. width and height must be > 0.
     [[nodiscard]] Ray ScreenRay(const Camera &camera, float x, float y, float width, float height);
 
     // Where `ray` meets the horizontal plane y = `planeY`.

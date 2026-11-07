@@ -27,10 +27,10 @@ namespace sandbox {
     // Returns grid side length (smallest n where n * n >= count).
     [[nodiscard]] uint32_t GridSide(uint32_t count);
 
-    // The grid's texture without --texture, relative to the executable (from the repository's data/ folder)
+    // Grid texture without --texture, relative to the exe
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
 
-    // Loads the grid texture: the --texture file, else kDefaultGridTexture. If it fails, a warning and grey.
+    // Loads --texture or kDefaultGridTexture; grey with a warning on failure.
     [[nodiscard]] engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer,
                                                                   const SandboxOptions &options);
 

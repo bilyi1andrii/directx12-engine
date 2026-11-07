@@ -13,14 +13,14 @@
 #include "renderdata/RenderList.h"
 
 namespace engine::scene {
-    // A thing in the scene: an index into the scene's component arrays
+    // An index into the scene's component arrays
     struct Entity {
         uint32_t index = 0;
 
         bool operator==(const Entity &) const = default;
     };
 
-    // Where an entity is. Object -> world in the row-vector convention of the RenderList.
+    // Object -> world, row-vector convention (as in the RenderList)
     struct Transform {
         DirectX::XMFLOAT4X4 world{1.0f, 0.0f, 0.0f, 0.0f, //
                                   0.0f, 1.0f, 0.0f, 0.0f, //
@@ -28,22 +28,20 @@ namespace engine::scene {
                                   0.0f, 0.0f, 0.0f, 1.0f};
     };
 
-    // What an entity looks like: drawn with this mesh and material
+    // The mesh and material an entity is drawn with
     struct MeshRenderer {
         render::MeshHandle mesh;
         render::MaterialHandle material;
     };
 
-    // The entities to draw, as plain components in parallel arrays: entity i has Transforms()[i] and
-    // Renderers()[i]. No inheritance between object types; an entity is only its components.
-    // Entities are never removed for now, so an Entity stays valid as long as the scene.
+    // Entities as components in parallel arrays: entity i is Transforms()[i] + Renderers()[i]. Nothing is
+    // removed yet, so an Entity stays valid as long as the scene.
     class Scene {
     public:
         // Adds one entity drawn with `renderer` at `world`
         Entity Add(const MeshRenderer &renderer, const DirectX::XMFLOAT4X4 &world);
 
-        // Places a copy of `model` at `world`: one entity per part, at part.transform * world (the part's place in
-        // the model, then the model's place in the world). Returns the entities in part order.
+        // One entity per part of `model`, at part.transform * world. Returns them in part order.
         std::vector<Entity> Instantiate(const render::Model &model, const DirectX::XMFLOAT4X4 &world);
 
         void SetWorld(Entity entity, const DirectX::XMFLOAT4X4 &world);

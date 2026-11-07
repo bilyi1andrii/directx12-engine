@@ -67,7 +67,7 @@ namespace engine::assets {
             return std::unexpected(data.error());
         }
 
-        // Folder and file name: model files are often all called scene.gltf, in a folder named after the model
+        // Folder/stem: model files are often all named scene.gltf
         const std::wstring name = (path.parent_path().filename() / path.stem()).generic_wstring();
         const std::vector<render::MeshHandle> meshes = m_gpu->CreateMesh(data->mesh, L"Model/" + name);
 
@@ -141,11 +141,11 @@ namespace engine::assets {
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {
-        // The colour as it is, like the DX11 engine (Kd * 255 into an sRGB texture; no linear -> sRGB conversion)
+        // The colour as is: Kd * 255 into an sRGB texture, no linear -> sRGB conversion
         const uint8_t red = ToByte(material.baseColor.x);
         const uint8_t green = ToByte(material.baseColor.y);
         const uint8_t blue = ToByte(material.baseColor.z);
-        // A black material shows the grey of an unloaded texture, as in DX11 (Model::LoadMaterialTextures)
+        // A black material shows the grey unloaded texture
         if (red == 0 && green == 0 && blue == 0) {
             return m_gpu->UnloadedTexture();
         }

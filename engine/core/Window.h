@@ -32,8 +32,7 @@ namespace engine::core {
         // The client area changed size. Not called when minimized
         std::function<void(uint32_t width, uint32_t height)> onResize;
 
-        // Files (or folders) dragged from Explorer and dropped on the window at (x, y), in client-area pixels with
-        // (0, 0) at the top-left. Called from PumpMessages.
+        // Files dropped from Explorer at (x, y): client pixels, (0, 0) top-left. Called from PumpMessages.
         std::function<void(std::span<const std::filesystem::path> paths, int32_t x, int32_t y)> onFilesDropped;
     };
 

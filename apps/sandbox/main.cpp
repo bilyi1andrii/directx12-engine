@@ -60,7 +60,7 @@ namespace {
         return view;
     }
 
-    // A file dropped on the window, and where: client-area pixels, (0, 0) at the top-left
+    // A dropped file and its drop point (client pixels, (0, 0) top-left)
     struct DroppedFile {
         std::filesystem::path path;
         int32_t x = 0;
@@ -117,13 +117,12 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw: the textured grid (a stress test, submitted straight into the list) and the scene's
-        // entities (a material is its texture for now). Both are rebuilt and uploaded every frame.
+        // Rebuilt every frame: the grid (stress test, straight into the list) and the scene's entities
         engine::render::RenderList renderList; // this frame's dynamic objects
-        // One cube mesh for the grid and the spinning cube, uploaded like any model
+        // One cube mesh for the grid and the spinning cube
         const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
         const engine::render::TextureHandle gridTexture = sandbox::CreateGridTexture(renderer, options);
-        // Not const: an image dropped on the window replaces the grid's texture
+        // Not const: a dropped image replaces the grid texture
         engine::render::BatchKey gridKey{.mesh = cubeMesh, .material = {.index = gridTexture.index}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, sandbox::kGridHeight, 0.0f));
@@ -131,17 +130,17 @@ namespace {
         const uint32_t gridSide = sandbox::GridSide(options.gridCount.value_or(kDefaultGridCount));
         LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
         // engine::render::RenderList gridList;
-        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing, sandbox::kGridSpacing);
+        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing,
+        //                            sandbox::kGridSpacing);
         // const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
         // const size_t staticObjectCount = gridList.InstanceCount();
         const size_t staticObjectCount = 0;
         // gridList.Clear(); // the matrices are in GPU memory now
 
-        // After the renderer, so it is destroyed first: the renderer owns what the cache created
+        // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
-        // Models stand on the grid in a row: the --model file, else every model in assets/. A smoke test skips
-        // assets/ so it does not depend on files outside git. Without any model, the spinning cube stands there.
+        // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git); none: a spinning cube
         std::vector<std::filesystem::path> modelPaths;
         if (options.modelPath) {
             modelPaths.push_back(*options.modelPath);
@@ -156,7 +155,7 @@ namespace {
             const engine::render::TextureHandle uvGradient = sandbox::CreateUvGradientTexture(renderer);
             spinningCube = scene.Add({.mesh = cubeMesh, .material = {.index = uvGradient.index}}, spinningCubeWorld);
         }
-        // Dropped models continue the row to the right; with no model yet, they start next to the spinning cube
+        // Where a model dropped on the sky goes: the end of the row
         float nextModelX = modelsShown > 0
                                ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
                                : sandbox::kModelSpacing;
@@ -190,7 +189,7 @@ namespace {
 
             cameraController.Update(camera, input, frameTimer.DeltaSeconds());
 
-            // Between frames, so new meshes and textures go into the upload batch EndFrame submits first
+            // Between frames: EndFrame submits their uploads before the frame
             for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
                 const engine::scene::Ray ray =
                     engine::scene::ScreenRay(camera, static_cast<float>(drop.x), static_cast<float>(drop.y),

@@ -135,8 +135,8 @@ TEST(AssetCache, ModelHasAPartPerSubmeshAndItsBounds) {
     EXPECT_NEAR(model.bounds.max.y, 2.0f, 1e-5f);
 }
 
-// A material without a texture shows its colour as it is (no sRGB conversion); one texture per colour, so two
-// materials of the same colour share it. Assimp's unused DefaultMaterial gets nothing.
+// Untextured materials: colour as is (no sRGB conversion), one shared texture per colour. Assimp's unused
+// DefaultMaterial gets none.
 TEST(AssetCache, MaterialWithoutTextureGetsItsColour) {
     const TempFile mtl(L"engine_test_cache.mtl", Bytes(Mtl("Kd 1 0.5 0", "Kd 1 0.5 0")));
     const TempFile obj(L"engine_test_cache_colour.obj", Bytes(kTwoMaterialsObj));

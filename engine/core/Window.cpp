@@ -218,7 +218,7 @@ namespace engine::core {
             return 0;
         }
         case WM_DROPFILES: {
-            // wParam is a handle to the list of dropped files, released by DragFinish
+            // wParam: the list of dropped files
             const UniqueDrop drop(reinterpret_cast<HDROP>(msg.wParam));
             const std::vector<std::filesystem::path> paths = DroppedPaths(drop.get());
             // Where the mouse button was released, in client-area coordinates

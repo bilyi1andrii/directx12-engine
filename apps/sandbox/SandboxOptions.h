@@ -17,8 +17,7 @@ struct SandboxOptions {
     std::optional<std::filesystem::path> texturePath;
     // --count N: cubes in the grid (0 or more), rounded up to a square n x n; without it, kDefaultGridCount
     std::optional<uint32_t> gridCount;
-    // --model PATH: model file shown on the grid (.gltf, .glb, .obj, .fbx, ...). Without it, every model in the
-    // repository's assets/ folder is shown, except in a smoke test.
+    // --model PATH: model shown on the grid; without it, every model in assets/ (not in a smoke test)
     std::optional<std::filesystem::path> modelPath;
 };
 

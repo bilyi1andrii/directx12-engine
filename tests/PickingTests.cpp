@@ -42,8 +42,8 @@ TEST(ScreenRay, CentreOfTheViewLooksAlongTheCamera) {
 }
 
 TEST(ScreenRay, EdgesOfTheViewFollowTheFieldOfViewAndScreenDirections) {
-    // Looking along +Z with a 90 degree vertical field of view: the top edge is 45 degrees up. A view twice as wide
-    // as high reaches twice as far sideways. Screen y grows downwards, world y upwards.
+    // Along +Z with a 90 degree vertical FOV: the top edge is 45 degrees up, a 2:1 view reaches twice as far
+    // sideways. Screen y grows down, world y up.
     Camera camera;
     camera.fovDegrees = 90.0f;
     constexpr float kWidth = 200.0f;

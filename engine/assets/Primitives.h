@@ -4,10 +4,10 @@
 #include "renderdata/MeshData.h"
 
 namespace engine::assets {
-    // Meshes generated in code, uploaded with GpuUploader::CreateMesh like an imported model
+    // Meshes made in code, uploaded with GpuUploader::CreateMesh like imported ones
 
-    // A cube with corners at +-1 and 4 vertices per face, so every face shows the whole texture and has its own
-    // normal. One submesh. Triangles are clockwise seen from outside (the default front face).
+    // Cube with corners at +-1, 4 vertices per face (whole texture and own normal per face), one submesh,
+    // triangles clockwise seen from outside.
     [[nodiscard]] render::MeshData MakeCube();
 } // namespace engine::assets
 

@@ -48,7 +48,7 @@ namespace engine::render {
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
-    // Asset loading creates meshes and textures through its GpuUploader interface.
+    // Asset loading uses it through GpuUploader.
     class Renderer final : public GpuUploader {
     public:
         // `validation` collects debug-layer errors and leaks (Debug builds) and must outlive the renderer:

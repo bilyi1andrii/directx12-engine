@@ -32,7 +32,7 @@ namespace sandbox {
     }
 
     engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
-        // data/ is copied next to the executable by the build (data/CMakeLists.txt)
+        // The build copies data/ next to the exe
         const std::filesystem::path path =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / kDefaultGridTexture);
         const std::expected<engine::render::TextureData, engine::core::Error> texture =
@@ -93,7 +93,7 @@ namespace sandbox {
         const float extent =
             std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
         const float scale = kModelSize / extent;
-        // Row vectors: centre on the origin with the bottom at 0, scale, then move onto the grid's top at (x, z)
+        // Row vectors: centre with the bottom at 0, scale, move to (x, kGridTop, z)
         XMFLOAT4X4 world{};
         XMStoreFloat4x4(&world, XMMatrixTranslation(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y,
                                                     -(bounds.min.z + bounds.max.z) / 2) *

@@ -9,12 +9,11 @@ namespace engine::scene {
         using namespace DirectX;
         ENGINE_ASSERT_MSG(width > 0.0f && height > 0.0f, "ScreenRay on a {} x {} view", width, height);
 
-        // Pixels -> normalized device coordinates: x from -1 (left) to 1 (right), y from 1 (top) to -1 (bottom)
+        // Pixels -> NDC: x -1..1 left to right, y 1..-1 top to bottom
         const float ndcX = 2.0f * x / width - 1.0f;
         const float ndcY = 1.0f - 2.0f * y / height;
 
-        // Back from clip space to world space. Depth 0.5 lies between the near and far planes, so the point is in
-        // front of the camera, and the ray from the camera through it passes under (x, y).
+        // Clip -> world. Depth 0.5 is between the near and far planes: a point in front of the camera under (x, y).
         const XMMATRIX viewProjection = ViewMatrix(camera) * ProjectionMatrix(camera, width / height);
         const XMMATRIX clipToWorld = XMMatrixInverse(nullptr, viewProjection);
         const XMVECTOR pointInWorld = XMVector3TransformCoord(XMVectorSet(ndcX, ndcY, 0.5f, 1.0f), clipToWorld);

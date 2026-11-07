@@ -1,6 +1,4 @@
-# data/: small runtime files the apps load, committed to git (unlike the downloaded models in assets/).
-# Copied to <bin>/data/ with the same layout, next to the executables and shaders/, so every app finds them
-# relative to its own exe.
+# data/: small runtime files in git (models stay in the ignored assets/). Copied to <bin>/data/, next to the exe.
 
 file(GLOB_RECURSE DATA_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*")
 list(FILTER DATA_FILES EXCLUDE REGEX "/CMakeLists\\.txt$")

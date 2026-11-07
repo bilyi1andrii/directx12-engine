@@ -14,7 +14,7 @@ namespace engine::render {
         DirectX::XMFLOAT3 max{0.0f, 0.0f, 0.0f};
     };
 
-    // One thing to draw in a model: a submesh with its material, at its place in the model
+    // A drawable part of a model: submesh, material and place in the model
     struct ModelPart {
         MeshHandle mesh;
         MaterialHandle material;
@@ -25,8 +25,7 @@ namespace engine::render {
                                       0.0f, 0.0f, 0.0f, 1.0f};
     };
 
-    // A model already on the GPU, in the form the scene places it: its parts and how big it is.
-    // AssetCache makes it from a ModelData; Scene::Instantiate places a copy of it.
+    // A model on the GPU: parts and bounds. AssetCache makes it from ModelData; Scene::Instantiate places it.
     struct Model {
         std::vector<ModelPart> parts;
         Aabb bounds; // of all parts, in model space

@@ -70,8 +70,8 @@ TEST(MakeCube, TangentsAreUnitPerpendicularToTheNormalAndPointAlongU) {
         EXPECT_NEAR(Length(vertex.tangent), 1.0f, kTolerance);
         EXPECT_NEAR(Dot(vertex.tangent, vertex.normal), 0.0f, kTolerance);
     }
-    // Normal mapping needs the tangent to point where u grows. A face is 2 units wide and u runs from 0 to 1 across
-    // it, so along every edge of a triangle, the edge's projection on each corner's tangent is twice the change in u.
+    // The tangent points where u grows (normal mapping): a face is 2 units wide for u 0..1, so every edge's
+    // projection on any corner's tangent is 2 * du.
     for (size_t i = 0; i < cube.indices.size(); i += 3) {
         for (size_t corner = 0; corner < 3; ++corner) {
             const XMFLOAT3 &tangent = cube.vertices[cube.indices[i + corner]].tangent;
@@ -92,8 +92,7 @@ TEST(MakeCube, TrianglesAreClockwiseSeenFromOutside) {
         const Vertex &v0 = cube.vertices[cube.indices[i]];
         const Vertex &v1 = cube.vertices[cube.indices[i + 1]];
         const Vertex &v2 = cube.vertices[cube.indices[i + 2]];
-        // Clockwise seen from the side the normal points to (D3D's default front face, which is not culled)
-        // gives cross(v1 - v0, v2 - v0) along the normal
+        // Clockwise from outside (D3D's front face) <=> cross(v1 - v0, v2 - v0) along the normal
         const XMFLOAT3 faceNormal = Cross(Sub(v1.position, v0.position), Sub(v2.position, v0.position));
         EXPECT_GT(Dot(faceNormal, v0.normal), 0.0f) << "triangle " << i / 3;
         // All three corners belong to the same face
