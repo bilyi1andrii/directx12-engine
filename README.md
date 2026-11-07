@@ -55,6 +55,7 @@ Command-line options of `sandbox.exe`:
 | Option | Effect |
 |---|---|
 | `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of the checkerboard |
+| `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
@@ -89,6 +90,9 @@ The smoke test runs `sandbox.exe --smoke-test 120`: it renders 120 frames, toggl
 test fails if the D3D12 or DXGI debug layer reported an error, if objects are still alive at shutdown, if fewer than
 120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
 the last lines say why. Run it after every change, before committing.
+
+A second smoke test, `sandbox.exe --smoke-test 6 --count 50000`, runs the same checks with 50,176 cubes. Only 6
+frames, because the debug checks make each of these frames slow (about 3 s in Debug, 9 s with ASan in total).
 
 The exe can also be started directly with `--smoke-test N`. Exit codes:
 
@@ -130,7 +134,7 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point, --smoke-test, --texture)
+apps/sandbox   test application (entry point, --smoke-test, --count, --texture)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)

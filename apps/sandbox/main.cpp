@@ -43,11 +43,20 @@ namespace {
     constexpr bool kValidationExpected = false;
 #endif
 
-    // The sandbox scene: a grid of cubes below the origin and one cube spinning at the origin
-    constexpr uint32_t kGridRows = 20;
-    constexpr uint32_t kGridCols = 20;
+    // The sandbox scene: a square grid of cubes below the origin (--count, default 20 x 20) and one cube
+    // spinning at the origin
     constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
     constexpr float kGridHeight = -4.0f;
+
+    // Side of the grid for --count: the smallest n with n * n >= count, so the count is rounded up to a
+    // square (64-bit product: the square of a large uint32_t does not fit in one)
+    uint32_t GridSide(uint32_t count) {
+        uint32_t side = 0;
+        while (uint64_t{side} * side < count) {
+            ++side;
+        }
+        return side;
+    }
 
     // The renderer's input for one frame, from the camera (scene and render do not know each other)
     engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
@@ -144,6 +153,9 @@ namespace {
         const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
+        // e.g. --count 50000 gives 224 x 224 = 50,176 cubes; the title shows the real object count
+        const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
+        LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
 
         engine::render::RendererSettings settings; // draw path toggled with I
@@ -204,7 +216,7 @@ namespace {
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, gridKey, gridBase, kGridRows, kGridCols, kGridSpacing, kGridSpacing);
+            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
             renderList.Add(spinningCubeKey, spinningCubeWorld);
 
             try {
