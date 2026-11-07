@@ -15,6 +15,7 @@
 namespace engine::rhi {
     class FrameContext;
     class UploadContext;
+    struct UploadAllocation;
 
     // A GPU buffer in the default heap (GPU-local memory), e.g. a static vertex or index buffer.
     // Created through rhi::Allocator.
@@ -30,6 +31,12 @@ namespace engine::rhi {
         Buffer &operator=(const Buffer &) = delete;
         Buffer(Buffer &&) noexcept = default;
         Buffer &operator=(Buffer &&) = delete;
+
+        // Creates a buffer of `sizeBytes` and records a copy into it from `staging`, which the caller fills before
+        // the upload batch is submitted (the GPU copies only then). Avoids an extra CPU copy of generated data.
+        [[nodiscard]] static Buffer CreateStaged(Allocator &allocator, UploadContext &upload, uint64_t sizeBytes,
+                                                 D3D12_RESOURCE_STATES finalState, std::wstring_view name,
+                                                 UploadAllocation &staging);
 
         // Creates a buffer holding a copy of `data` (an array, vector or span) and records the copy into the
         // upload batch. The buffer is ready once that batch has been submitted.

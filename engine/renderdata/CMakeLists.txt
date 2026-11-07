@@ -4,6 +4,8 @@
 
 add_library(engine_renderdata STATIC
         Handles.h
+        InstanceChunks.cpp
+        InstanceChunks.h
         MaterialDesc.h
         MeshData.h
         ModelData.h

@@ -22,8 +22,8 @@ struct VSInput
 [RootSignature(GLOBAL_ROOT_SIGNATURE)]
 VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
 {
-    // The object's world matrix from this frame's instance buffer
-    StructuredBuffer<InstanceData> instances = ResourceDescriptorHeap[g_frame.instanceBufferIndex];
+    // The object's world matrix from the draw's instance buffer
+    StructuredBuffer<InstanceData> instances = ResourceDescriptorHeap[g_draw.instanceBufferIndex];
     const float4x4 world = instances[g_draw.instanceOffset + instanceId].world;
 
     VSOutput output;

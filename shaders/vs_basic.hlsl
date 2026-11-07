@@ -24,9 +24,9 @@ struct VSOutput
 [RootSignature(GLOBAL_ROOT_SIGNATURE)]
 VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
 {
-    // Bindless (SM 6.6): the frame's instance buffer is picked by its index in the descriptor heap.
-    // SV_InstanceID starts at 0 in every draw, so the draw's first element comes from b0.
-    StructuredBuffer<InstanceData> instances = ResourceDescriptorHeap[g_frame.instanceBufferIndex];
+    // Bindless (SM 6.6): the draw's instance buffer is picked by its index in the descriptor heap.
+    // SV_InstanceID starts at 0 in every draw, so the draw's first element comes from b0 as well.
+    StructuredBuffer<InstanceData> instances = ResourceDescriptorHeap[g_draw.instanceBufferIndex];
     const float4x4 world = instances[g_draw.instanceOffset + instanceId].world;
 
     VSOutput output;

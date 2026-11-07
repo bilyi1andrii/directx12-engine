@@ -3,7 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <DirectXMath.h>
@@ -20,6 +22,13 @@ namespace engine::render {
         bool operator==(const BatchKey &) const = default;
     };
 
+    // Hash of a BatchKey: both handle indices packed into one 64-bit value
+    struct BatchKeyHash {
+        [[nodiscard]] size_t operator()(const BatchKey &key) const noexcept {
+            return std::hash<uint64_t>{}((uint64_t{key.mesh.index} << 32) | key.material.index);
+        }
+    };
+
     // Every object drawn with one key this frame (DX11 BatchBucket)
     struct BatchBucket {
         BatchKey key;
@@ -29,8 +38,9 @@ namespace engine::render {
     };
 
     // The frame's draws as plain CPU data, without D3D12 types: objects grouped into buckets by BatchKey,
-    // buckets in the order their key was first added. Port of the DX11 GeometrySystem bucket logic for
-    // dynamic objects (rebuilt every frame); static buckets and transparency come later.
+    // buckets in the order their key was first added. Port of the DX11 GeometrySystem bucket logic. Rebuilt
+    // every frame for moving objects; objects that never move go into Renderer::CreateStaticList once.
+    // Transparency comes later.
     //
     // The same list serves both draw paths: the renderer draws a bucket either as one instanced draw or
     // as one draw per object, depending on its settings.
@@ -39,7 +49,7 @@ namespace engine::render {
         // Adds one object
         void Add(const BatchKey &key, const DirectX::XMFLOAT4X4 &world);
 
-        // Removes every object and bucket (DX11 clearDynamic)
+        // Removes every object and bucket (DX11 clearDynamic), but keeps their memory for the next frame
         void Clear() noexcept;
 
         [[nodiscard]] std::span<const BatchBucket> Buckets() const noexcept { return m_buckets; }
@@ -48,10 +58,16 @@ namespace engine::render {
         [[nodiscard]] size_t InstanceCount() const noexcept { return m_instanceCount; }
 
     private:
-        // The bucket for `key`, appended if there is none yet (DX11 getOrCreate: linear search)
+        // The bucket for `key`, appended if there is none yet (DX11 getOrCreate)
         [[nodiscard]] BatchBucket &GetOrCreate(const BatchKey &key);
 
-        std::vector<BatchBucket> m_buckets;
+        std::vector<BatchBucket> m_buckets; // in first-added order
+        // Key -> index in m_buckets, so finding a bucket does not search them all
+        std::unordered_map<BatchKey, uint32_t, BatchKeyHash> m_bucketIndices;
+        // The bucket of the previous Add: objects in a row often share a key, and then no hash is needed
+        uint32_t m_lastBucket = 0;
+        // Emptied `worlds` vectors from Clear(), reused by new buckets so they do not grow from zero again
+        std::vector<std::vector<DirectX::XMFLOAT4X4>> m_spareWorlds;
         size_t m_instanceCount = 0;
     };
 
