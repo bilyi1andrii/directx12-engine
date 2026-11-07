@@ -54,6 +54,7 @@ namespace engine::rhi {
                                           .offset = 0,
                                           .size = sizeBytes};
         m_staging.push_back(std::move(staging));
+        m_stagingBytes += sizeBytes;
         return allocation;
     }
 
@@ -74,6 +75,7 @@ namespace engine::rhi {
         // The GPU reads the staging buffers later, when it runs the copies: keep them until the fence
         m_submittedStaging = std::move(m_staging);
         m_staging.clear(); // a moved-from vector is not guaranteed to be empty
+        m_stagingBytes = 0;
         return m_submittedFenceValue;
     }
 

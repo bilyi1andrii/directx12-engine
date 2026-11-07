@@ -28,6 +28,7 @@
 
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
+#include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
@@ -81,6 +82,11 @@ namespace engine::render {
         [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
         [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
 
+        // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
+        // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
+        // can be drawn in the same frame and live as long as the renderer.
+        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name);
+
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
 
@@ -103,14 +109,21 @@ namespace engine::render {
             Count,
         };
 
-        // A mesh's GPU buffers and how to draw them. MeshHandle::index points into m_meshes.
-        struct GpuMesh {
+        // A vertex buffer and an index buffer shared by all meshes of one model
+        struct GpuGeometry {
             rhi::Buffer vertices;
             rhi::Buffer indices;
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
+            VertexFormat vertexFormat = VertexFormat::Mesh; // one layout for every mesh in these buffers
+        };
+
+        // One drawable part of a geometry: a range of its index buffer. MeshHandle::index points into m_meshes.
+        struct GpuMesh {
+            uint32_t geometry = 0; // into m_geometries
+            uint32_t firstIndex = 0;
             uint32_t indexCount = 0;
-            VertexFormat vertexFormat = VertexFormat::Mesh;
+            int32_t baseVertex = 0; // added by the GPU to every index of this mesh
         };
 
         // One instanced draw: `count` objects with the same key, from element `firstElement` of the instance
@@ -142,11 +155,20 @@ namespace engine::render {
 
         [[nodiscard]] const GpuStaticList &StaticList(StaticListHandle handle) const;
 
+        // Takes ownership of `geometry`; returns its index in m_geometries
+        [[nodiscard]] uint32_t AddGeometry(GpuGeometry geometry);
+        // Registers a range of a geometry as a mesh
+        [[nodiscard]] MeshHandle AddMesh(const GpuMesh &mesh);
+
         void CreatePipelines();
 
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
 
-        // Uploads the vertex and index buffers of both cubes (constructor only)
+        // Makes sure an upload batch is open for `bytes` more staging memory. Submits the open batch first if it
+        // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
+        void PrepareUpload(uint64_t bytes);
+
+        // Uploads both built-in cubes (constructor only)
         void UploadCubes();
 
         // Creates the grey and red fallback textures (constructor only)
@@ -156,7 +178,7 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then destroys every texture and frees the static lists' views
+        // Shutdown only: waits for the GPU, then destroys every texture, mesh buffer and static list
         void DestroyResources() noexcept;
 
         // Shared by dynamic and static instances: splits `list` into chunks of at most `chunkCapacity` objects,
@@ -199,6 +221,7 @@ namespace engine::render {
         rhi::PipelineCache m_pipelines;
         // Filled by CreatePipelines; indexed by VertexFormat
         std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
+        std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
         MeshHandle m_texturedCubeMesh;

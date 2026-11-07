@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <exception>
 #include <format>
+#include <limits>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -124,13 +126,8 @@ namespace engine::render {
             },
         };
 
-        // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal
-        struct TexturedCube {
-            std::array<Vertex, 24> vertices;
-            std::array<uint16_t, 36> indices;
-        };
-
-        TexturedCube MakeTexturedCube() {
+        // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal.
+        MeshData MakeTexturedCube() {
             using DirectX::XMFLOAT3;
             // Each face as seen from outside: its normal and which way is right and up on it
             struct Face {
@@ -153,21 +150,20 @@ namespace engine::render {
                                 face.normal.z + r * face.right.z + u * face.up.z};
             };
 
-            TexturedCube cube{};
-            for (uint16_t f = 0; f < kFaces.size(); ++f) {
-                const Face &face = kFaces[f];
-                const auto first = static_cast<uint16_t>(f * 4);
+            MeshData cube;
+            cube.vertices.reserve(kFaces.size() * 4);
+            cube.indices.reserve(kFaces.size() * 6);
+            for (const Face &face : kFaces) {
+                const auto first = static_cast<uint32_t>(cube.vertices.size());
                 // Bottom-left, top-left, top-right, bottom-right. UV (0, 0) is the top-left of the texture.
-                cube.vertices[first + 0] = {corner(face, -1, -1), {0, 1}, face.normal, face.right};
-                cube.vertices[first + 1] = {corner(face, -1, 1), {0, 0}, face.normal, face.right};
-                cube.vertices[first + 2] = {corner(face, 1, 1), {1, 0}, face.normal, face.right};
-                cube.vertices[first + 3] = {corner(face, 1, -1), {1, 1}, face.normal, face.right};
+                cube.vertices.push_back({corner(face, -1, -1), {0, 1}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, -1, 1), {0, 0}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, 1, 1), {1, 0}, face.normal, face.right});
+                cube.vertices.push_back({corner(face, 1, -1), {1, 1}, face.normal, face.right});
                 // Two clockwise triangles
-                const std::array<uint16_t, 6> faceIndices{
-                    first, static_cast<uint16_t>(first + 1), static_cast<uint16_t>(first + 2),
-                    first, static_cast<uint16_t>(first + 2), static_cast<uint16_t>(first + 3)};
-                std::ranges::copy(faceIndices, cube.indices.begin() + f * 6);
+                cube.indices.insert(cube.indices.end(), {first, first + 1, first + 2, first, first + 2, first + 3});
             }
+            cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
             return cube;
         }
 
@@ -213,7 +209,7 @@ namespace engine::render {
             CreateFallbackTextures();
             m_upload.Submit(m_queue);
         } catch (...) {
-            // ~Renderer does not run when the constructor throws, so clean up the textures here
+            // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
             DestroyResources();
             throw;
         }
@@ -224,6 +220,55 @@ namespace engine::render {
         // swap chain (depth buffer, PSO, meshes, static lists) are released before its flush, so wait
         // here (DestroyResources flushes).
         DestroyResources();
+    }
+
+    std::vector<MeshHandle> Renderer::CreateMesh(const MeshData &mesh, std::wstring_view name) {
+        ENGINE_ASSERT_MSG(!mesh.vertices.empty() && !mesh.indices.empty(), "CreateMesh with {} vertices and {} indices",
+                          mesh.vertices.size(), mesh.indices.size());
+
+        // EndFrame submits this batch before the frame, so the meshes can be drawn right away
+        PrepareUpload(std::span(mesh.vertices).size_bytes() + std::span(mesh.indices).size_bytes());
+        const std::wstring prefix(name);
+        const uint32_t geometry = AddGeometry({
+            .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.vertices,
+                                                    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, prefix + L"/VB"),
+            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.indices,
+                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, prefix + L"/IB"),
+            .vertexStride = sizeof(Vertex),
+            .indexFormat = DXGI_FORMAT_R32_UINT, // MeshData's indices are 32-bit: models can exceed 65536 vertices
+            .vertexFormat = VertexFormat::Mesh,
+        });
+
+        std::vector<MeshHandle> handles;
+        handles.reserve(mesh.submeshes.size());
+        for (const SubmeshData &submesh : mesh.submeshes) {
+            // A range outside the arrays would draw parts of other submeshes, or read past the buffers
+            ENGINE_ASSERT_MSG(submesh.firstIndex <= mesh.indices.size() &&
+                                  submesh.indexCount <= mesh.indices.size() - submesh.firstIndex,
+                              "Submesh indices {}+{} outside the {} indices", submesh.firstIndex, submesh.indexCount,
+                              mesh.indices.size());
+            ENGINE_ASSERT_MSG(submesh.baseVertex >= 0 && static_cast<size_t>(submesh.baseVertex) < mesh.vertices.size(),
+                              "Submesh base vertex {} outside the {} vertices", submesh.baseVertex,
+                              mesh.vertices.size());
+            handles.push_back(AddMesh({
+                .geometry = geometry,
+                .firstIndex = submesh.firstIndex,
+                .indexCount = submesh.indexCount,
+                .baseVertex = submesh.baseVertex,
+            }));
+        }
+        return handles;
+    }
+
+    void Renderer::PrepareUpload(uint64_t bytes) {
+        constexpr uint64_t kUploadBatchBytes = 64ull * 1024 * 1024;
+        if (m_upload.IsRecording() && m_upload.StagingBytes() > 0 &&
+            m_upload.StagingBytes() + bytes > kUploadBatchBytes) {
+            m_upload.Submit(m_queue);
+        }
+        if (!m_upload.IsRecording()) {
+            m_upload.Begin(m_queue);
+        }
     }
 
     TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
@@ -244,9 +289,7 @@ namespace engine::render {
         }
 
         // EndFrame submits this batch before the frame
-        if (!m_upload.IsRecording()) {
-            m_upload.Begin(m_queue);
-        }
+        PrepareUpload(pixels.size_bytes());
         rhi::Texture texture =
             rhi::Texture::Create(m_allocator, m_upload, m_bindlessHeap, static_cast<DXGI_FORMAT>(data.dxgiFormat),
                                  std::span(mips).first(data.mips.size()), name);
@@ -280,19 +323,29 @@ namespace engine::render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
-        // Destroy hands each texture to a frame slot; the slots free them when the renderer is destroyed
+        // Destroy hands each resource to a frame slot; the slots free them when the renderer is destroyed
         for (rhi::Texture &texture : m_textures) {
             if (texture.IsValid()) {
                 texture.Destroy(CurrentFrame(), m_bindlessHeap);
             }
         }
         m_textures.clear();
-        // The static lists' views too; their buffers are released with m_staticLists
-        for (const GpuStaticList &staticList : m_staticLists) {
-            if (staticList.instances.IsValid()) {
-                CurrentFrame().DeferFree(m_bindlessHeap, staticList.instanceBufferIndex);
+        for (GpuGeometry &geometry : m_geometries) {
+            for (rhi::Buffer *buffer : {&geometry.vertices, &geometry.indices}) {
+                if (buffer->IsValid()) {
+                    buffer->Destroy(CurrentFrame());
+                }
             }
         }
+        m_geometries.clear();
+        m_meshes.clear();
+        for (GpuStaticList &staticList : m_staticLists) {
+            if (staticList.instances.IsValid()) {
+                CurrentFrame().DeferFree(m_bindlessHeap, staticList.instanceBufferIndex);
+                staticList.instances.Destroy(CurrentFrame());
+            }
+        }
+        m_staticLists.clear();
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
@@ -388,33 +441,39 @@ namespace engine::render {
     StaticListHandle Renderer::CreateStaticList(const RenderList &list, std::wstring_view name) {
         // Reserve first: once the bindless slot is taken, nothing may throw, or the slot would leak
         m_staticLists.reserve(m_staticLists.size() + 1);
-        GpuStaticList staticList;
+        // Filled by beginChunk. A Buffer cannot be assigned, so it is constructed in place (emplace).
+        std::optional<rhi::Buffer> instances;
+        uint32_t instanceBufferIndex = 0;
+        std::vector<InstanceDraw> draws;
         const uint64_t instanceCount = list.InstanceCount();
         if (instanceCount > 0) {
             // EndFrame submits this batch before the frame
-            if (!m_upload.IsRecording()) {
-                m_upload.Begin(m_queue);
-            }
+            PrepareUpload(instanceCount * kInstanceStride);
             // A GPU buffer has no page limit: one chunk for all objects
             const auto beginChunk = [&](uint32_t elementCount) {
                 // GPU-local memory, filled once by a copy like a vertex buffer, so the GPU does not read these
                 // matrices across PCIe every frame. WriteInstances fills the staging memory.
                 InstanceChunk chunk{};
-                staticList.instances =
+                instances.emplace(
                     rhi::Buffer::CreateStaged(m_allocator, m_upload, uint64_t{elementCount} * kInstanceStride,
-                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, name, chunk.memory);
+                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, name, chunk.memory));
                 // A permanent view: unlike the ring's chunks, this buffer never moves
-                staticList.instanceBufferIndex = m_bindlessHeap.Allocate();
-                m_bindlessHeap.CreateStructuredBufferSrv(staticList.instanceBufferIndex, staticList.instances.Native(),
-                                                         0, elementCount, kInstanceStride);
-                chunk.instanceBufferIndex = staticList.instanceBufferIndex;
+                instanceBufferIndex = m_bindlessHeap.Allocate();
+                m_bindlessHeap.CreateStructuredBufferSrv(instanceBufferIndex, instances->Native(), 0, elementCount,
+                                                         kInstanceStride);
+                chunk.instanceBufferIndex = instanceBufferIndex;
                 return chunk;
             };
-            WriteInstances(list, static_cast<uint32_t>(instanceCount), beginChunk, staticList.draws);
+            WriteInstances(list, static_cast<uint32_t>(instanceCount), beginChunk, draws);
         }
 
         const StaticListHandle handle{.index = static_cast<uint32_t>(m_staticLists.size())};
-        m_staticLists.push_back(std::move(staticList)); // no reallocation (reserved above), so it cannot throw
+        // No reallocation (reserved above), and moving a Buffer or a vector cannot throw
+        m_staticLists.push_back(GpuStaticList{
+            .instances = instances ? std::move(*instances) : rhi::Buffer{},
+            .instanceBufferIndex = instanceBufferIndex,
+            .draws = std::move(draws),
+        });
         return handle;
     }
 
@@ -442,37 +501,40 @@ namespace engine::render {
     void Renderer::RecordDraws(std::span<const InstanceDraw> draws) {
         // Root constants (b0) are copied into the command list, so every draw keeps its own values
         rhi::PipelineHandle currentPipeline;
-        const GpuMesh *currentMesh = nullptr;
+        uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
         for (const InstanceDraw &draw : draws) {
             const GpuMesh &mesh = Mesh(draw.key.mesh);
-            // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the mesh's vertex format
-            // and on the material, so it is checked for every draw.
-            const rhi::PipelineHandle pipeline = PipelineFor(mesh.vertexFormat, draw.key.material);
+            const GpuGeometry &geometry = m_geometries[mesh.geometry];
+            // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the geometry's vertex
+            // format and on the material, so it is checked for every draw.
+            const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, draw.key.material);
             if (pipeline != currentPipeline) {
                 m_context.SetPipelineState(m_pipelines.Native(pipeline));
                 currentPipeline = pipeline;
             }
-            // A bucket split between two chunks gives two draws with the same mesh: bind it only once
-            if (&mesh != currentMesh) {
-                m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
-                m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
-                currentMesh = &mesh;
+            // The meshes of one model share their buffers, and a bucket split between two chunks gives two draws
+            // of the same mesh: bind the buffers only when the geometry changes
+            if (mesh.geometry != currentGeometry) {
+                m_context.SetVertexBuffer(geometry.vertices.VertexBufferView(geometry.vertexStride));
+                m_context.SetIndexBuffer(geometry.indices.IndexBufferView(geometry.indexFormat));
+                currentGeometry = mesh.geometry;
             }
 
+            // Every draw reads indexCount indices from firstIndex on, and the GPU adds baseVertex to each
             gpu::DrawConstants constants{.instanceOffset = draw.firstElement,
                                          .materialIndex = draw.key.material.index,
                                          .instanceBufferIndex = draw.instanceBufferIndex};
             if (m_settings.drawPath == DrawPath::Instanced) {
                 // One draw for all `count` objects: object i reads element instanceOffset + SV_InstanceID (= i)
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                m_context.DrawIndexedInstanced(mesh.indexCount, draw.count);
+                m_context.DrawIndexedInstanced(mesh.indexCount, draw.count, mesh.firstIndex, mesh.baseVertex);
             } else {
                 // One draw per object, each with its own element in the root constants (plan §2.6: keeps
                 // the per-draw cost measurable)
                 for (uint32_t i = 0; i < draw.count; ++i) {
                     constants.instanceOffset = draw.firstElement + i;
                     m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                    m_context.DrawIndexed(mesh.indexCount);
+                    m_context.DrawIndexed(mesh.indexCount, mesh.firstIndex, mesh.baseVertex);
                 }
             }
         }
@@ -488,6 +550,18 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(handle.index < m_staticLists.size(), "Static list handle {} out of range ({} lists)",
                           handle.index, m_staticLists.size());
         return m_staticLists[handle.index];
+    }
+
+    uint32_t Renderer::AddGeometry(GpuGeometry geometry) {
+        m_geometries.push_back(std::move(geometry));
+        return static_cast<uint32_t>(m_geometries.size() - 1);
+    }
+
+    MeshHandle Renderer::AddMesh(const GpuMesh &mesh) {
+        ENGINE_ASSERT_MSG(mesh.geometry < m_geometries.size(), "Mesh of geometry {} out of range ({} geometries)",
+                          mesh.geometry, m_geometries.size());
+        m_meshes.push_back(mesh);
+        return MeshHandle{.index = static_cast<uint32_t>(m_meshes.size() - 1)};
     }
 
     void Renderer::EndFrame(bool vsync) {
@@ -510,33 +584,20 @@ namespace engine::render {
     }
 
     void Renderer::UploadCubes() {
-        GpuMesh colorCube{
+        // A geometry with a single mesh that covers all of it, in its own vertex format
+        const uint32_t colorCube = AddGeometry({
             .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeVertices,
                                                     D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"Cube/VB"),
             .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, kCubeIndices,
                                                    D3D12_RESOURCE_STATE_INDEX_BUFFER, L"Cube/IB"),
             .vertexStride = sizeof(VertexPosColor),
             .indexFormat = DXGI_FORMAT_R16_UINT,
-            .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
             .vertexFormat = VertexFormat::PositionColor,
-        };
-        m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
-        m_meshes.push_back(std::move(colorCube));
+        });
+        m_cubeMesh = AddMesh({.geometry = colorCube, .indexCount = static_cast<uint32_t>(kCubeIndices.size())});
 
-        const TexturedCube cube = MakeTexturedCube();
-        GpuMesh texturedCube{
-            .vertices =
-                rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.vertices,
-                                            D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, L"TexturedCube/VB"),
-            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, cube.indices,
-                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, L"TexturedCube/IB"),
-            .vertexStride = sizeof(Vertex),
-            .indexFormat = DXGI_FORMAT_R16_UINT,
-            .indexCount = static_cast<uint32_t>(cube.indices.size()),
-            .vertexFormat = VertexFormat::Mesh,
-        };
-        m_texturedCubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
-        m_meshes.push_back(std::move(texturedCube));
+        // Built like a model, so every run also goes through CreateMesh
+        m_texturedCubeMesh = CreateMesh(MakeTexturedCube(), L"TexturedCube").front();
     }
 
     void Renderer::CreatePipelines() {
