@@ -27,15 +27,16 @@ namespace sandbox {
     // Returns grid side length (smallest n where n * n >= count).
     [[nodiscard]] uint32_t GridSide(uint32_t count);
 
-    // Grid texture without --texture, relative to the exe
+    // Textures relative to the exe: the grid's without --texture, and the spinning cube's
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
+    inline constexpr std::wstring_view kSpinningCubeTexture = L"data/textures/diamante.jpg";
 
     // Loads --texture or kDefaultGridTexture; grey with a warning on failure.
     [[nodiscard]] engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer,
                                                                   const SandboxOptions &options);
 
-    // Creates a UV gradient texture for the spinning cube.
-    [[nodiscard]] engine::render::TextureHandle CreateUvGradientTexture(engine::render::Renderer &renderer);
+    // Loads kSpinningCubeTexture; grey with a warning on failure.
+    [[nodiscard]] engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer);
 
     // Finds all model files in assets/ sorted by path.
     [[nodiscard]] std::vector<std::filesystem::path> FindAssetModels();

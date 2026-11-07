@@ -282,7 +282,8 @@ namespace engine::render {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
-        constexpr std::array clearColor{0.4f, 0.6f, 0.9f, 1.0f};
+        // The sky: linear values, so through the sRGB view the screen shows about (56, 69, 108) of 255
+        constexpr std::array clearColor{0.04f, 0.06f, 0.15f, 1.0f};
         m_context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
         m_context.ClearRenderTarget(rtv, clearColor);
         // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test

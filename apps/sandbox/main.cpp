@@ -152,8 +152,8 @@ namespace {
         DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
         std::optional<engine::scene::Entity> spinningCube;
         if (modelsShown == 0) {
-            const engine::render::TextureHandle uvGradient = sandbox::CreateUvGradientTexture(renderer);
-            spinningCube = scene.Add({.mesh = cubeMesh, .material = {.index = uvGradient.index}}, spinningCubeWorld);
+            const engine::render::TextureHandle cubeTexture = sandbox::CreateSpinningCubeTexture(renderer);
+            spinningCube = scene.Add({.mesh = cubeMesh, .material = {.index = cubeTexture.index}}, spinningCubeWorld);
         }
         // Where a model dropped on the sky goes: the end of the row
         float nextModelX = modelsShown > 0

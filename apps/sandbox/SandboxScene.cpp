@@ -6,6 +6,7 @@
 #include <expected>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <vector>
 
@@ -23,6 +24,21 @@ using engine::core::LogInfo;
 using engine::core::LogWarning;
 
 namespace sandbox {
+    namespace {
+        // `path` as a colour texture named `name`; grey with a warning on failure
+        engine::render::TextureHandle LoadTextureOrGrey(engine::render::Renderer &renderer,
+                                                        const std::filesystem::path &path, std::wstring_view name) {
+            const std::expected<engine::render::TextureData, engine::core::Error> texture =
+                engine::assets::LoadTexture(path, engine::assets::TextureUsage::Diffuse);
+            if (!texture) {
+                LogWarning("Texture {}: {}. Using the grey fallback.", engine::core::ToUtf8(name),
+                           texture.error().message);
+                return renderer.UnloadedTexture();
+            }
+            return renderer.CreateTexture(*texture, name);
+        }
+    } // namespace
+
     uint32_t GridSide(uint32_t count) {
         uint32_t side = 0;
         while (uint64_t{side} * side < count) {
@@ -35,34 +51,12 @@ namespace sandbox {
         // The build copies data/ next to the exe
         const std::filesystem::path path =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / kDefaultGridTexture);
-        const std::expected<engine::render::TextureData, engine::core::Error> texture =
-            engine::assets::LoadTexture(path, engine::assets::TextureUsage::Diffuse);
-        if (!texture) {
-            LogWarning("Grid texture: {}. Using the grey fallback.", texture.error().message);
-            return renderer.UnloadedTexture();
-        }
-        return renderer.CreateTexture(*texture, L"Grid/" + path.filename().wstring());
+        return LoadTextureOrGrey(renderer, path, L"Grid/" + path.filename().wstring());
     }
 
-    engine::render::TextureHandle CreateUvGradientTexture(engine::render::Renderer &renderer) {
-        constexpr uint32_t kSize = 256;
-        std::vector<std::byte> rgba8(size_t{kSize} * kSize * 4);
-        for (uint32_t y = 0; y < kSize; ++y) {
-            for (uint32_t x = 0; x < kSize; ++x) {
-                std::byte *pixel = &rgba8[(size_t{y} * kSize + x) * 4];
-                pixel[0] = static_cast<std::byte>(x);
-                pixel[1] = static_cast<std::byte>(y);
-                pixel[2] = std::byte{64};
-                pixel[3] = std::byte{255};
-            }
-        }
-        const auto texture =
-            engine::assets::CreateTextureFromPixels(rgba8, kSize, kSize, engine::assets::TextureUsage::Diffuse);
-        if (!texture) {
-            LogWarning("UV gradient texture: {}. Using the grey fallback.", texture.error().message);
-            return renderer.UnloadedTexture();
-        }
-        return renderer.CreateTexture(*texture, L"SpinningCube/UvGradient");
+    engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer) {
+        const std::filesystem::path path = engine::core::ExecutableDirectory() / kSpinningCubeTexture;
+        return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
     }
 
     std::vector<std::filesystem::path> FindAssetModels() {
