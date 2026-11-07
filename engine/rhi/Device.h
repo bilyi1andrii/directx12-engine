@@ -30,8 +30,7 @@ namespace engine::rhi {
         [[nodiscard]] IDXGIFactory6 *Factory() const noexcept { return m_factory.Get(); }
         [[nodiscard]] IDXGIAdapter4 *Adapter() const noexcept { return m_adapter.Get(); }
         [[nodiscard]] bool TearingSupported() const noexcept { return m_tearingSupported; }
-        // The adapter's description (e.g. "NVIDIA GeForce RTX 3050 Laptop GPU") and its user-mode driver version as
-        // Device Manager shows it (e.g. "32.0.16.1742", or "unknown"), for logs and benchmark results
+        // The GPU's name and its driver version as Device Manager shows it (or "unknown"), for benchmark results
         [[nodiscard]] const std::string &AdapterName() const noexcept { return m_adapterName; }
         [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_driverVersion; }
 

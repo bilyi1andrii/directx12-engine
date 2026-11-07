@@ -52,9 +52,8 @@ namespace engine::scene {
             return;
         }
 
-        // From the camera to the target. Forward is (sin yaw * cos pitch, -sin pitch, cos yaw * cos pitch).
-        // atan2 covers every direction; DX11 (MotionObj::SetLookAtPos) used atan(x / z) plus pi when z > 0, which
-        // looks the wrong way when the camera is level with the target in z (z == 0 gives atan(+-inf)).
+        // Direction from the camera to the target. atan2 works in every direction; DX11's atan(x / z) looked the
+        // wrong way when z == 0.
         const float dx = target.x - pos.x;
         const float dy = target.y - pos.y;
         const float dz = target.z - pos.z;

@@ -21,7 +21,7 @@ namespace engine::scene {
                               keyframes.end(),
                           "camera keyframes must have strictly increasing frames");
 
-        // The first keyframe after `frame`; the one before it is at or before `frame`
+        // The first keyframe after `frame`
         const auto next = std::ranges::upper_bound(keyframes, frame, {}, &CameraKeyframe::frame);
         if (next == keyframes.begin()) {
             return {.position = keyframes.front().position, .target = keyframes.front().target};

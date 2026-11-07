@@ -96,7 +96,7 @@ namespace engine::render {
         void LogDeviceRemovedInfo() const { m_device.LogDeviceRemovedInfo(); }
 
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
-        // The GPU and its driver version (see rhi::Device), for benchmark results
+        // For benchmark results
         [[nodiscard]] const std::string &AdapterName() const noexcept { return m_device.AdapterName(); }
         [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_device.DriverVersion(); }
 

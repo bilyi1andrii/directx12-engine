@@ -11,7 +11,7 @@
 using engine::apps::ParseUint32;
 
 namespace {
-    // Every option takes one value
+    // Each of them takes one value
     constexpr std::array<std::string_view, 7> kOptionNames{"--scene",  "--grid",   "--count", "--instanced",
                                                            "--frames", "--warmup", "--out"};
 } // namespace
@@ -26,7 +26,7 @@ std::string_view ToString(BenchScene scene) noexcept {
 
 std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::string> args) {
     BenchOptions options;
-    std::vector<std::string_view> seen; // options given so far, to reject repeats
+    std::vector<std::string_view> seen; // to reject an option given twice
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string_view arg = args[i];
         if (std::ranges::find(kOptionNames, arg) == kOptionNames.end()) {

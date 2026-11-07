@@ -1,11 +1,11 @@
-# bench_output: writing frames.csv and run.txt. CPU only (links engine_core alone), so engine_tests can test it.
+# Writes the result files. Links only engine_core (no GPU), so the unit tests can use it.
 add_library(bench_output STATIC
         BenchOutput.cpp
         BenchOutput.h)
 
 engine_target_defaults(bench_output)
 
-# PUBLIC: included as "bench/BenchOutput.h" (by the tests; the bench itself includes it from its own folder)
+# The tests include it as "bench/BenchOutput.h"
 target_include_directories(bench_output PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
 target_link_libraries(bench_output PRIVATE
@@ -23,7 +23,7 @@ target_link_options(bench PRIVATE
 
 engine_target_defaults(bench)
 
-# The build configuration (Debug, Release, ...) as a string literal, written into run.txt
+# The build name (Debug, Release, ...) for run.txt
 target_compile_definitions(bench PRIVATE "ENGINE_BUILD_CONFIG=\"$<CONFIG>\"")
 
 target_link_libraries(bench PRIVATE
@@ -38,9 +38,8 @@ add_dependencies(bench compile_shaders)
 engine_copy_agility_runtime(bench)
 engine_copy_asan_runtime(bench)
 
-# Smoke test: a short run of the dynamic grid (the path that uploads every frame) into the build folder. Fails on
-# debug-layer errors or leaks (builds with the debug layer), a crash, an early exit, or results that could not be
-# written (the bench exits with 1 if frames.csv or run.txt is missing). Not a measurement: Debug numbers mean nothing.
+# Smoke test: a short run that uploads the grid every frame. Fails on debug-layer errors or leaks, a crash, an
+# early exit, or results that could not be written. Not a measurement.
 add_test(NAME bench_smoke
         COMMAND bench --grid dynamic --count 1000 --frames 5 --warmup 1 --out "${CMAKE_BINARY_DIR}/bench_smoke")
 set_tests_properties(bench_smoke PROPERTIES TIMEOUT 30)

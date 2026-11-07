@@ -17,54 +17,51 @@
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
-// Scene code shared by the apps (sandbox, bench)
+// The cube-grid scene, shared by the sandbox and the bench
 namespace engine::apps {
-    // Frames of one loop of the stress grid's camera path (StressGrid::CameraPath); the default --frames
+    // Length of the grid's camera path in frames, the same as the bench's default --frames
     inline constexpr uint32_t kStressPathFrames = 1000;
 
-    // The stress grid without --count: 20 x 20
+    // 20 x 20 cubes
     inline constexpr uint32_t kDefaultGridCount = 400;
 
-    // Static: uploaded once into GPU memory (Renderer::CreateStaticList). Dynamic: rebuilt and uploaded
-    // again every frame, like moving objects (and like DX11, which re-uploads every bucket).
+    // Static: uploaded to GPU memory once. Dynamic: rebuilt and uploaded every frame, like moving objects.
     enum class GridMode : uint8_t { Static, Dynamic };
 
-    // "static" or "dynamic" (the --grid values); nullopt for anything else
+    // "static" or "dynamic"; nullopt for anything else
     [[nodiscard]] std::optional<GridMode> ParseGridMode(std::string_view text) noexcept;
     [[nodiscard]] std::string_view ToString(GridMode mode) noexcept;
 
-    // Side of the grid for `count` cubes: the smallest n with n * n >= count (--count 50000 gives 224 x 224)
+    // The smallest n with n * n >= count: --count 50000 gives a 224 x 224 grid
     [[nodiscard]] uint32_t GridSide(uint32_t count) noexcept;
 
-    // The renderer's input for one frame, from the camera (scene and render do not know each other)
+    // What the renderer needs from the camera (render does not know scene)
     [[nodiscard]] render::FrameView MakeFrameView(const scene::Camera &camera, float aspectRatio);
 
-    // The grid's texture: the image at `path`, or a 256x256 grey checkerboard without one. If the file fails
-    // to load: a warning and the grey fallback.
+    // The image at `path`, or a grey checkerboard. A file that fails to load gives a warning and plain grey.
     [[nodiscard]] render::TextureHandle CreateGridTexture(render::Renderer &renderer,
                                                           const std::optional<std::filesystem::path> &path);
 
-    // A square grid of textured cubes (spacing 3, 4 units below the origin), static or dynamic
+    // A square grid of textured cubes 4 units below the origin
     class StressGrid {
     public:
-        // `count` is rounded up to a square (GridSide). Static: the grid is uploaded here, once.
+        // `count` is rounded up to a square. A static grid is uploaded here.
         StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture);
 
-        // Dynamic: adds the grid to this frame's list (after list.Clear()). Static: does nothing.
+        // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;
 
-        // Pass to Renderer::Render every frame: the grid's static list, empty in dynamic mode
+        // Pass to Renderer::Render every frame; empty in dynamic mode
         [[nodiscard]] std::span<const render::StaticListHandle> StaticLists() const noexcept;
 
         [[nodiscard]] GridMode Mode() const noexcept { return m_mode; }
         [[nodiscard]] uint32_t Side() const noexcept { return m_side; }
         [[nodiscard]] size_t ObjectCount() const noexcept { return size_t{m_side} * m_side; }
-        // Width (and depth) of the grid in world units, from the outer faces of the outer cubes
+        // Width of the grid in world units, edge to edge
         [[nodiscard]] float Extent() const noexcept;
 
-        // The benchmark's camera path (keyframes at frames 0 to kStressPathFrames): one loop around the grid's
-        // centre at a distance and height that grow with Extent(), always looking at the centre. The keyframes
-        // are corners of a diamond, so the camera comes closer halfway between them. DX11 copies this formula.
+        // The bench's camera path: one loop around the grid in kStressPathFrames frames, always looking at its
+        // centre. Distance and height grow with the grid. The DX11 engine copies this formula.
         [[nodiscard]] std::array<scene::CameraKeyframe, 5> CameraPath() const noexcept;
 
     private:

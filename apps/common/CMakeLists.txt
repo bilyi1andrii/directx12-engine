@@ -1,5 +1,5 @@
-# app_common: code shared by the apps (sandbox, bench): the stress scene, the frame view from a camera, option
-# values and the end-of-run checks. App level, above every engine module, so it may link all of them.
+# Code shared by the sandbox and the bench: the cube-grid scene, option helpers and the end-of-run checks.
+# It sits above the engine, so it may link every engine module.
 
 add_library(app_common STATIC
         AppChecks.cpp
@@ -11,10 +11,10 @@ add_library(app_common STATIC
 
 engine_target_defaults(app_common)
 
-# PUBLIC: the apps include its headers as "common/StressScene.h"
+# Included as "common/StressScene.h"
 target_include_directories(app_common PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
-# PUBLIC: StressScene.h uses render, renderdata and scene types; AppChecks.h uses rhi::ValidationStats
+# PUBLIC: the headers use render, scene and rhi types
 target_link_libraries(app_common
         PUBLIC
         engine_core

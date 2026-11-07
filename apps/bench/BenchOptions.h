@@ -11,20 +11,20 @@
 #include "common/StressScene.h"
 #include "renderdata/RendererSettings.h"
 
-// The scene presets; Sponza and the material grid come later
+// Sponza and the material grid come later
 enum class BenchScene : uint8_t { Stress };
 
 [[nodiscard]] std::string_view ToString(BenchScene scene) noexcept;
 
-// Command-line options of the bench app. Every option is optional and has the default below.
+// Command-line options of the bench app, with their defaults
 struct BenchOptions {
     BenchScene scene = BenchScene::Stress;                                   // --scene stress
     engine::apps::GridMode gridMode = engine::apps::GridMode::Dynamic;       // --grid static|dynamic
-    uint32_t count = 50'000;                                                 // --count N, rounded up to a square
+    uint32_t count = 50'000;                                                 // --count N
     engine::render::DrawPath drawPath = engine::render::DrawPath::Instanced; // --instanced 1|0
-    uint32_t frames = 1000;                                                  // --frames N (>= 1), measured
-    uint32_t warmupFrames = 200;                                             // --warmup N (>= 0), before measuring
-    std::filesystem::path outDir = "results";                                // --out DIR, relative to the working dir
+    uint32_t frames = 1000;                                                  // --frames N, measured
+    uint32_t warmupFrames = 200;                                             // --warmup N, not measured
+    std::filesystem::path outDir = "results";                                // --out DIR
 };
 
 inline constexpr std::string_view kBenchUsage =
@@ -38,7 +38,7 @@ inline constexpr std::string_view kBenchUsage =
     "  --warmup N         frames rendered before measuring (default 200)\n"
     "  --out DIR          results folder (default results)";
 
-// args: the arguments without the program name. On failure the error says which argument is wrong.
+// `args` without the program name. On failure the error says which argument is wrong.
 [[nodiscard]] std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::string> args);
 
 #endif // D3D12_ENGINE_BENCHOPTIONS_H

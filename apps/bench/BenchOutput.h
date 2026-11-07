@@ -9,40 +9,36 @@
 #include <string>
 #include <string_view>
 
-// What a benchmark run writes (CPU only, so engine_tests can test it): results/<engine>/<scene>/<timestamp>/
-// with frames.csv (one row per measured frame) and run.txt (the settings and the machine)
+// The files a benchmark run writes. CPU only, so the unit tests can check them.
 namespace engine::bench {
-    // One measured frame, in milliseconds (exact definitions: .claude/rules/bench-and-tools.md)
+    // One measured frame, in milliseconds
     struct FrameTiming {
-        // From the start of this frame to the start of the next: everything, including the fence wait in
-        // BeginFrame, Present and the message pump
+        // From this frame's start to the next frame's start: everything, including the GPU wait and Present
         double cpuFrameMs = 0.0;
-        // Building this frame's dynamic list + Renderer::Render: extraction, instance upload, command recording
+        // Building the frame's list of moving objects + Renderer::Render (upload and command recording)
         double cpuRecordMs = 0.0;
     };
 
-    // One line of run.txt: "key: value"
+    // One "key: value" line of run.txt
     struct RunField {
         std::string key;
         std::string value;
     };
 
-    // The engine's folder under the results root; DX11 writes to results/dx11/
+    // Results go to results/dx12/; the DX11 engine writes to results/dx11/
     inline constexpr std::string_view kEngineName = "dx12";
 
-    // frames.csv: header `frame,cpu_frame_ms,cpu_record_ms`, then one row per frame, numbered from 0.
-    // New columns only at the end (the DX11 harness and the tools/ scripts read the same schema).
+    // A header line, then one row per frame. Add new columns only at the end: the DX11 engine and the analysis
+    // scripts read the same format.
     void WriteFramesCsv(std::ostream &out, std::span<const FrameTiming> timings);
 
-    // run.txt: one "key: value" line per field
     void WriteRunInfo(std::ostream &out, std::span<const RunField> fields);
 
-    // The folder name of a run started at `time`: local time as YYYYMMDD-HHMMSS
+    // Local time as YYYYMMDD-HHMMSS, the name of a run's folder
     [[nodiscard]] std::string FolderTimestamp(std::chrono::system_clock::time_point time);
 
-    // Creates <outDir>/dx12/<scene>/<timestamp>/ and writes frames.csv and run.txt into it. Never overwrites a
-    // run: if that folder exists (two runs started in the same second), the name gets "-2", "-3", ...
-    // Returns the folder, or why it could not be written.
+    // Writes frames.csv and run.txt into a new folder <outDir>/dx12/<scene>/<timestamp>/. Never overwrites a run:
+    // if the folder exists, the new one is called <timestamp>-2 (then -3, ...). Returns the folder or the error.
     [[nodiscard]] std::expected<std::filesystem::path, std::string>
     WriteResults(const std::filesystem::path &outDir, std::string_view scene, std::string_view timestamp,
                  std::span<const FrameTiming> timings, std::span<const RunField> fields);

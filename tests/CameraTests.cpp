@@ -8,7 +8,7 @@
 TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
     using namespace DirectX;
     const XMFLOAT3 target{0.0f, -4.0f, 0.0f};
-    // On each horizontal axis (the DX11 formula looked the wrong way from z == 0), above and below, and off-axis
+    // On both axes (DX11's formula failed at z == 0), above, below and off-axis
     constexpr std::array kPositions{
         XMFLOAT3{10.0f, 5.0f, 0.0f},   XMFLOAT3{-10.0f, 5.0f, 0.0f}, XMFLOAT3{0.0f, 5.0f, 10.0f},
         XMFLOAT3{0.0f, -9.0f, -10.0f}, XMFLOAT3{3.0f, 4.0f, -8.0f},  XMFLOAT3{-7.0f, -1.0f, 6.0f},

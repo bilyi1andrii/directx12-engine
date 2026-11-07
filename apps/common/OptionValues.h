@@ -6,12 +6,12 @@
 #include <optional>
 #include <string_view>
 
-// Values of command-line options, shared by the apps' option parsers (sandbox, bench)
+// Helpers for the apps' command-line parsers
 namespace engine::apps {
-    // A whole number that fits uint32_t, nothing else (no sign, spaces or trailing characters)
+    // A whole number that fits uint32_t; nullopt for signs, spaces or extra characters
     [[nodiscard]] std::optional<uint32_t> ParseUint32(std::string_view text) noexcept;
 
-    // A path from a UTF-8 argument (core::CommandLineArgs gives UTF-8), so non-ASCII names survive
+    // Arguments arrive as UTF-8; this keeps non-ASCII file names intact
     [[nodiscard]] std::filesystem::path PathFromUtf8(std::string_view text);
 } // namespace engine::apps
 

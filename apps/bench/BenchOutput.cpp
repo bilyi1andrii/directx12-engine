@@ -12,7 +12,7 @@ namespace engine::bench {
             return core::ToUtf8(path.native());
         }
 
-        // Creates `folder`, or `folder-2`, `folder-3`, ... if it exists. Returns the one created.
+        // Creates `folder`, or `folder-2`, `folder-3`, ... if it exists
         [[nodiscard]] std::expected<std::filesystem::path, std::string>
         CreateNewFolder(const std::filesystem::path &folder) {
             std::error_code error;
@@ -27,7 +27,7 @@ namespace engine::bench {
                 if (attempt > 1) {
                     candidate += std::format("-{}", attempt);
                 }
-                // false without an error: it exists already, so try the next name
+                // false without an error: the folder exists, try the next name
                 if (std::filesystem::create_directory(candidate, error)) {
                     return candidate;
                 }
@@ -39,11 +39,11 @@ namespace engine::bench {
                 std::format("'{}' and {} numbered copies exist already", PathText(folder), kMaxAttempts - 1));
         }
 
-        // Writes one file with `write(stream)`; fails if it cannot be opened or written completely
+        // Fails if the file cannot be opened or written completely
         template <typename WriteFunction>
         [[nodiscard]] std::expected<void, std::string> WriteFile(const std::filesystem::path &path,
                                                                  WriteFunction write) {
-            // Binary: LF line ends on every machine, like the DX11 harness and the Python scripts expect
+            // Binary mode keeps "\n" line ends instead of turning them into "\r\n"
             std::ofstream file(path, std::ios::binary);
             if (!file) {
                 return std::unexpected(std::format("cannot open '{}' for writing", PathText(path)));
@@ -60,7 +60,7 @@ namespace engine::bench {
     void WriteFramesCsv(std::ostream &out, std::span<const FrameTiming> timings) {
         out << "frame,cpu_frame_ms,cpu_record_ms\n";
         for (size_t frame = 0; frame < timings.size(); ++frame) {
-            // 4 decimals: 0.1 microsecond, finer than steady_clock's useful resolution
+            // 4 decimals = 0.1 microseconds, more than precise enough
             out << std::format("{},{:.4f},{:.4f}\n", frame, timings[frame].cpuFrameMs, timings[frame].cpuRecordMs);
         }
     }

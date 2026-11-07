@@ -19,7 +19,7 @@ struct SandboxOptions {
     std::optional<std::filesystem::path> texturePath;
     // --count N: cubes in the grid (0 or more), rounded up to a square n x n; without it, kDefaultGridCount
     std::optional<uint32_t> gridCount;
-    // --grid static|dynamic: the grid uploaded once, or rebuilt and uploaded every frame (default dynamic)
+    // --grid static|dynamic: upload the grid once, or every frame (the default)
     std::optional<engine::apps::GridMode> gridMode;
 };
 

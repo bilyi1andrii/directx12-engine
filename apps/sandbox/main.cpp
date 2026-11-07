@@ -66,9 +66,8 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw: the textured stress grid below the origin (--count, --grid) and the vertex-colour cube
-        // spinning at the origin (a material is its texture for now). The spinning cube is rebuilt and uploaded
-        // every frame; the grid too in dynamic mode, or uploaded once as a static list.
+        // The textured grid (--count, --grid) and a vertex-colour cube spinning at the origin. The spinning cube is
+        // uploaded every frame, the grid only in dynamic mode.
         engine::render::RenderList renderList; // this frame's dynamic objects
         const engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
                                             options.gridCount.value_or(engine::apps::kDefaultGridCount),

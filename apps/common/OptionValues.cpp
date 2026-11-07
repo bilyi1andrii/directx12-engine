@@ -17,7 +17,7 @@ namespace engine::apps {
     }
 
     std::filesystem::path PathFromUtf8(std::string_view text) {
-        // A u8string tells the path that the bytes are UTF-8, not the ANSI code page
+        // Through u8string, so the bytes are read as UTF-8, not in the ANSI code page
         return std::filesystem::path(std::u8string(text.begin(), text.end()));
     }
 } // namespace engine::apps

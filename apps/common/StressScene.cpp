@@ -84,7 +84,7 @@ namespace engine::apps {
         if (m_mode == GridMode::Static) {
             render::RenderList gridList;
             render::SubmitGrid(gridList, m_key, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
-            // The matrices are in GPU memory afterwards; gridList is no longer needed
+            // gridList can go: the matrices are in GPU memory now
             m_staticList = renderer.CreateStaticList(gridList, L"Grid/Instances");
         }
     }
@@ -101,7 +101,8 @@ namespace engine::apps {
     }
 
     std::array<scene::CameraKeyframe, 5> StressGrid::CameraPath() const noexcept {
-        // Far enough out (and +10 for tiny grids) that most of the grid is in view at a 60 degree FOV
+        // Far enough that most of the grid is in view at a 60 degree FOV; +10 for tiny grids.
+        // The keyframes are the corners of a diamond, so the camera comes closer between them.
         const float radius = 0.75f * Extent() + 10.0f;
         const float height = kGridHeight + 0.4f * Extent() + 10.0f;
         const DirectX::XMFLOAT3 centre{0.0f, kGridHeight, 0.0f};

@@ -20,8 +20,8 @@ namespace engine::apps {
     // Logs the debug-layer errors and leaks of a finished run (or that validation was not active)
     void LogValidationSummary(const rhi::ValidationStats &validation);
 
-    // Checks a finished unattended run and logs the verdict: `expectedFrames` rendered, window exit code 0, no
-    // debug-layer errors, no live objects, and (Debug) validation active. Returns the process exit code.
+    // Checks an unattended run and logs the result: all frames rendered, window exit code 0, no debug-layer
+    // errors, no leaks, and (Debug) validation active. Returns the process exit code.
     [[nodiscard]] int SmokeTestExitCode(uint64_t expectedFrames, const RunResult &run,
                                         const rhi::ValidationStats &validation);
 } // namespace engine::apps
