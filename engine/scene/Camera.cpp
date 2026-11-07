@@ -52,24 +52,14 @@ namespace engine::scene {
             return;
         }
 
-        // From the target to the camera
-        const float dx = pos.x - target.x;
-        const float dy = pos.y - target.y;
-        const float dz = pos.z - target.z;
-
-        float pitch = 0.0f;
-        if (dy != 0.0f) {
-            const float distance = std::sqrt(dx * dx + dz * dz);
-            pitch = std::atan(dy / distance);
-        }
-
-        float yaw = 0.0f;
-        if (dx != 0.0f) {
-            yaw = std::atan(dx / dz);
-        }
-        if (dz > 0.0f) {
-            yaw += XM_PI;
-        }
+        // From the camera to the target. Forward is (sin yaw * cos pitch, -sin pitch, cos yaw * cos pitch).
+        // atan2 covers every direction; DX11 (MotionObj::SetLookAtPos) used atan(x / z) plus pi when z > 0, which
+        // looks the wrong way when the camera is level with the target in z (z == 0 gives atan(+-inf)).
+        const float dx = target.x - pos.x;
+        const float dy = target.y - pos.y;
+        const float dz = target.z - pos.z;
+        const float pitch = std::atan2(-dy, std::sqrt(dx * dx + dz * dz)); // positive looks down
+        const float yaw = std::atan2(dx, dz);
 
         camera.rotation = {pitch, yaw, 0.0f};
     }
