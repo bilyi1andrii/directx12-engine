@@ -57,7 +57,7 @@ Command-line options of `sandbox.exe`:
 
 | Option | Effect |
 |---|---|
-| `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of `data/textures/grass.jpg` |
+| `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of `data/textures/Endstone.jpg` |
 | `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
 | `--model PATH` | Show this model file (`.gltf`, `.glb`, `.obj`, `.fbx`, ...) on the grid. Without it, every model in the repo's `assets/` folder is shown in a row (except in a smoke test); without any model, a spinning cube |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
@@ -146,7 +146,7 @@ build/x64-debug/bin/
 ```
 apps/sandbox   test application (entry point, --smoke-test, --count, --texture, --model)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
-data/          small runtime files committed to git (textures/grass.jpg, the grid's texture); copied to bin/data/
+data/          small runtime files committed to git (textures/Endstone.jpg, the grid's texture); copied to bin/data/
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
 engine/assets  ModelImporter: reads model files with Assimp into geometry, node placements and materials;
