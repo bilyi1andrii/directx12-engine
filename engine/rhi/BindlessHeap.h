@@ -45,17 +45,24 @@ namespace engine::rhi {
         // Writes a view of a 2D texture with all its mips into slot `index`, for HLSL Texture2D
         void CreateTexture2DSrv(uint32_t index, ID3D12Resource *texture, DXGI_FORMAT format, uint32_t mipLevels);
 
+        // Handles of slot `index`, for code that binds descriptors itself instead of indexing the heap in HLSL
+        // (the ImGui backend: it writes its view through the CPU handle and binds a descriptor table at the GPU
+        // handle). Engine code uses the index and the Create*Srv functions.
+        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint32_t index) const noexcept;
+        [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle(uint32_t index) const noexcept;
+        // The slot a CPU handle of this heap points at (inverse of CpuHandle)
+        [[nodiscard]] uint32_t IndexOf(D3D12_CPU_DESCRIPTOR_HANDLE handle) const noexcept;
+
         [[nodiscard]] ID3D12DescriptorHeap *Native() const noexcept { return m_heap.Get(); }
         [[nodiscard]] uint32_t Capacity() const noexcept { return m_capacity; }
         [[nodiscard]] uint32_t FreeCount() const noexcept { return static_cast<uint32_t>(m_freeIndices.size()); }
 
     private:
-        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint32_t index) const noexcept;
-
         NativeDevice *m_device;
         ComPtr<ID3D12DescriptorHeap> m_heap;
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuStart{};
-        uint32_t m_descriptorSize = 0; // bytes between two slots; depends on the GPU
+        D3D12_GPU_DESCRIPTOR_HANDLE m_gpuStart{}; // only shader-visible heaps have GPU handles
+        uint32_t m_descriptorSize = 0;            // bytes between two slots; depends on the GPU
         uint32_t m_capacity = 0;
         std::vector<uint32_t> m_freeIndices; // stack: the next Allocate() takes back()
         std::vector<bool> m_allocated;       // catches double frees and views written into free slots
