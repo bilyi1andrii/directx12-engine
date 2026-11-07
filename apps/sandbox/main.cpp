@@ -1,5 +1,6 @@
 #include <format>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -144,9 +145,10 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw, rebuilt every frame like the DX11 dynamic buckets: the textured grid and the
-        // vertex-colour spinning cube, each in its own bucket. A material is its texture for now.
-        engine::render::RenderList renderList;
+        // What to draw: the textured grid and the vertex-colour spinning cube, each in its own bucket. A material
+        // is its texture for now. The grid never moves, so it is a static list, uploaded once (DX11 static
+        // buckets); the spinning cube is rebuilt and uploaded every frame (DX11 dynamic buckets).
+        engine::render::RenderList renderList; // this frame's dynamic objects
         const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
         const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
                                                .material = {.index = gridTexture.index}};
@@ -156,6 +158,11 @@ namespace {
         // e.g. --count 50000 gives 224 x 224 = 50,176 cubes; the title shows the real object count
         const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
         LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
+        engine::render::RenderList gridList;
+        engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
+        const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
+        const size_t staticObjectCount = gridList.InstanceCount();
+        gridList.Clear(); // the matrices are in GPU memory now
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
 
         engine::render::RendererSettings settings; // draw path toggled with I
@@ -193,7 +200,7 @@ namespace {
                 window.SetTitle(std::format(
                     L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
                     settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
-                    renderList.InstanceCount()));
+                    staticObjectCount + renderList.InstanceCount()));
             }
 
             // Everything above has read this frame's input; clear the
@@ -216,13 +223,12 @@ namespace {
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
             renderList.Add(spinningCubeKey, spinningCubeWorld);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
-                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList);
+                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList, staticLists);
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with

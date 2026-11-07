@@ -32,6 +32,9 @@ namespace engine::render {
         static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
                       "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
 
+        // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
+        constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
+
         // Compiled shader bytecode (DXIL), written by the build to <exe dir>/shaders/<name>.cso
         std::vector<std::byte> LoadShader(std::wstring_view fileName) {
             auto bytecode = core::ReadBinaryFile(core::ExecutableDirectory() / L"shaders" / fileName);
@@ -228,16 +231,16 @@ namespace engine::render {
             m_upload.Submit(m_queue);
         } catch (...) {
             // ~Renderer does not run when the constructor throws, so clean up the textures here
-            DestroyTextures();
+            DestroyResources();
             throw;
         }
     }
 
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
-        // swap chain (depth buffer, PSO, meshes) are released before its flush, so wait here
-        // (DestroyTextures flushes).
-        DestroyTextures();
+        // swap chain (depth buffer, PSO, meshes, static lists) are released before its flush, so wait
+        // here (DestroyResources flushes).
+        DestroyResources();
     }
 
     TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
@@ -288,7 +291,7 @@ namespace engine::render {
         return CreateTexture(data, name);
     }
 
-    void Renderer::DestroyTextures() noexcept {
+    void Renderer::DestroyResources() noexcept {
         try {
             m_queue.Flush();
         } catch (const std::exception &e) {
@@ -301,6 +304,13 @@ namespace engine::render {
             }
         }
         m_textures.clear();
+        // The same for the static lists' views. Their buffers are released with m_staticLists, after this
+        // flush.
+        for (const GpuStaticList &staticList : m_staticLists) {
+            if (staticList.instances.IsValid()) {
+                CurrentFrame().DeferFree(m_bindlessHeap, staticList.instanceBufferIndex);
+            }
+        }
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
@@ -324,7 +334,8 @@ namespace engine::render {
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
     }
 
-    void Renderer::Render(const FrameView &view, const RenderList &list) {
+    void Renderer::Render(const FrameView &view, const RenderList &list,
+                          std::span<const StaticListHandle> staticLists) {
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
@@ -345,66 +356,117 @@ namespace engine::render {
             CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
-        UploadInstances(list);
+        UploadDynamicInstances(list);
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        DrawBuckets(list);
+        // Static lists first, then the dynamic objects (DX11 GeometrySystem::Render does the same)
+        for (const StaticListHandle handle : staticLists) {
+            RecordDraws(StaticList(handle).draws);
+        }
+        RecordDraws(m_dynamicDraws);
     }
 
-    void Renderer::UploadInstances(const RenderList &list) {
-        // A shader view (SRV) covers a range of one buffer, and every ring page is its own buffer, so the
-        // instances go into chunks of at most one page, each with its own view
-        constexpr uint64_t kStride = sizeof(gpu::InstanceData);
-        rhi::FrameContext &frame = CurrentFrame();
-        const auto chunkCapacity = static_cast<uint32_t>(frame.Upload().PageSize() / kStride);
+    template <typename BeginChunk>
+    void Renderer::WriteInstances(const RenderList &list, uint32_t chunkCapacity, BeginChunk &&beginChunk,
+                                  std::vector<InstanceDraw> &draws) {
         SplitIntoChunks(list.Buckets(), chunkCapacity, m_instanceRanges);
-        m_chunkBufferIndices.clear();
+        // Room for every draw before the first chunk takes a bindless slot: after that, nothing here may throw
+        draws.reserve(draws.size() + m_instanceRanges.size());
 
         const std::span<const BatchBucket> buckets = list.Buckets();
         const uint64_t instanceCount = list.InstanceCount();
-        rhi::UploadAllocation chunk{};
+        InstanceChunk chunk{};
+        uint32_t chunksStarted = 0;
         gpu::InstanceData instance{};
         for (const InstanceRange &range : m_instanceRanges) {
-            if (range.chunk == m_chunkBufferIndices.size()) {
-                // The first range of a new chunk: allocate the whole chunk. Every chunk but the last is full.
-                // Aligned to the element size, so the chunk starts at a whole element of the page seen as an
-                // InstanceData array.
-                const uint64_t elements =
-                    std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity);
-                chunk = frame.Upload().Allocate(elements * kStride, kStride);
-
-                // A view over exactly these elements, in a fresh bindless slot: the data moves around the ring
-                // from frame to frame, and a slot must not be rewritten while the previous frame may still
-                // read it. The slot goes back to the heap after this frame's fence.
-                const uint32_t index = m_bindlessHeap.Allocate();
-                frame.DeferFree(m_bindlessHeap, index);
-                m_bindlessHeap.CreateStructuredBufferSrv(index, chunk.resource, chunk.offset / kStride,
-                                                         static_cast<uint32_t>(elements), kStride);
-                m_chunkBufferIndices.push_back(index);
+            if (range.chunk == chunksStarted) {
+                // The first range of a new chunk: the whole chunk at once. Every chunk but the last is full.
+                const auto elementCount = static_cast<uint32_t>(
+                    std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity));
+                chunk = beginChunk(elementCount);
+                ++chunksStarted;
             }
 
-            // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
             const BatchBucket &bucket = buckets[range.bucket];
-            uint64_t offset = uint64_t{range.firstElement} * kStride;
+            draws.push_back({.key = bucket.key,
+                             .instanceBufferIndex = chunk.instanceBufferIndex,
+                             .firstElement = range.firstElement,
+                             .count = range.count});
+
+            // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
+            uint64_t offset = uint64_t{range.firstElement} * kInstanceStride;
             for (uint32_t i = 0; i < range.count; ++i) {
                 const DirectX::XMFLOAT4X4 &world = bucket.worlds[range.firstObject + i];
                 DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
-                chunk.Write(offset, instance);
-                offset += kStride;
+                chunk.memory.Write(offset, instance);
+                offset += kInstanceStride;
             }
         }
     }
 
-    void Renderer::DrawBuckets(const RenderList &list) {
-        // Root constants (b0) are copied into the command list, so every draw keeps its own values
+    StaticListHandle Renderer::CreateStaticList(const RenderList &list, std::wstring_view name) {
+        // Room for the list first: nothing after taking the bindless slot may throw, or the slot would leak
+        m_staticLists.reserve(m_staticLists.size() + 1);
+        GpuStaticList staticList;
+        const uint64_t instanceCount = list.InstanceCount();
+        if (instanceCount > 0) {
+            // EndFrame submits this batch before the frame
+            if (!m_upload.IsRecording()) {
+                m_upload.Begin(m_queue);
+            }
+            // A GPU buffer has no page limit, so all objects go into one chunk
+            const auto beginChunk = [&](uint32_t elementCount) {
+                // GPU-local memory (default heap), filled once by a copy, like a vertex buffer: the GPU no longer
+                // reads these matrices across PCIe every frame. WriteInstances fills the staging memory.
+                InstanceChunk chunk{};
+                staticList.instances =
+                    rhi::Buffer::CreateStaged(m_allocator, m_upload, uint64_t{elementCount} * kInstanceStride,
+                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, name, chunk.memory);
+                // A permanent view, written once: unlike the ring's chunks, this buffer never moves
+                staticList.instanceBufferIndex = m_bindlessHeap.Allocate();
+                m_bindlessHeap.CreateStructuredBufferSrv(staticList.instanceBufferIndex, staticList.instances.Native(),
+                                                         0, elementCount, kInstanceStride);
+                chunk.instanceBufferIndex = staticList.instanceBufferIndex;
+                return chunk;
+            };
+            WriteInstances(list, static_cast<uint32_t>(instanceCount), beginChunk, staticList.draws);
+        }
 
-        // m_instanceRanges was built from this list by UploadInstances
-        const std::span<const BatchBucket> buckets = list.Buckets();
+        const StaticListHandle handle{.index = static_cast<uint32_t>(m_staticLists.size())};
+        m_staticLists.push_back(std::move(staticList)); // no reallocation (reserved above), so it cannot throw
+        return handle;
+    }
+
+    void Renderer::UploadDynamicInstances(const RenderList &list) {
+        rhi::FrameContext &frame = CurrentFrame();
+        const auto beginChunk = [&](uint32_t elementCount) {
+            // Aligned to the element size, so the chunk starts at a whole element of the page seen as an
+            // InstanceData array
+            InstanceChunk chunk{.memory =
+                                    frame.Upload().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
+            // A view over exactly these elements, in a fresh bindless slot: the data moves around the ring from
+            // frame to frame, and a slot must not be rewritten while the previous frame may still read it. The
+            // slot goes back to the heap after this frame's fence.
+            chunk.instanceBufferIndex = m_bindlessHeap.Allocate();
+            frame.DeferFree(m_bindlessHeap, chunk.instanceBufferIndex);
+            m_bindlessHeap.CreateStructuredBufferSrv(chunk.instanceBufferIndex, chunk.memory.resource,
+                                                     chunk.memory.offset / kInstanceStride, elementCount,
+                                                     kInstanceStride);
+            return chunk;
+        };
+        // A shader view (SRV) covers a range of one buffer, and every ring page is its own buffer, so the
+        // instances go into chunks of at most one page, each with its own view
+        m_dynamicDraws.clear();
+        WriteInstances(list, static_cast<uint32_t>(frame.Upload().PageSize() / kInstanceStride), beginChunk,
+                       m_dynamicDraws);
+    }
+
+    void Renderer::RecordDraws(std::span<const InstanceDraw> draws) {
+        // Root constants (b0) are copied into the command list, so every draw keeps its own values
         ID3D12PipelineState *currentPipeline = nullptr;
         const GpuMesh *currentMesh = nullptr;
-        for (const InstanceRange &range : m_instanceRanges) {
-            const BatchKey &key = buckets[range.bucket].key;
-            const GpuMesh &mesh = Mesh(key.mesh);
-            // A bucket split between two chunks gives two ranges with the same mesh: bind it only once
+        for (const InstanceDraw &draw : draws) {
+            const GpuMesh &mesh = Mesh(draw.key.mesh);
+            // A bucket split between two chunks gives two draws with the same mesh: bind it only once
             if (&mesh != currentMesh) {
                 // Switch PSOs only when needed: it costs CPU and GPU time
                 if (mesh.pipelineState != currentPipeline) {
@@ -416,18 +478,18 @@ namespace engine::render {
                 currentMesh = &mesh;
             }
 
-            gpu::DrawConstants constants{.instanceOffset = range.firstElement,
-                                         .materialIndex = key.material.index,
-                                         .instanceBufferIndex = m_chunkBufferIndices[range.chunk]};
+            gpu::DrawConstants constants{.instanceOffset = draw.firstElement,
+                                         .materialIndex = draw.key.material.index,
+                                         .instanceBufferIndex = draw.instanceBufferIndex};
             if (m_settings.drawPath == DrawPath::Instanced) {
-                // One draw for the whole range: object i reads element instanceOffset + SV_InstanceID (= i)
+                // One draw for all `count` objects: object i reads element instanceOffset + SV_InstanceID (= i)
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                m_context.DrawIndexedInstanced(mesh.indexCount, range.count);
+                m_context.DrawIndexedInstanced(mesh.indexCount, draw.count);
             } else {
                 // One draw per object, each with its own element in the root constants (plan §2.6: keeps
                 // the per-draw cost measurable)
-                for (uint32_t i = 0; i < range.count; ++i) {
-                    constants.instanceOffset = range.firstElement + i;
+                for (uint32_t i = 0; i < draw.count; ++i) {
+                    constants.instanceOffset = draw.firstElement + i;
                     m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                     m_context.DrawIndexed(mesh.indexCount);
                 }
@@ -439,6 +501,12 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(handle.index < m_meshes.size(), "Mesh handle {} out of range ({} meshes)", handle.index,
                           m_meshes.size());
         return m_meshes[handle.index];
+    }
+
+    const Renderer::GpuStaticList &Renderer::StaticList(StaticListHandle handle) const {
+        ENGINE_ASSERT_MSG(handle.index < m_staticLists.size(), "Static list handle {} out of range ({} lists)",
+                          handle.index, m_staticLists.size());
+        return m_staticLists[handle.index];
     }
 
     void Renderer::EndFrame(bool vsync) {

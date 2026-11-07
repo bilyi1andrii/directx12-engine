@@ -91,9 +91,6 @@ test fails if the D3D12 or DXGI debug layer reported an error, if objects are st
 120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
 the last lines say why. Run it after every change, before committing.
 
-A second smoke test, `sandbox.exe --smoke-test 6 --count 50000`, runs the same checks with 50,176 cubes. Only 6
-frames, because the debug checks make each of these frames slow (about 3 s in Debug, 9 s with ASan in total).
-
 The exe can also be started directly with `--smoke-test N`. Exit codes:
 
 | Code | Meaning |

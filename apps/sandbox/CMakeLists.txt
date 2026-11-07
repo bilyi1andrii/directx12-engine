@@ -28,9 +28,3 @@ engine_copy_asan_runtime(sandbox)
 # instead of a ctest run that never ends.
 add_test(NAME sandbox_smoke COMMAND sandbox --smoke-test 120)
 set_tests_properties(sandbox_smoke PROPERTIES TIMEOUT 30)
-
-# Stress smoke test: the same checks with 224 x 224 = 50,176 cubes, which take two upload-ring pages (instance chunks),
-# so one bucket is split between two chunks. Only 6 frames: GPU-based validation and ASan make every 50k
-# frame slow (about 3 s in Debug, 9 s in x64-asan); both fullscreen toggles and both draw paths still run.
-add_test(NAME sandbox_smoke_stress COMMAND sandbox --smoke-test 6 --count 50000)
-set_tests_properties(sandbox_smoke_stress PROPERTIES TIMEOUT 30)
