@@ -7,17 +7,47 @@ namespace engine::render {
     }
 
     void RenderList::Clear() noexcept {
+        // In reverse, so next frame's first bucket gets this frame's first vector back: with the same objects,
+        // every vector is already big enough. GetOrCreate reserved the room, so push_back does not allocate.
+        for (auto bucket = m_buckets.rbegin(); bucket != m_buckets.rend(); ++bucket) {
+            bucket->worlds.clear();
+            m_spareWorlds.push_back(std::move(bucket->worlds));
+        }
         m_buckets.clear();
+        m_bucketIndices.clear();
+        m_lastBucket = 0;
         m_instanceCount = 0;
     }
 
     BatchBucket &RenderList::GetOrCreate(const BatchKey &key) {
-        for (BatchBucket &bucket : m_buckets) {
-            if (bucket.key == key) {
-                return bucket;
-            }
+        // Most often the same key as the previous object; otherwise look it up
+        if (m_lastBucket < m_buckets.size() && m_buckets[m_lastBucket].key == key) {
+            return m_buckets[m_lastBucket];
         }
-        return m_buckets.emplace_back(BatchBucket{.key = key, .worlds = {}});
+        if (const auto found = m_bucketIndices.find(key); found != m_bucketIndices.end()) {
+            m_lastBucket = found->second;
+            return m_buckets[m_lastBucket];
+        }
+
+        // A new bucket, with a spare vector if there is one. Room for every vector in m_spareWorlds keeps
+        // Clear() from allocating.
+        m_spareWorlds.reserve(m_buckets.size() + m_spareWorlds.size() + 1);
+        BatchBucket newBucket{.key = key, .worlds = {}};
+        if (!m_spareWorlds.empty()) {
+            newBucket.worlds = std::move(m_spareWorlds.back());
+            m_spareWorlds.pop_back();
+        }
+        const auto index = static_cast<uint32_t>(m_buckets.size());
+        BatchBucket &bucket = m_buckets.emplace_back(std::move(newBucket));
+        try {
+            m_bucketIndices.emplace(key, index);
+        } catch (...) {
+            // Without a map entry, the next Add would create a second bucket for this key
+            m_buckets.pop_back();
+            throw;
+        }
+        m_lastBucket = index;
+        return bucket;
     }
 
     void SubmitGrid(RenderList &list, const BatchKey &key, const DirectX::XMFLOAT4X4 &base, uint32_t rows,

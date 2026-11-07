@@ -25,8 +25,9 @@ namespace engine::gpu {
 // Root constants live in the command list itself, so they can change between two draws at no memory cost.
 struct DrawConstants
 {
-    uint instanceOffset; // element of the draw's first object in the frame's InstanceData buffer
-    uint materialIndex;  // for now: bindless index of the albedo texture
+    uint instanceOffset;      // element of the draw's first object in its InstanceData buffer
+    uint materialIndex;       // for now: bindless index of the albedo texture
+    uint instanceBufferIndex; // bindless index of the draw's StructuredBuffer<InstanceData>
 };
 
 // Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli)
@@ -35,12 +36,12 @@ struct FrameConstants
     float4x4 view;
     float4x4 projection;
     float4x4 viewProjection;
-    float3   cameraPosition;      // world space
-    uint     instanceBufferIndex; // bindless index of this frame's StructuredBuffer<InstanceData>
+    float3   cameraPosition; // world space
+    uint     pad0;
 };
 
-// Per-object data: one element of the StructuredBuffer<InstanceData> written into the UploadRing each frame.
-// A draw reads element instanceOffset (root constant b0) + SV_InstanceID.
+// Per-object data: one element of a StructuredBuffer<InstanceData>, written into the UploadRing each frame.
+// A draw reads element instanceOffset + SV_InstanceID of buffer instanceBufferIndex (both root constants b0).
 struct InstanceData
 {
     float4x4 world; // object -> world

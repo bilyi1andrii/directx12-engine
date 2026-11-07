@@ -30,6 +30,14 @@ namespace engine::render {
 
         bool operator==(const TextureHandle &) const = default;
     };
+
+    // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList (DX11's static
+    // buckets). The index points into the renderer's table.
+    struct StaticListHandle {
+        uint32_t index = 0;
+
+        bool operator==(const StaticListHandle &) const = default;
+    };
 } // namespace engine::render
 
 #endif // D3D12_ENGINE_HANDLES_H

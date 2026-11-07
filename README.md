@@ -10,10 +10,11 @@ D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer i
 logging, error handling), asset loading in `engine/assets` (models through Assimp; textures through DirectXTex, mips
 generated on the CPU), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames
 in flight, descriptors, swap chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless
-descriptor heap), one global root
-signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it
-draws from in `engine/renderdata` (the `RenderList` of objects batched by mesh and material, plus the texture, mesh and
-material types that model loading will fill), unit tests and an automated smoke test. Next: pipeline cache and models.
+descriptor heap, a pipeline cache), one global root signature defined in HLSL, a fly camera in `engine/scene`, the
+`Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the `RenderList` of objects
+batched by mesh and material, plus the texture, mesh and material types that model loading fills), per-frame
+instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
+grid), unit tests and an automated smoke test. Next: uploading imported models and drawing Sponza.
 
 ## Requirements
 
@@ -56,6 +57,7 @@ Command-line options of `sandbox.exe`:
 | Option | Effect |
 |---|---|
 | `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of the checkerboard |
+| `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
@@ -131,7 +133,7 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point, --smoke-test, --texture)
+apps/sandbox   test application (entry point, --smoke-test, --count, --texture)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
@@ -146,9 +148,11 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
 engine/scene   Camera and fly-camera controls (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
-               and material), RendererSettings (e.g. the draw path), Handles (MeshHandle, MaterialHandle,
-               TextureHandle), TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
-engine/render  Renderer: owns the frame loop's GPU objects and records each frame
+               and material), InstanceChunks (how instance data is split into upload pages), RendererSettings
+               (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle, StaticListHandle),
+               TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
+engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
+               once) and the frame's RenderList (uploaded every frame)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)

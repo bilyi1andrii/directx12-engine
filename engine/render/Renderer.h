@@ -23,9 +23,11 @@
 #include "rhi/SwapChain.h"
 #include "rhi/Texture.h"
 #include "rhi/UploadContext.h"
+#include "rhi/UploadRing.h"
 #include "rhi/ValidationStats.h"
 
 #include "renderdata/Handles.h"
+#include "renderdata/InstanceChunks.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
@@ -39,7 +41,7 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, list) -> EndFrame(vsync).
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> EndFrame(vsync).
     // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
@@ -67,9 +69,12 @@ namespace engine::render {
             return static_cast<float>(m_swapChain.Width()) / static_cast<float>(m_swapChain.Height());
         }
 
-        // Records the frame's commands: draws `list` seen through `view`.
-        // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
-        void Render(const FrameView &view, const RenderList &list);
+        // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
+        void Render(const FrameView &view, const RenderList &list, std::span<const StaticListHandle> staticLists = {});
+
+        // Uploads the objects of `list` once into GPU memory (DX11's static buckets). Pass the handle to Render
+        // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.
+        [[nodiscard]] StaticListHandle CreateStaticList(const RenderList &list, std::wstring_view name);
 
         // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
         // TexturedCubeMesh shows its material's texture
@@ -108,9 +113,34 @@ namespace engine::render {
             VertexFormat vertexFormat = VertexFormat::Mesh;
         };
 
+        // One instanced draw: `count` objects with the same key, from element `firstElement` of the instance
+        // buffer at bindless index `instanceBufferIndex`. Static and dynamic objects differ only in that buffer.
+        struct InstanceDraw {
+            BatchKey key;
+            uint32_t instanceBufferIndex = 0;
+            uint32_t firstElement = 0;
+            uint32_t count = 0;
+        };
+
+        // A static list in GPU memory: its instances, their view and its draws. StaticListHandle::index points
+        // into m_staticLists.
+        struct GpuStaticList {
+            rhi::Buffer instances;            // empty if the list has no objects
+            uint32_t instanceBufferIndex = 0; // bindless index of the view; only valid if `instances` is
+            std::vector<InstanceDraw> draws;
+        };
+
+        // Where WriteInstances writes one chunk, and the view its draws read
+        struct InstanceChunk {
+            rhi::UploadAllocation memory;
+            uint32_t instanceBufferIndex = 0;
+        };
+
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
+
+        [[nodiscard]] const GpuStaticList &StaticList(StaticListHandle handle) const;
 
         void CreatePipelines();
 
@@ -126,15 +156,21 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then destroys every texture
-        void DestroyTextures() noexcept;
+        // Shutdown only: waits for the GPU, then destroys every texture and frees the static lists' views
+        void DestroyResources() noexcept;
 
-        // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
-        // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.
-        [[nodiscard]] uint32_t UploadInstances(const RenderList &list);
+        // Shared by dynamic and static instances: splits `list` into chunks of at most `chunkCapacity` objects,
+        // writes their transposed world matrices and appends their draws to `draws`. beginChunk(elementCount)
+        // is called once per chunk and returns where to write it.
+        template <typename BeginChunk>
+        void WriteInstances(const RenderList &list, uint32_t chunkCapacity, BeginChunk &&beginChunk,
+                            std::vector<InstanceDraw> &draws);
 
-        // Records the draws of every bucket, on the path chosen in m_settings
-        void DrawBuckets(const RenderList &list);
+        // Writes the objects of `list` into this frame's upload ring and fills m_dynamicDraws
+        void UploadDynamicInstances(const RenderList &list);
+
+        // Records `draws` on the current draw path: one instanced draw each, or one draw per object
+        void RecordDraws(std::span<const InstanceDraw> draws);
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
@@ -170,6 +206,13 @@ namespace engine::render {
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
         TextureHandle m_unhandledTexture;
+
+        // Released after the destructor's flush, before the allocator
+        std::vector<GpuStaticList> m_staticLists;
+
+        // Rebuilt for every list; members, so their memory is reused
+        std::vector<InstanceRange> m_instanceRanges;
+        std::vector<InstanceDraw> m_dynamicDraws;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;

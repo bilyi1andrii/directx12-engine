@@ -1,5 +1,6 @@
 #include <format>
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -43,11 +44,19 @@ namespace {
     constexpr bool kValidationExpected = false;
 #endif
 
-    // The sandbox scene: a grid of cubes below the origin and one cube spinning at the origin
-    constexpr uint32_t kGridRows = 20;
-    constexpr uint32_t kGridCols = 20;
+    // The sandbox scene: a square grid of cubes below the origin (--count, default 20 x 20) and one cube
+    // spinning at the origin
     constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
     constexpr float kGridHeight = -4.0f;
+
+    // Side of the grid for --count: the smallest n with n * n >= count (64-bit, so the square cannot overflow)
+    uint32_t GridSide(uint32_t count) {
+        uint32_t side = 0;
+        while (uint64_t{side} * side < count) {
+            ++side;
+        }
+        return side;
+    }
 
     // The renderer's input for one frame, from the camera (scene and render do not know each other)
     engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
@@ -135,15 +144,25 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw, rebuilt every frame like the DX11 dynamic buckets: the textured grid and the
-        // vertex-colour spinning cube, each in its own bucket. A material is its texture for now.
-        engine::render::RenderList renderList;
+        // What to draw: the textured grid and the vertex-colour spinning cube (a material is its texture for
+        // now). The grid never moves, so it is a static list, uploaded once; the spinning cube is rebuilt and
+        // uploaded every frame.
+        engine::render::RenderList renderList; // this frame's dynamic objects
         const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
         const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
                                                .material = {.index = gridTexture.index}};
         const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
+        // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
+        const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
+        LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
+        // engine::render::RenderList gridList;
+        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
+        // const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
+        // const size_t staticObjectCount = gridList.InstanceCount();
+        const size_t staticObjectCount = 0;
+        // gridList.Clear(); // the matrices are in GPU memory now
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
 
         engine::render::RendererSettings settings; // draw path toggled with I
@@ -181,7 +200,7 @@ namespace {
                 window.SetTitle(std::format(
                     L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
                     settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
-                    renderList.InstanceCount()));
+                    staticObjectCount + renderList.InstanceCount()));
             }
 
             // Everything above has read this frame's input; clear the
@@ -204,13 +223,14 @@ namespace {
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, gridKey, gridBase, kGridRows, kGridCols, kGridSpacing, kGridSpacing);
+            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
             renderList.Add(spinningCubeKey, spinningCubeWorld);
+
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
-                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList);
+                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList /*, staticLists*/);
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
