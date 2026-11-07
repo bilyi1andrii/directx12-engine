@@ -1,0 +1,48 @@
+#include "assets/Primitives.h"
+
+#include <array>
+#include <cstdint>
+
+#include <DirectXMath.h>
+
+namespace engine::assets {
+    render::MeshData MakeCube() {
+        using DirectX::XMFLOAT3;
+        // Each face as seen from outside: its normal and which way is right and up on it
+        struct Face {
+            XMFLOAT3 normal;
+            XMFLOAT3 right;
+            XMFLOAT3 up;
+        };
+        constexpr std::array<Face, 6> kFaces{{
+            {{0, 0, -1}, {1, 0, 0}, {0, 1, 0}},  // -Z
+            {{0, 0, 1}, {-1, 0, 0}, {0, 1, 0}},  // +Z
+            {{-1, 0, 0}, {0, 0, -1}, {0, 1, 0}}, // -X
+            {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},   // +X
+            {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},   // +Y, seen from above with +Z up
+            {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}}, // -Y, seen from below with -Z up
+        }};
+        // A corner of the face: r and u are -1 or +1
+        const auto corner = [](const Face &face, float r, float u) {
+            return XMFLOAT3{face.normal.x + r * face.right.x + u * face.up.x,
+                            face.normal.y + r * face.right.y + u * face.up.y,
+                            face.normal.z + r * face.right.z + u * face.up.z};
+        };
+
+        render::MeshData cube;
+        cube.vertices.reserve(kFaces.size() * 4);
+        cube.indices.reserve(kFaces.size() * 6);
+        for (const Face &face : kFaces) {
+            const auto first = static_cast<uint32_t>(cube.vertices.size());
+            // Bottom-left, top-left, top-right, bottom-right. UV (0, 0) is the top-left of the texture.
+            cube.vertices.push_back({corner(face, -1, -1), {0, 1}, face.normal, face.right});
+            cube.vertices.push_back({corner(face, -1, 1), {0, 0}, face.normal, face.right});
+            cube.vertices.push_back({corner(face, 1, 1), {1, 0}, face.normal, face.right});
+            cube.vertices.push_back({corner(face, 1, -1), {1, 1}, face.normal, face.right});
+            // Two clockwise triangles
+            cube.indices.insert(cube.indices.end(), {first, first + 1, first + 2, first, first + 2, first + 3});
+        }
+        cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
+        return cube;
+    }
+} // namespace engine::assets

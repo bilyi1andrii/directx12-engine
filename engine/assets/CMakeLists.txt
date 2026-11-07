@@ -8,6 +8,8 @@ add_library(engine_assets STATIC
         ModelImporter.h
         Paths.cpp
         Paths.h
+        Primitives.cpp
+        Primitives.h
         TextureLoader.cpp
         TextureLoader.h)
 

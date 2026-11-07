@@ -79,11 +79,6 @@ namespace engine::render {
         // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.
         [[nodiscard]] StaticListHandle CreateStaticList(const RenderList &list, std::wstring_view name);
 
-        // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
-        // TexturedCubeMesh shows its material's texture
-        [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
-        [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
-
         // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
         // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
         // can be drawn in the same frame and live as long as the renderer.
@@ -105,9 +100,9 @@ namespace engine::render {
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
 
     private:
+        // Every vertex layout the renderer draws, each with its own PSO
         enum class VertexFormat : uint8_t {
-            PositionColor, // the built-in vertex-colour cube (vs_basic)
-            Mesh,          // renderdata/Vertex.h (vs_mesh)
+            Mesh, // renderdata/Vertex.h (vs_mesh)
             Count,
         };
 
@@ -170,9 +165,6 @@ namespace engine::render {
         // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
         void PrepareUpload(uint64_t bytes);
 
-        // Uploads both built-in cubes (constructor only)
-        void UploadCubes();
-
         // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
 
@@ -225,8 +217,6 @@ namespace engine::render {
         std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
         std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
-        MeshHandle m_cubeMesh;
-        MeshHandle m_texturedCubeMesh;
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
