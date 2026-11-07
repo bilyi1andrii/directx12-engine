@@ -5,6 +5,8 @@
 
 #include <imgui.h>
 #include <imgui_impl_win32.h>
+// After imgui.h: ImGuizmo.h uses its types
+#include <ImGuizmo.h>
 
 // imgui_impl_win32.h declares it only inside "#if 0", so that the header does not need <windows.h>
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -46,6 +48,10 @@ namespace engine::ui {
     void DebugUI::NewFrame() {
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
+        // Before any other window: creates the invisible full-screen window the gizmo draws into. Created first,
+        // it stays behind the panels, and it takes no input itself (ImGuiWindowFlags_NoInputs).
+        ImGuizmo::BeginFrame();
+        m_gizmoDrawn = false;
     }
 
     bool DebugUI::WantsMouse() const {
@@ -55,6 +61,26 @@ namespace engine::ui {
 
     bool DebugUI::WantsKeyboard() const {
         return ImGui::GetIO().WantCaptureKeyboard;
+    }
+
+    bool DebugUI::TranslateGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
+                                 DirectX::XMFLOAT4X4 &world) {
+        m_gizmoDrawn = true;
+        // The whole client area, in the pixels ImGui uses (the same as the back buffer)
+        const ImGuiIO &io = ImGui::GetIO();
+        ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
+        // By default ImGuizmo turns an arrow around when it points away from the camera (it looks shorter then);
+        // keep every arrow on the +X/+Y/+Z side, so the arrows also show which way the world axes go
+        ImGuizmo::AllowAxisFlip(false);
+        // XMFLOAT4X4 stores 16 floats row by row, for row vectors (v * M): the layout ImGuizmo reads, so no
+        // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection and [0, 1] depth.
+        return ImGuizmo::Manipulate(&view.m[0][0], &projection.m[0][0], ImGuizmo::TRANSLATE, ImGuizmo::WORLD,
+                                    &world.m[0][0]);
+    }
+
+    bool DebugUI::GizmoWantsMouse() const {
+        // ImGuizmo keeps the last Manipulate's state, so without a gizmo this frame it would describe an old one
+        return m_gizmoDrawn && (ImGuizmo::IsOver() || ImGuizmo::IsUsing());
     }
 
     void DebugUI::ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings) {
@@ -84,6 +110,24 @@ namespace engine::ui {
             ImGui::Checkbox("VSync (V)", &settings.vsync);
         }
         // End() even when Begin() returned false (window collapsed)
+        ImGui::End();
+    }
+
+    void DebugUI::ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 *position) {
+        const float scale = ImGui::GetStyle().FontScaleDpi;
+        // Top-right corner (pivot (1, 0): the position is the window's top-right corner), away from the objects in
+        // the middle of the view. It widens when something is selected.
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 10.0f * scale, 10.0f * scale),
+                                ImGuiCond_FirstUseEver, ImVec2(1.0f, 0.0f));
+        if (ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            if (position == nullptr) {
+                ImGui::TextDisabled("Left-click a coloured cube to select it");
+            } else {
+                ImGui::TextUnformatted(name.data(), name.data() + name.size());
+                ImGui::DragFloat3("Position", &position->x, 0.05f, 0.0f, 0.0f, "%.2f");
+                ImGui::TextDisabled("Drag the arrows to move it; click elsewhere to deselect");
+            }
+        }
         ImGui::End();
     }
 

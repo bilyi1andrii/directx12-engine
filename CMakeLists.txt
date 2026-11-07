@@ -26,6 +26,8 @@ find_package(directxtex CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 # Static library with the core and the dx12 + win32 backends (features in vcpkg.json)
 find_package(imgui CONFIG REQUIRED)
+# Static library, built by vcpkg against the imgui port above. Its target does not link imgui: users link both.
+find_package(imguizmo CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 

@@ -98,6 +98,11 @@ namespace engine::render {
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
 
+        // A 1x1 texture of one colour (sRGB values, as in an image file), with the lifetime of CreateTexture's.
+        // Callers above the renderer cannot name DXGI formats, so they use this for plain colours.
+        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
+                                                            std::wstring_view name);
+
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
@@ -192,10 +197,6 @@ namespace engine::render {
 
         // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
-
-        // A 1x1 sRGB texture of one colour
-        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
-                                                            std::wstring_view name);
 
         // Shutdown only: waits for the GPU, then destroys every texture, mesh buffer and static list
         void DestroyResources() noexcept;

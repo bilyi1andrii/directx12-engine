@@ -12,10 +12,11 @@ engine_target_defaults(engine_ui)
 target_include_directories(engine_ui PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 
 # PUBLIC: DebugUI.h uses core::Window and RendererSettings (engine_renderdata, not engine_render: the UI writes
-# settings, it never calls the renderer). PRIVATE: only DebugUI.cpp includes ImGui
+# settings, it never calls the renderer). PRIVATE: only DebugUI.cpp includes ImGui and ImGuizmo (the gizmo)
 target_link_libraries(engine_ui
         PUBLIC
         engine_core
         engine_renderdata
         PRIVATE
-        imgui::imgui)
+        imgui::imgui
+        imguizmo::imguizmo)

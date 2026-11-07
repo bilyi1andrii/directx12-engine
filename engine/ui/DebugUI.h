@@ -26,10 +26,10 @@ namespace engine::ui {
     // shapes, display size) and builds the windows every frame. Drawing them is the renderer's job: pass Render()'s
     // result to Renderer::RenderUi.
     //
-    // Per frame: NewFrame() -> Show*() -> Render().
+    // Per frame: NewFrame() -> [TranslateGizmo()] -> Show*() -> Render().
     //
-    // The UI only edits data (RendererSettings); the app passes it on to the renderer, which reads it once per
-    // frame. It never calls the renderer itself.
+    // The UI only edits data (RendererSettings, an object's position); the app passes it on to the renderer, which
+    // reads it once per frame. It never calls the renderer itself.
     //
     // ImGui keeps its current context in a global, so there is one DebugUI per process. Create it after the window
     // and before the renderer, and destroy it after the renderer (the renderer's ImGui backend uses the context).
@@ -60,14 +60,30 @@ namespace engine::ui {
         [[nodiscard]] bool WantsMouse() const;
         [[nodiscard]] bool WantsKeyboard() const;
 
+        // The translate gizmo (ImGuizmo) on the object placed by `world`: arrows along the world X/Y/Z axes, plus
+        // plane handles and a centre handle that moves in the screen plane. `view` and `projection` are the
+        // camera's DirectXMath matrices as they are (not transposed). While the user drags a handle it changes
+        // `world`'s translation and returns true. At most once per frame, after NewFrame.
+        bool TranslateGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
+                            DirectX::XMFLOAT4X4 &world);
+
+        // After this frame's TranslateGizmo: the cursor is over one of its handles, or one is being dragged, so a
+        // click belongs to the gizmo (not to selecting). False in a frame without a gizmo.
+        [[nodiscard]] bool GizmoWantsMouse() const;
+
         // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
+
+        // The "Selection" window: the selected object's name and its position, edited in place. Without a
+        // selection (`position` null) it says how to select one.
+        void ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 *position);
 
         // Ends the UI frame and returns what to draw, valid until the next NewFrame
         [[nodiscard]] ImDrawData *Render();
 
     private:
         ImGuiContext *m_context = nullptr;
+        bool m_gizmoDrawn = false; // TranslateGizmo was called this frame
     };
 } // namespace engine::ui
 
