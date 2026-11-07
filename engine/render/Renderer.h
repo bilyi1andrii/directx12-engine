@@ -4,6 +4,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -34,7 +36,12 @@
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
 
+// ImGui's per-frame draw data (ui::DebugUI::Render); opaque here
+struct ImDrawData;
+
 namespace engine::render {
+    class UiRenderer;
+
     struct FrameView {
         DirectX::XMFLOAT4X4 view;
         DirectX::XMFLOAT4X4 projection;
@@ -43,8 +50,8 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> EndFrame(vsync).
-    // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
+    // -> EndFrame(vsync). Any of them can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
@@ -94,6 +101,13 @@ namespace engine::render {
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
+
+        // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
+        // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
+        void EnableUi();
+
+        // Draws the UI on top of the frame: after Render, before EndFrame, at most once per frame. Needs EnableUi.
+        void RenderUi(ImDrawData *drawData);
 
         // Submits the frame, presents it and remembers the fence value that marks its end
         void EndFrame(bool vsync);
@@ -236,6 +250,11 @@ namespace engine::render {
 
         // Released after the destructor's flush, before the allocator
         std::vector<GpuStaticList> m_staticLists;
+
+        // The UI's renderer; null until EnableUi. Released after the destructor's flush, before the frames and the
+        // bindless heap: its shutdown hands the font texture's descriptor to a frame's deferred frees.
+        std::unique_ptr<UiRenderer> m_ui;
+        uint64_t m_uiFrameNumber = std::numeric_limits<uint64_t>::max(); // the frame RenderUi last drew
 
         // Rebuilt for every list; members, so their memory is reused
         std::vector<InstanceRange> m_instanceRanges;

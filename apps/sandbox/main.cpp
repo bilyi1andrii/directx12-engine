@@ -21,6 +21,7 @@
 #include "render/Renderer.h"
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
+#include "ui/DebugUI.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -39,17 +40,26 @@ namespace {
 
         engine::core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
 
+        // After the window (its backend needs the HWND), before the renderer (the renderer's ImGui backend needs
+        // the context, also while the renderer is destroyed)
+        engine::ui::DebugUI ui(window);
+
         // No onResize: one fullscreen toggle sends several WM_SIZE messages, so the swap chain
         // follows Window::Width()/Height() once per frame instead
         window.SetCallbacks({
             .onMessage =
                 [&input](const engine::core::WindowMessage &message) {
+                    // ImGui first. DebugUI::HandleMessage is static and does nothing once `ui` is gone, so this
+                    // stays safe while the window, which outlives `ui`, is destroyed.
+                    const bool handledByUi = engine::ui::DebugUI::HandleMessage(message);
                     input.HandleMessage(message);
-                    return false; // let the window handle it as well
+                    // Only true for WM_SETCURSOR over ImGui (and IME text): the window must not reset the cursor
+                    return handledByUi;
                 },
         });
 
         engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
+        renderer.EnableUi();
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 renderer.TearingSupported() ? "supported" : "not supported");
@@ -125,6 +135,11 @@ namespace {
                 ::WaitMessage();
                 continue;
             }
+
+            // The UI frame: after the minimized check, so every NewFrame gets its Render
+            ui.NewFrame();
+            ui.ShowStats({.fps = frameTimer.Fps()});
+            ImDrawData *const uiDrawData = ui.Render();
             // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
             // the angle precise however long the program runs.
             const float angle =
@@ -141,6 +156,7 @@ namespace {
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
                 renderer.Render(engine::apps::MakeFrameView(camera, renderer.AspectRatio()), renderList,
                                 grid.StaticLists());
+                renderer.RenderUi(uiDrawData); // on top of the scene
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
@@ -184,6 +200,10 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             return engine::apps::kExitBadCommandLine;
         }
         smokeTest = options->smokeTestFrames.has_value();
+        if (smokeTest) {
+            // A failed ImGui or D3D12MA assert must end the run, not wait at a dialog until ctest's timeout
+            engine::apps::RouteCrtAssertsToStderr();
+        }
 
         // For the whole run: image files are decoded through WIC, which needs COM
         const engine::core::ComScope com;

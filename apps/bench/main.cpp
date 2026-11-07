@@ -196,6 +196,8 @@ namespace {
 // The benchmark: flies a scripted camera over a scene and writes the CPU time of every frame to
 // results/dx12/<scene>/<timestamp>/. Runs unattended, so it never shows a dialog.
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
+    // Always unattended: a failed D3D12MA assert must end the run, not wait at a dialog
+    engine::apps::RouteCrtAssertsToStderr();
     try {
         const std::expected<BenchOptions, std::string> options = ParseBenchOptions(engine::core::CommandLineArgs());
         if (!options) {

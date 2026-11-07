@@ -20,6 +20,7 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "render/UiRenderer.h"
 #include "renderdata/Vertex.h"
 #include "rhi/UploadRing.h"
 
@@ -562,6 +563,21 @@ namespace engine::render {
                           mesh.geometry, m_geometries.size());
         m_meshes.push_back(mesh);
         return MeshHandle{.index = static_cast<uint32_t>(m_meshes.size() - 1)};
+    }
+
+    void Renderer::EnableUi() {
+        ENGINE_ASSERT_MSG(m_ui == nullptr, "EnableUi called twice");
+        m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
+    }
+
+    void Renderer::RenderUi(ImDrawData *drawData) {
+        ENGINE_ASSERT_MSG(m_ui != nullptr, "RenderUi without EnableUi");
+        // A second call would make the backend reuse a vertex buffer the GPU may still be reading
+        ENGINE_ASSERT_MSG(m_uiFrameNumber != m_frameNumber, "RenderUi called twice in frame {}", m_frameNumber);
+        m_uiFrameNumber = m_frameNumber;
+        // Last in the frame: ImGui sets its own root signature and PSO, and nothing after it needs ours.
+        // The UNORM view, because ImGui's colours are already sRGB.
+        m_ui->Render(drawData, m_context, CurrentFrame(), m_swapChain.CurrentUiRtv());
     }
 
     void Renderer::EndFrame(bool vsync) {

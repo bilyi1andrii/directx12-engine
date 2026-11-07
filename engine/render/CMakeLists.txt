@@ -1,8 +1,10 @@
-# engine_render: draws the frame with engine_rhi (Renderer; later FrameGraph, passes)
+# engine_render: draws the frame with engine_rhi (Renderer, UiRenderer; later FrameGraph, passes)
 
 add_library(engine_render STATIC
         Renderer.cpp
-        Renderer.h)
+        Renderer.h
+        UiRenderer.cpp
+        UiRenderer.h)
 
 engine_target_defaults(engine_render)
 
@@ -15,3 +17,6 @@ target_include_directories(engine_render PRIVATE "${PROJECT_SOURCE_DIR}/shaders"
 target_link_libraries(engine_render PUBLIC
         engine_renderdata
         engine_rhi)
+# PRIVATE: only UiRenderer.cpp includes ImGui (its dx12 backend); Renderer.h just forward-declares ImDrawData
+target_link_libraries(engine_render PRIVATE
+        imgui::imgui)
