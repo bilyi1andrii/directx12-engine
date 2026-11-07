@@ -92,8 +92,6 @@ namespace engine::render {
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
 
     private:
-        // The vertex layouts the renderer draws. A PSO is chosen by vertex format + material (PipelineFor),
-        // so meshes only record which layout their vertex buffer has.
         enum class VertexFormat : uint8_t {
             PositionColor, // the built-in vertex-colour cube (vs_basic)
             Mesh,          // renderdata/Vertex.h (vs_mesh)
@@ -114,11 +112,8 @@ namespace engine::render {
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
-        // Asks the pipeline cache for the PSO of every vertex format (constructor only), so no PSO is built
-        // during a frame
         void CreatePipelines();
 
-        // The PSO that draws a mesh of `format` with `material`.
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
 
         // Uploads the vertex and index buffers of both cubes (constructor only)
