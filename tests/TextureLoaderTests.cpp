@@ -14,6 +14,7 @@
 using engine::assets::CreateTextureFromPixels;
 using engine::assets::IsSrgbUsage;
 using engine::assets::LoadTexture;
+using engine::assets::LoadTextureFromMemory;
 using engine::assets::TextureUsage;
 using engine::render::TextureData;
 using engine::core::ErrorCode;
@@ -196,4 +197,27 @@ TEST(LoadTexture, FileThatIsNotAnImageReturnsUnsupportedFormat) {
 
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, ErrorCode::UnsupportedFormat) << result.error().message;
+}
+
+// The hint picks the decoder as the extension does in LoadTexture, in any case, and the usage still sets the format
+TEST(LoadTextureFromMemory, HintPicksTheDecoder) {
+    const auto tga = LoadTextureFromMemory(Tga2x2(), "TGA", TextureUsage::Diffuse);
+    ASSERT_TRUE(tga.has_value()) << tga.error().message;
+    EXPECT_EQ(tga->dxgiFormat, kRgba8Srgb);
+    EXPECT_EQ(tga->mips.size(), 2u);
+
+    const auto dds = LoadTextureFromMemory(DdsBc1(), "dds", TextureUsage::Normals);
+    ASSERT_TRUE(dds.has_value()) << dds.error().message;
+    EXPECT_EQ(dds->dxgiFormat, kBc1Unorm);
+}
+
+// Goes through WIC, like the file version: no decoder accepts the bytes
+TEST(LoadTextureFromMemory, BytesThatAreNotAnImageReturnUnsupportedFormat) {
+    constexpr std::array garbage{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
+
+    const auto result = LoadTextureFromMemory(garbage, "png", TextureUsage::Diffuse);
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error().code, ErrorCode::UnsupportedFormat) << result.error().message;
+    EXPECT_NE(result.error().message.find("png"), std::string::npos) << result.error().message;
 }

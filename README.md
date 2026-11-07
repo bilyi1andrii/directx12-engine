@@ -7,9 +7,10 @@ A real-time renderer in C++23 on Direct3D 12, the successor of
 400 textured cubes and one spinning cube that you can fly around with a camera, drawn either instanced (one draw call
 per mesh and material) or with one draw call per object. In place are the build system (CMake presets, vcpkg, the
 D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer in `engine/core` (window, input, timing,
-logging, error handling), texture loading in `engine/assets` (DirectXTex, mips generated on the CPU), the D3D12
-wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames in flight, descriptors, swap
-chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless descriptor heap), one global root
+logging, error handling), asset loading in `engine/assets` (models through Assimp; textures through DirectXTex, mips
+generated on the CPU), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames
+in flight, descriptors, swap chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless
+descriptor heap), one global root
 signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it
 draws from in `engine/renderdata` (the `RenderList` of objects batched by mesh and material, plus the texture, mesh and
 material types that model loading will fill), unit tests and an automated smoke test. Next: pipeline cache and models.
@@ -134,7 +135,9 @@ apps/sandbox   test application (entry point, --smoke-test, --texture)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
-engine/assets  TextureLoader: loads images with DirectXTex and generates mips (CPU only, no D3D12)
+engine/assets  ModelImporter: reads model files with Assimp into geometry, node placements and materials;
+               TextureLoader: loads images (files or bytes inside a model) with DirectXTex and generates mips
+               (CPU only, no D3D12)
 engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
                Allocator (D3D12MA), Buffer, DepthBuffer, Texture, UploadRing (per-frame upload memory),
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
