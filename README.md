@@ -14,7 +14,8 @@ descriptor heap, a pipeline cache), one global root signature defined in HLSL, a
 `Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the `RenderList` of objects
 batched by mesh and material, plus the texture, mesh and material types that model loading fills), per-frame
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
-grid), unit tests and an automated smoke test. Next: uploading imported models and drawing Sponza.
+grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Next: uploading
+imported models and drawing Sponza.
 
 ## Requirements
 
@@ -39,8 +40,9 @@ The dependencies (`vcpkg.json`) are installed automatically on the first configu
 
 ## Build and run
 
-Presets: `x64-debug`, `x64-release`, `x64-relwithdebinfo` (benchmarks), and two for extra checks: `x64-asan`
-(Debug with AddressSanitizer) and `x64-analyze` (Debug with the compiler's static analysis, `/analyze`).
+Presets: `x64-debug`, `x64-release` (also for benchmarks), `x64-relwithdebinfo` (for profiling), and two for extra
+checks: `x64-asan` (Debug with AddressSanitizer) and `x64-analyze` (Debug with the compiler's static analysis,
+`/analyze`).
 
 The build uses MSVC with the Ninja generator, so CMake must run inside the MSVC environment, where `cl.exe`,
 CMake and Ninja are on `PATH`. From a terminal, use a **Developer PowerShell for VS** (or run `vcvars64.bat` first):
@@ -49,7 +51,7 @@ CMake and Ninja are on `PATH`. From a terminal, use a **Developer PowerShell for
 cmake --preset x64-debug              # configure (first run also installs vcpkg packages)
 cmake --build --preset x64-debug      # build
 .\build\x64-debug\bin\sandbox.exe     # run
-ctest --preset x64-debug              # smoke test and unit tests
+ctest --preset x64-debug              # smoke tests and unit tests
 ```
 
 Command-line options of `sandbox.exe`:
@@ -58,6 +60,7 @@ Command-line options of `sandbox.exe`:
 |---|---|
 | `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of the checkerboard |
 | `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
+| `--grid static\|dynamic` | Upload the grid every frame, like moving objects (`dynamic`, the default), or once (`static`) |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
@@ -93,6 +96,8 @@ test fails if the D3D12 or DXGI debug layer reported an error, if objects are st
 120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
 the last lines say why. Run it after every change, before committing.
 
+A second smoke test, `bench_smoke`, runs a very short [benchmark](#benchmark) with the same checks.
+
 The exe can also be started directly with `--smoke-test N`. Exit codes:
 
 | Code | Meaning |
@@ -105,11 +110,21 @@ The exe can also be started directly with `--smoke-test N`. Exit codes:
 
 Only Debug builds have the debug layer. In Release the test only checks that the app renders and shuts down.
 
+### Benchmark
+
+`bench.exe` measures how fast the engine renders a fixed scene, so changes (and later the DX11 engine) can be
+compared on the same workload. It flies a camera around the cube grid for a few seconds in fullscreen and closes by
+itself. The CPU time of every frame goes to `results/dx12/<scene>/<date-time>/frames.csv`, the settings, GPU and
+driver to `run.txt` next to it.
+
+Run it from the `x64-release` build: the other builds are slower, so their numbers can't be compared.
+
 ### Output layout
 
 ```
 build/x64-debug/bin/
   sandbox.exe
+  bench.exe     benchmark
   engine_tests.exe  unit tests
   D3D12MAd.dll  D3D12 Memory Allocator (D3D12MA.dll in Release), copied by vcpkg
   DirectXTex.dll, gtest.dll  texture loading and GoogleTest, copied by vcpkg
@@ -133,7 +148,9 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point, --smoke-test, --count, --texture)
+apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture)
+apps/bench     benchmark: renders a fixed scene and writes per-frame times to CSV
+apps/common    code both apps share (the cube-grid scene, option parsing, end-of-run checks)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
@@ -145,7 +162,7 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index), PipelineCache (PSOs built from a description and cached; the global
                root signature)
-engine/scene   Camera and fly-camera controls (no D3D12)
+engine/scene   Camera, fly-camera controls and scripted camera paths (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
                and material), InstanceChunks (how instance data is split into upload pages), RendererSettings
@@ -160,4 +177,4 @@ shaders/common shared with C++: root_signature.hlsli (the global root signature)
 tests/         unit tests of the CPU code (GoogleTest; no GPU needed)
 ```
 
-More engine modules (`engine/ui`, …) and the `bench` app are added in the next steps.
+More engine modules (`engine/ui`, …) are added in the next steps.
