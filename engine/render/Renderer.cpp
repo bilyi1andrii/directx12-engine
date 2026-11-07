@@ -304,8 +304,7 @@ namespace engine::render {
             }
         }
         m_textures.clear();
-        // The same for the static lists' views. Their buffers are released with m_staticLists, after this
-        // flush.
+        // The static lists' views too; their buffers are released with m_staticLists
         for (const GpuStaticList &staticList : m_staticLists) {
             if (staticList.instances.IsValid()) {
                 CurrentFrame().DeferFree(m_bindlessHeap, staticList.instanceBufferIndex);
@@ -369,7 +368,7 @@ namespace engine::render {
     void Renderer::WriteInstances(const RenderList &list, uint32_t chunkCapacity, BeginChunk &&beginChunk,
                                   std::vector<InstanceDraw> &draws) {
         SplitIntoChunks(list.Buckets(), chunkCapacity, m_instanceRanges);
-        // Room for every draw before the first chunk takes a bindless slot: after that, nothing here may throw
+        // Reserve first: once a chunk holds a bindless slot, nothing below may throw
         draws.reserve(draws.size() + m_instanceRanges.size());
 
         const std::span<const BatchBucket> buckets = list.Buckets();
@@ -379,7 +378,7 @@ namespace engine::render {
         gpu::InstanceData instance{};
         for (const InstanceRange &range : m_instanceRanges) {
             if (range.chunk == chunksStarted) {
-                // The first range of a new chunk: the whole chunk at once. Every chunk but the last is full.
+                // First range of a new chunk: start the whole chunk (all but the last chunk are full)
                 const auto elementCount = static_cast<uint32_t>(
                     std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity));
                 chunk = beginChunk(elementCount);
@@ -404,7 +403,7 @@ namespace engine::render {
     }
 
     StaticListHandle Renderer::CreateStaticList(const RenderList &list, std::wstring_view name) {
-        // Room for the list first: nothing after taking the bindless slot may throw, or the slot would leak
+        // Reserve first: once the bindless slot is taken, nothing may throw, or the slot would leak
         m_staticLists.reserve(m_staticLists.size() + 1);
         GpuStaticList staticList;
         const uint64_t instanceCount = list.InstanceCount();
@@ -413,15 +412,15 @@ namespace engine::render {
             if (!m_upload.IsRecording()) {
                 m_upload.Begin(m_queue);
             }
-            // A GPU buffer has no page limit, so all objects go into one chunk
+            // A GPU buffer has no page limit: one chunk for all objects
             const auto beginChunk = [&](uint32_t elementCount) {
-                // GPU-local memory (default heap), filled once by a copy, like a vertex buffer: the GPU no longer
-                // reads these matrices across PCIe every frame. WriteInstances fills the staging memory.
+                // GPU-local memory, filled once by a copy like a vertex buffer, so the GPU does not read these
+                // matrices across PCIe every frame. WriteInstances fills the staging memory.
                 InstanceChunk chunk{};
                 staticList.instances =
                     rhi::Buffer::CreateStaged(m_allocator, m_upload, uint64_t{elementCount} * kInstanceStride,
                                               D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, name, chunk.memory);
-                // A permanent view, written once: unlike the ring's chunks, this buffer never moves
+                // A permanent view: unlike the ring's chunks, this buffer never moves
                 staticList.instanceBufferIndex = m_bindlessHeap.Allocate();
                 m_bindlessHeap.CreateStructuredBufferSrv(staticList.instanceBufferIndex, staticList.instances.Native(),
                                                          0, elementCount, kInstanceStride);
@@ -439,13 +438,11 @@ namespace engine::render {
     void Renderer::UploadDynamicInstances(const RenderList &list) {
         rhi::FrameContext &frame = CurrentFrame();
         const auto beginChunk = [&](uint32_t elementCount) {
-            // Aligned to the element size, so the chunk starts at a whole element of the page seen as an
-            // InstanceData array
+            // Aligned to the element size, so the view can start at a whole element
             InstanceChunk chunk{.memory =
                                     frame.Upload().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
-            // A view over exactly these elements, in a fresh bindless slot: the data moves around the ring from
-            // frame to frame, and a slot must not be rewritten while the previous frame may still read it. The
-            // slot goes back to the heap after this frame's fence.
+            // A fresh bindless slot every frame: the previous frame may still read the old one. It is freed after
+            // this frame's fence.
             chunk.instanceBufferIndex = m_bindlessHeap.Allocate();
             frame.DeferFree(m_bindlessHeap, chunk.instanceBufferIndex);
             m_bindlessHeap.CreateStructuredBufferSrv(chunk.instanceBufferIndex, chunk.memory.resource,
@@ -453,8 +450,7 @@ namespace engine::render {
                                                      kInstanceStride);
             return chunk;
         };
-        // A shader view (SRV) covers a range of one buffer, and every ring page is its own buffer, so the
-        // instances go into chunks of at most one page, each with its own view
+        // A shader view (SRV) covers one buffer, and every ring page is its own buffer: chunks of at most a page
         m_dynamicDraws.clear();
         WriteInstances(list, static_cast<uint32_t>(frame.Upload().PageSize() / kInstanceStride), beginChunk,
                        m_dynamicDraws);

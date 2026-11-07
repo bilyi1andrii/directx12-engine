@@ -7,9 +7,8 @@ namespace engine::render {
     }
 
     void RenderList::Clear() noexcept {
-        // In reverse, so the first bucket added next gets back the vector of the first bucket now: with the same
-        // objects every frame, every bucket gets a vector that is already big enough. GetOrCreate has reserved
-        // room for every vector in m_spareWorlds, so push_back does not allocate here.
+        // In reverse, so next frame's first bucket gets this frame's first vector back: with the same objects,
+        // every vector is already big enough. GetOrCreate reserved the room, so push_back does not allocate.
         for (auto bucket = m_buckets.rbegin(); bucket != m_buckets.rend(); ++bucket) {
             bucket->worlds.clear();
             m_spareWorlds.push_back(std::move(bucket->worlds));
@@ -21,7 +20,7 @@ namespace engine::render {
     }
 
     BatchBucket &RenderList::GetOrCreate(const BatchKey &key) {
-        // Most often the same key as the previous object
+        // Most often the same key as the previous object; otherwise look it up
         if (m_lastBucket < m_buckets.size() && m_buckets[m_lastBucket].key == key) {
             return m_buckets[m_lastBucket];
         }
@@ -30,8 +29,8 @@ namespace engine::render {
             return m_buckets[m_lastBucket];
         }
 
-        // A new bucket. Every vector is either in a bucket or spare; room for all of them keeps Clear() from
-        // allocating.
+        // A new bucket, with a spare vector if there is one. Room for every vector in m_spareWorlds keeps
+        // Clear() from allocating.
         m_spareWorlds.reserve(m_buckets.size() + m_spareWorlds.size() + 1);
         BatchBucket newBucket{.key = key, .worlds = {}};
         if (!m_spareWorlds.empty()) {
@@ -43,7 +42,7 @@ namespace engine::render {
         try {
             m_bucketIndices.emplace(key, index);
         } catch (...) {
-            // Keep the map and the buckets in step: without an entry, the next Add would make a second bucket
+            // Without a map entry, the next Add would create a second bucket for this key
             m_buckets.pop_back();
             throw;
         }

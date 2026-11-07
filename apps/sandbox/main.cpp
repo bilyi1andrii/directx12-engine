@@ -49,8 +49,7 @@ namespace {
     constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
     constexpr float kGridHeight = -4.0f;
 
-    // Side of the grid for --count: the smallest n with n * n >= count, so the count is rounded up to a
-    // square (64-bit product: the square of a large uint32_t does not fit in one)
+    // Side of the grid for --count: the smallest n with n * n >= count (64-bit, so the square cannot overflow)
     uint32_t GridSide(uint32_t count) {
         uint32_t side = 0;
         while (uint64_t{side} * side < count) {
@@ -145,9 +144,9 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // What to draw: the textured grid and the vertex-colour spinning cube, each in its own bucket. A material
-        // is its texture for now. The grid never moves, so it is a static list, uploaded once (DX11 static
-        // buckets); the spinning cube is rebuilt and uploaded every frame (DX11 dynamic buckets).
+        // What to draw: the textured grid and the vertex-colour spinning cube (a material is its texture for
+        // now). The grid never moves, so it is a static list, uploaded once; the spinning cube is rebuilt and
+        // uploaded every frame.
         engine::render::RenderList renderList; // this frame's dynamic objects
         const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
         const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
@@ -155,7 +154,7 @@ namespace {
         const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 gridBase{};
         DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
-        // e.g. --count 50000 gives 224 x 224 = 50,176 cubes; the title shows the real object count
+        // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
         const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
         LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
         engine::render::RenderList gridList;

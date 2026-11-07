@@ -38,8 +38,7 @@ namespace engine::rhi {
         buffer.m_allocation = allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, BufferDesc(buffer.m_size),
                                                        D3D12_RESOURCE_STATE_COMMON, nullptr, bufferName);
 
-        // The data goes into a staging buffer first (the caller writes it); the GPU then copies it into the
-        // buffer when the batch runs
+        // The caller writes the data into a staging buffer; the GPU copies it into the buffer when the batch runs
         staging = upload.AllocateStaging(buffer.m_size, bufferName + L" upload");
 
         // The copy promotes the buffer from COMMON to COPY_DEST implicitly (no barrier needed).

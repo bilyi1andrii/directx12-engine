@@ -145,9 +145,11 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
 engine/scene   Camera and fly-camera controls (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
-               and material), RendererSettings (e.g. the draw path), Handles (MeshHandle, MaterialHandle,
-               TextureHandle), TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
-engine/render  Renderer: owns the frame loop's GPU objects and records each frame
+               and material), InstanceChunks (how instance data is split into upload pages), RendererSettings
+               (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle, StaticListHandle),
+               TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
+engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
+               once) and the frame's RenderList (uploaded every frame)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)
