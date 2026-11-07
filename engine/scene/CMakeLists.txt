@@ -1,4 +1,5 @@
-# engine_scene: what is drawn and from where (Camera, Scene with Transform and MeshRenderer; later Light).
+# engine_scene: what is drawn and from where (Camera, CameraPath, Picking, Scene with Transform and MeshRenderer;
+# later Light).
 # CPU only: must never link engine_rhi, d3d12 or dxgi.
 
 add_library(engine_scene STATIC
@@ -6,6 +7,8 @@ add_library(engine_scene STATIC
         Camera.h
         CameraController.cpp
         CameraController.h
+        CameraPath.cpp
+        CameraPath.h
         Picking.cpp
         Picking.h
         Scene.cpp

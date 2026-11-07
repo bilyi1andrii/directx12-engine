@@ -39,22 +39,8 @@ namespace sandbox {
         }
     } // namespace
 
-    uint32_t GridSide(uint32_t count) {
-        uint32_t side = 0;
-        while (uint64_t{side} * side < count) {
-            ++side;
-        }
-        return side;
-    }
-
-    engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
-        // The build copies data/ next to the exe
-        const std::filesystem::path path =
-            options.texturePath.value_or(engine::core::ExecutableDirectory() / kDefaultGridTexture);
-        return LoadTextureOrGrey(renderer, path, L"Grid/" + path.filename().wstring());
-    }
-
     engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer) {
+        // The build copies data/ next to the exe
         const std::filesystem::path path = engine::core::ExecutableDirectory() / kSpinningCubeTexture;
         return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
     }
@@ -91,7 +77,8 @@ namespace sandbox {
         XMFLOAT4X4 world{};
         XMStoreFloat4x4(&world, XMMatrixTranslation(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y,
                                                     -(bounds.min.z + bounds.max.z) / 2) *
-                                    XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, kGridTop, z));
+                                    XMMatrixScaling(scale, scale, scale) *
+                                    XMMatrixTranslation(x, engine::apps::kGridTop, z));
         scene.Instantiate(**model, world);
         LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}",
                 engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring()),
@@ -111,7 +98,7 @@ namespace sandbox {
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
-                         engine::scene::Scene &scene, float &nextModelX, engine::render::BatchKey &gridKey) {
+                         engine::scene::Scene &scene, float &nextModelX, engine::apps::StressGrid &grid) {
         engine::core::Timer timer;
         timer.Start();
         const std::string name = engine::core::ToUtf8(path.filename().wstring());
@@ -128,6 +115,10 @@ namespace sandbox {
             }
             return;
         }
+        if (grid.Mode() != engine::apps::GridMode::Dynamic) {
+            LogWarning("Dropped {}: a static grid keeps its texture (start with --grid dynamic)", name);
+            return;
+        }
         const std::expected<engine::render::TextureData, engine::core::Error> texture =
             engine::assets::LoadTexture(path, engine::assets::TextureUsage::Diffuse);
         if (!texture) {
@@ -135,7 +126,7 @@ namespace sandbox {
                        texture.error().message);
             return;
         }
-        gridKey.material = {.index = renderer.CreateTexture(*texture, L"Grid/" + path.filename().wstring()).index};
+        grid.SetTexture(renderer.CreateTexture(*texture, L"Grid/" + path.filename().wstring()));
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
 } // namespace sandbox

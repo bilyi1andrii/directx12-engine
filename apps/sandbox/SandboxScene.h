@@ -11,29 +11,20 @@
 
 #include <DirectXMath.h>
 
-#include "SandboxOptions.h"
 #include "assets/AssetCache.h"
+#include "common/StressScene.h"
 #include "render/Renderer.h"
 #include "scene/Scene.h"
 
-// Renders a square grid of cubes with models in a row, or a spinning cube if no model is loaded.
+// The sandbox's scene on top of the shared cube grid (common/StressScene): models in a row, or a spinning cube if
+// no model is loaded.
 namespace sandbox {
-    inline constexpr float kGridSpacing = 3.0f; // 2 units wide + 1 gap
-    inline constexpr float kGridHeight = -4.0f;
-    inline constexpr float kGridTop = kGridHeight + 1.0f;
     inline constexpr float kModelSize = 8.0f;
     inline constexpr float kModelSpacing = 10.0f;
-
-    // Returns grid side length (smallest n where n * n >= count).
-    [[nodiscard]] uint32_t GridSide(uint32_t count);
 
     // Textures relative to the exe: the grid's without --texture, and the spinning cube's
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
     inline constexpr std::wstring_view kSpinningCubeTexture = L"data/textures/diamante.jpg";
-
-    // Loads --texture or kDefaultGridTexture; grey with a warning on failure.
-    [[nodiscard]] engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer,
-                                                                  const SandboxOptions &options);
 
     // Loads kSpinningCubeTexture; grey with a warning on failure.
     [[nodiscard]] engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer);
@@ -52,7 +43,7 @@ namespace sandbox {
     // Handles dropped files (spawns models at ray-grid intersection or row, or updates grid texture).
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
-                         engine::scene::Scene &scene, float &nextModelX, engine::render::BatchKey &gridKey);
+                         engine::scene::Scene &scene, float &nextModelX, engine::apps::StressGrid &grid);
 } // namespace sandbox
 
 #endif // D3D12_ENGINE_SANDBOXSCENE_H

@@ -1,8 +1,12 @@
-# engine_tests: unit tests of the CPU-only modules. Must stay free of D3D12 and need no GPU.
+# engine_tests: unit tests of the CPU-only code (engine modules and the bench's result files). Must stay free of
+# D3D12 and need no GPU.
 
 add_executable(engine_tests
         main.cpp
         AssetCacheTests.cpp
+        BenchOutputTests.cpp
+        CameraPathTests.cpp
+        CameraTests.cpp
         FileTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
@@ -17,6 +21,7 @@ add_executable(engine_tests
 engine_target_defaults(engine_tests)
 
 target_link_libraries(engine_tests PRIVATE
+        bench_output
         engine_core
         engine_assets
         engine_renderdata

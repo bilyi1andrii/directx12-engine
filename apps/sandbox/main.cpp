@@ -1,8 +1,6 @@
 #include <format>
 
-#include <array>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -15,16 +13,16 @@
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
-#include "assets/Primitives.h"
+#include "common/AppChecks.h"
+#include "common/StressScene.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
+#include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
 #include "core/Window.h"
 #include "core/Input.h"
-#include "core/Assert.h"
-#include "core/Error.h"
 #include "rhi/AgilitySdk.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
@@ -35,31 +33,10 @@
 
 using engine::core::LogError;
 using engine::core::LogInfo;
-using engine::core::LogWarning;
 
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
-    // Exit codes besides the window's own (0). An assert exits with 3, an exception with -1.
-    constexpr int kExitSmokeTestFailed = 1;
-    constexpr int kExitBadCommandLine = 2;
-
-    // The debug layer exists only in Debug builds (rhi::Device checks the same macro)
-#if defined(_DEBUG)
-    constexpr bool kValidationExpected = true;
-#else
-    constexpr bool kValidationExpected = false;
-#endif
-
-    // The renderer's input for one frame, from the camera (scene and render do not know each other)
-    engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
-        engine::render::FrameView view{};
-        DirectX::XMStoreFloat4x4(&view.view, engine::scene::ViewMatrix(camera));
-        DirectX::XMStoreFloat4x4(&view.projection, engine::scene::ProjectionMatrix(camera, aspectRatio));
-        view.cameraPosition = camera.position;
-        return view;
-    }
-
     // A dropped file and its drop point (client pixels, (0, 0) top-left)
     struct DroppedFile {
         std::filesystem::path path;
@@ -67,15 +44,10 @@ namespace {
         int32_t y = 0;
     };
 
-    struct RunResult {
-        int exitCode = 0; // the window's
-        uint64_t framesRendered = 0;
-    };
-
     // Creates the window and the renderer and runs the game loop until the window closes
     // (in a smoke test: after the requested number of frames). Everything it creates is
     // destroyed before it returns, so `validation` is complete afterwards.
-    RunResult RunSandbox(const SandboxOptions &options, engine::rhi::ValidationStats &validation) {
+    engine::apps::RunResult RunSandbox(const SandboxOptions &options, engine::rhi::ValidationStats &validation) {
         engine::core::Timer initTimer;
         initTimer.Start();
 
@@ -117,25 +89,16 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // Rebuilt every frame: the grid (stress test, straight into the list) and the scene's entities
+        // The textured grid (--count, --grid) and the scene's entities (models or a spinning cube). The scene is
+        // uploaded every frame, the grid only in dynamic mode.
         engine::render::RenderList renderList; // this frame's dynamic objects
-        // One cube mesh for the grid and the spinning cube
-        const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
-        const engine::render::TextureHandle gridTexture = sandbox::CreateGridTexture(renderer, options);
+        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
+        const std::filesystem::path gridTexturePath =
+            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
         // Not const: a dropped image replaces the grid texture
-        engine::render::BatchKey gridKey{.mesh = cubeMesh, .material = {.index = gridTexture.index}};
-        DirectX::XMFLOAT4X4 gridBase{};
-        DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, sandbox::kGridHeight, 0.0f));
-        // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
-        const uint32_t gridSide = sandbox::GridSide(options.gridCount.value_or(kDefaultGridCount));
-        LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
-        // engine::render::RenderList gridList;
-        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing,
-        //                            sandbox::kGridSpacing);
-        // const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
-        // const size_t staticObjectCount = gridList.InstanceCount();
-        const size_t staticObjectCount = 0;
-        // gridList.Clear(); // the matrices are in GPU memory now
+        engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
+                                      options.gridCount.value_or(engine::apps::kDefaultGridCount),
+                                      engine::apps::CreateGridTexture(renderer, gridTexturePath));
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
@@ -153,7 +116,8 @@ namespace {
         std::optional<engine::scene::Entity> spinningCube;
         if (modelsShown == 0) {
             const engine::render::TextureHandle cubeTexture = sandbox::CreateSpinningCubeTexture(renderer);
-            spinningCube = scene.Add({.mesh = cubeMesh, .material = {.index = cubeTexture.index}}, spinningCubeWorld);
+            spinningCube =
+                scene.Add({.mesh = grid.CubeMesh(), .material = {.index = cubeTexture.index}}, spinningCubeWorld);
         }
         // Where a model dropped on the sky goes: the end of the row
         float nextModelX = modelsShown > 0
@@ -194,17 +158,18 @@ namespace {
                 const engine::scene::Ray ray =
                     engine::scene::ScreenRay(camera, static_cast<float>(drop.x), static_cast<float>(drop.y),
                                              static_cast<float>(window.Width()), static_cast<float>(window.Height()));
-                sandbox::LoadDroppedFile(drop.path, engine::scene::IntersectHorizontalPlane(ray, sandbox::kGridTop),
-                                         renderer, assets, scene, nextModelX, gridKey);
+                sandbox::LoadDroppedFile(drop.path,
+                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
+                                         assets, scene, nextModelX, grid);
             }
 
             if (frameTimer.FpsUpdated()) {
                 const double fps = frameTimer.Fps();
-                // The object count is the previous frame's list; the scene does not change size
+                // The grid plus the scene's entities
                 window.SetTitle(std::format(
                     L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
                     settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
-                    staticObjectCount + renderList.InstanceCount()));
+                    grid.ObjectCount() + scene.EntityCount()));
             }
 
             // Everything above has read this frame's input; clear the
@@ -230,14 +195,14 @@ namespace {
             }
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing,
-                                       sandbox::kGridSpacing);
+            grid.Submit(renderList); // dynamic mode only
             engine::scene::Extract(scene, renderList);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
-                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList /*, staticLists*/);
+                renderer.Render(engine::apps::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+                                grid.StaticLists());
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
@@ -267,64 +232,6 @@ namespace {
 
         return {.exitCode = window.ExitCode(), .framesRendered = framesRendered};
     }
-
-    void LogValidationSummary(const engine::rhi::ValidationStats &validation) {
-        if (!validation.active) {
-            if (kValidationExpected) {
-                LogWarning("Validation: not active (D3D12 or DXGI debug interface unavailable)");
-            } else {
-                LogInfo("Validation: not active (no debug layer in this build)");
-            }
-            return;
-        }
-        const uint32_t errors = validation.errorCount.load();
-        if (errors == 0 && validation.liveObjectCount == 0) {
-            LogInfo("Validation: 0 debug-layer errors, 0 live objects at shutdown");
-        } else {
-            LogWarning("Validation: {} debug-layer errors, {} live objects at shutdown", errors,
-                       validation.liveObjectCount);
-        }
-    }
-
-    // Checks a finished smoke test and logs the verdict. Returns the process exit code.
-    int SmokeTestExitCode(uint32_t expectedFrames, const RunResult &run,
-                          const engine::rhi::ValidationStats &validation) {
-        std::vector<std::string> failures;
-        if (run.framesRendered != expectedFrames) {
-            // e.g. the window was closed early (Alt+F4, WM_CLOSE from outside)
-            failures.push_back(std::format("rendered {} of {} frames", run.framesRendered, expectedFrames));
-        }
-        if (run.exitCode != 0) {
-            failures.push_back(std::format("window exit code {}", run.exitCode));
-        }
-        if (validation.active) {
-            const uint32_t errors = validation.errorCount.load();
-            if (errors != 0) {
-                failures.push_back(std::format("{} debug-layer errors", errors));
-            }
-            if (validation.liveObjectCount != 0) {
-                failures.push_back(std::format("{} live objects at shutdown", validation.liveObjectCount));
-            }
-        } else if (kValidationExpected) {
-            // Fail closed: a Debug run that could not check anything must not pass
-            failures.emplace_back("validation was not active");
-        } else {
-            LogWarning("Smoke test: no debug layer in this build; only checks that {} frames render and the app "
-                       "shuts down",
-                       expectedFrames);
-        }
-
-        if (failures.empty()) {
-            LogInfo("Smoke test PASSED: {} frames", run.framesRendered);
-            return 0;
-        }
-        std::string reasons;
-        for (const std::string &failure : failures) {
-            reasons += reasons.empty() ? failure : "; " + failure;
-        }
-        LogError("Smoke test FAILED: {}", reasons);
-        return kExitSmokeTestFailed;
-    }
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
@@ -336,7 +243,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             // No dialog: a wrong command line usually comes from a script
             LogError("{}", options.error());
             LogInfo("{}", kSandboxUsage);
-            return kExitBadCommandLine;
+            return engine::apps::kExitBadCommandLine;
         }
         smokeTest = options->smokeTestFrames.has_value();
 
@@ -345,10 +252,11 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;
-        const RunResult run = RunSandbox(*options, validation);
-        LogValidationSummary(validation);
+        const engine::apps::RunResult run = RunSandbox(*options, validation);
+        engine::apps::LogValidationSummary(validation);
 
-        const int exitCode = smokeTest ? SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
+        const int exitCode =
+            smokeTest ? engine::apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
         LogInfo("Exiting with code {}", exitCode);
         return exitCode;
     } catch (std::exception &e) {
