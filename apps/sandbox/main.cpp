@@ -157,11 +157,12 @@ namespace {
         // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
         const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
         LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
-        engine::render::RenderList gridList;
-        engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
-        const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
-        const size_t staticObjectCount = gridList.InstanceCount();
-        gridList.Clear(); // the matrices are in GPU memory now
+        // engine::render::RenderList gridList;
+        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
+        // const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
+        // const size_t staticObjectCount = gridList.InstanceCount();
+        const size_t staticObjectCount = 0;
+        // gridList.Clear(); // the matrices are in GPU memory now
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
 
         engine::render::RendererSettings settings; // draw path toggled with I
@@ -222,12 +223,14 @@ namespace {
                 &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
 
             renderList.Clear();
+            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
             renderList.Add(spinningCubeKey, spinningCubeWorld);
+
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
                 // After BeginFrame: the aspect ratio follows this frame's swap chain size
-                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList, staticLists);
+                renderer.Render(MakeFrameView(camera, renderer.AspectRatio()), renderList /*, staticLists*/);
                 renderer.EndFrame(vsync);
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
