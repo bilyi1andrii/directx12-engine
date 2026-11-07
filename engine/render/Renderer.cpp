@@ -340,14 +340,14 @@ namespace engine::render {
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
-        gpu::FrameConstants frameConstants = MakeFrameConstants(view);
-        frameConstants.instanceBufferIndex = UploadInstances(list);
+        const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
+        const uint32_t instanceBufferIndex = UploadInstances(list);
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        DrawBuckets(list);
+        DrawBuckets(list, instanceBufferIndex);
     }
 
     uint32_t Renderer::UploadInstances(const RenderList &list) {
@@ -383,7 +383,7 @@ namespace engine::render {
         return index;
     }
 
-    void Renderer::DrawBuckets(const RenderList &list) {
+    void Renderer::DrawBuckets(const RenderList &list, uint32_t instanceBufferIndex) {
         // Root constants (b0) are copied into the command list, so every draw keeps its own values
 
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
@@ -400,7 +400,9 @@ namespace engine::render {
             m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
 
             const auto objectCount = static_cast<uint32_t>(bucket.worlds.size());
-            gpu::DrawConstants constants{.instanceOffset = firstInstance, .materialIndex = bucket.key.material.index};
+            gpu::DrawConstants constants{.instanceOffset = firstInstance,
+                                         .materialIndex = bucket.key.material.index,
+                                         .instanceBufferIndex = instanceBufferIndex};
             if (m_settings.drawPath == DrawPath::Instanced) {
                 // One draw for the whole bucket: object i reads element instanceOffset + SV_InstanceID (= i)
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);

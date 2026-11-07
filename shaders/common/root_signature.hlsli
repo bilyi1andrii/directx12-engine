@@ -3,7 +3,7 @@
 // C++ includes this file for root parameter indices.
 //
 // Root Parameters:
-//   [0] b0: RootConstants (4x32-bit: drawIndex, materialIndex, spares) - direct per-draw data.
+//   [0] b0: RootConstants (4x32-bit: instanceOffset, materialIndex, instanceBufferIndex, 1 spare) - direct per-draw data.
 //   [1] b1: Root CBV (FrameConstants) -> UploadRing
 //   [2] b2: Root CBV (PassConstants)  -> UploadRing (DATA_STATIC_WHILE_SET_AT_EXECUTE optimization)
 //

@@ -124,11 +124,12 @@ namespace engine::render {
         void DestroyTextures() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
-        // bindless view of them. Returns its index (FrameConstants::instanceBufferIndex); 0 if the list is empty.
+        // bindless view of them. Returns its index (DrawConstants::instanceBufferIndex); 0 if the list is empty.
         [[nodiscard]] uint32_t UploadInstances(const RenderList &list);
 
-        // Records the draws of every bucket, on the path chosen in m_settings
-        void DrawBuckets(const RenderList &list);
+        // Records the draws of every bucket, on the path chosen in m_settings. Every draw reads its world
+        // matrices from the instance buffer at bindless index `instanceBufferIndex`.
+        void DrawBuckets(const RenderList &list, uint32_t instanceBufferIndex);
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
