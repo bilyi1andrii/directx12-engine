@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -95,6 +96,9 @@ namespace engine::render {
         void LogDeviceRemovedInfo() const { m_device.LogDeviceRemovedInfo(); }
 
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
+        // The GPU and its driver version (see rhi::Device), for benchmark results
+        [[nodiscard]] const std::string &AdapterName() const noexcept { return m_device.AdapterName(); }
+        [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_device.DriverVersion(); }
 
     private:
         enum class VertexFormat : uint8_t {

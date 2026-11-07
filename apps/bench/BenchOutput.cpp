@@ -1,0 +1,99 @@
+#include "BenchOutput.h"
+
+#include <format>
+#include <fstream>
+#include <system_error>
+
+#include "core/Utf8.h"
+
+namespace engine::bench {
+    namespace {
+        [[nodiscard]] std::string PathText(const std::filesystem::path &path) {
+            return core::ToUtf8(path.native());
+        }
+
+        // Creates `folder`, or `folder-2`, `folder-3`, ... if it exists. Returns the one created.
+        [[nodiscard]] std::expected<std::filesystem::path, std::string>
+        CreateNewFolder(const std::filesystem::path &folder) {
+            std::error_code error;
+            std::filesystem::create_directories(folder.parent_path(), error);
+            if (error) {
+                return std::unexpected(
+                    std::format("cannot create '{}': {}", PathText(folder.parent_path()), error.message()));
+            }
+            constexpr int kMaxAttempts = 100;
+            for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+                std::filesystem::path candidate = folder;
+                if (attempt > 1) {
+                    candidate += std::format("-{}", attempt);
+                }
+                // false without an error: it exists already, so try the next name
+                if (std::filesystem::create_directory(candidate, error)) {
+                    return candidate;
+                }
+                if (error) {
+                    return std::unexpected(std::format("cannot create '{}': {}", PathText(candidate), error.message()));
+                }
+            }
+            return std::unexpected(
+                std::format("'{}' and {} numbered copies exist already", PathText(folder), kMaxAttempts - 1));
+        }
+
+        // Writes one file with `write(stream)`; fails if it cannot be opened or written completely
+        template <typename WriteFunction>
+        [[nodiscard]] std::expected<void, std::string> WriteFile(const std::filesystem::path &path,
+                                                                 WriteFunction write) {
+            // Binary: LF line ends on every machine, like the DX11 harness and the Python scripts expect
+            std::ofstream file(path, std::ios::binary);
+            if (!file) {
+                return std::unexpected(std::format("cannot open '{}' for writing", PathText(path)));
+            }
+            write(file);
+            file.close();
+            if (!file) {
+                return std::unexpected(std::format("cannot write '{}'", PathText(path)));
+            }
+            return {};
+        }
+    } // namespace
+
+    void WriteFramesCsv(std::ostream &out, std::span<const FrameTiming> timings) {
+        out << "frame,cpu_frame_ms,cpu_record_ms\n";
+        for (size_t frame = 0; frame < timings.size(); ++frame) {
+            // 4 decimals: 0.1 microsecond, finer than steady_clock's useful resolution
+            out << std::format("{},{:.4f},{:.4f}\n", frame, timings[frame].cpuFrameMs, timings[frame].cpuRecordMs);
+        }
+    }
+
+    void WriteRunInfo(std::ostream &out, std::span<const RunField> fields) {
+        for (const RunField &field : fields) {
+            out << field.key << ": " << field.value << '\n';
+        }
+    }
+
+    std::string FolderTimestamp(std::chrono::system_clock::time_point time) {
+        const std::chrono::zoned_time local{std::chrono::current_zone(),
+                                            std::chrono::floor<std::chrono::seconds>(time)};
+        return std::format("{:%Y%m%d-%H%M%S}", local);
+    }
+
+    std::expected<std::filesystem::path, std::string> WriteResults(const std::filesystem::path &outDir,
+                                                                   std::string_view scene, std::string_view timestamp,
+                                                                   std::span<const FrameTiming> timings,
+                                                                   std::span<const RunField> fields) {
+        const std::expected<std::filesystem::path, std::string> folder =
+            CreateNewFolder(outDir / kEngineName / scene / timestamp);
+        if (!folder) {
+            return std::unexpected(folder.error());
+        }
+        if (auto written = WriteFile(*folder / "frames.csv", [&](std::ostream &out) { WriteFramesCsv(out, timings); });
+            !written) {
+            return std::unexpected(written.error());
+        }
+        if (auto written = WriteFile(*folder / "run.txt", [&](std::ostream &out) { WriteRunInfo(out, fields); });
+            !written) {
+            return std::unexpected(written.error());
+        }
+        return *folder;
+    }
+} // namespace engine::bench

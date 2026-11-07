@@ -198,16 +198,16 @@ namespace engine::rhi {
         }
 
         // The user-mode driver version, as shown in Device Manager (e.g. 32.0.16.1742)
-        std::string driverVersion = "unknown";
+        m_driverVersion = "unknown";
         LARGE_INTEGER umdVersion{};
         if (SUCCEEDED(m_adapter->CheckInterfaceSupport(__uuidof(IDXGIDevice), &umdVersion))) {
             const auto version = static_cast<uint64_t>(umdVersion.QuadPart);
-            driverVersion = std::format("{}.{}.{}.{}", version >> 48, (version >> 32) & 0xFFFF,
-                                        (version >> 16) & 0xFFFF, version & 0xFFFF);
+            m_driverVersion = std::format("{}.{}.{}.{}", version >> 48, (version >> 32) & 0xFFFF,
+                                          (version >> 16) & 0xFFFF, version & 0xFFFF);
         }
 
         LogInfo("GPU: {} ({} MB VRAM, driver {})", m_adapterName, maxDedicatedVideoMemory / (1024 * 1024),
-                driverVersion);
+                m_driverVersion);
     }
 
     void Device::CreateDevice() {
