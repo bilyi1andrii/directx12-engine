@@ -1,9 +1,11 @@
-# app_common: code shared by the apps (sandbox, bench): the stress scene, the frame view from a camera and the
-# end-of-run checks. App level, above every engine module, so it may link all of them.
+# app_common: code shared by the apps (sandbox, bench): the stress scene, the frame view from a camera, option
+# values and the end-of-run checks. App level, above every engine module, so it may link all of them.
 
 add_library(app_common STATIC
         AppChecks.cpp
         AppChecks.h
+        OptionValues.cpp
+        OptionValues.h
         StressScene.cpp
         StressScene.h)
 
