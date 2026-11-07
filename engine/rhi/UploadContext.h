@@ -48,7 +48,7 @@ namespace engine::rhi {
 
         [[nodiscard]] bool IsRecording() const noexcept { return m_recording; }
 
-        // Staging memory taken by the batch being recorded, so callers can submit before it grows too large
+        // Active batch staging memory. Callers check this to submit before the buffer overflows.
         [[nodiscard]] uint64_t StagingBytes() const noexcept { return m_stagingBytes; }
 
     private:

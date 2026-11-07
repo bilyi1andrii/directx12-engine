@@ -124,7 +124,6 @@ namespace engine::render {
         };
 
         // A cube with 4 vertices per face, so every face shows the whole texture and has its own normal.
-        // One submesh, as a model with one part would have.
         MeshData MakeTexturedCube() {
             using DirectX::XMFLOAT3;
             // Each face as seen from outside: its normal and which way is right and up on it
@@ -259,9 +258,6 @@ namespace engine::render {
     }
 
     void Renderer::PrepareUpload(uint64_t bytes) {
-        // Staging memory is freed only when its whole batch has finished on the GPU. A batch per ~64 MB keeps it
-        // bounded while a large model or its textures load. Begin then waits for the submitted batch: a CPU wait,
-        // allowed for upload completion, and only while loading.
         constexpr uint64_t kUploadBatchBytes = 64ull * 1024 * 1024;
         if (m_upload.IsRecording() && m_upload.StagingBytes() > 0 &&
             m_upload.StagingBytes() + bytes > kUploadBatchBytes) {
@@ -428,7 +424,7 @@ namespace engine::render {
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
         rhi::PipelineHandle currentPipeline;
-        uint32_t currentGeometry = std::numeric_limits<uint32_t>::max(); // none bound yet
+        uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
         for (const BatchBucket &bucket : list.Buckets()) {
             const GpuMesh &mesh = Mesh(bucket.key.mesh);
             const GpuGeometry &geometry = m_geometries[mesh.geometry];

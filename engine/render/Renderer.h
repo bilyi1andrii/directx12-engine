@@ -79,8 +79,7 @@ namespace engine::render {
 
         // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
         // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
-        // can be drawn in the same frame and live as long as the renderer. `mesh` must have vertices and indices,
-        // and every submesh range must lie inside them (ModelImporter guarantees both).
+        // can be drawn in the same frame and live as long as the renderer.
         [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name);
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
@@ -105,7 +104,7 @@ namespace engine::render {
             Count,
         };
 
-        // A vertex buffer and an index buffer shared by all meshes of one model (or one built-in cube)
+        // A vertex buffer and an index buffer shared by all meshes of one model
         struct GpuGeometry {
             rhi::Buffer vertices;
             rhi::Buffer indices;
@@ -149,7 +148,7 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then destroys every texture and mesh buffer
+        // Waits for the GPU, then destroys every texture and mesh buffer
         void DestroyGpuResources() noexcept;
 
         // Writes the world matrix of every object in `list` into this frame's upload ring and creates a

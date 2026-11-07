@@ -29,7 +29,6 @@ namespace engine::rhi {
     } // namespace
 
     Buffer::~Buffer() {
-        // Skipped while an exception unwinds: the assert would hide the real error
         ENGINE_ASSERT_MSG(!IsValid() || std::uncaught_exceptions() > 0,
                           "Buffer of {} bytes destroyed without Destroy()", m_size);
     }
