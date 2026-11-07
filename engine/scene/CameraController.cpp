@@ -5,12 +5,16 @@
 namespace engine::scene {
     using namespace DirectX;
 
-    void CameraController::Update(Camera &camera, const core::Input &input, double deltaSeconds) const {
+    void CameraController::Update(Camera &camera, const core::Input &input, double deltaSeconds,
+                                  CameraInputs allowed) const {
         // Rotation first, so this frame's movement already uses the new direction
-        if (input.IsKeyDown(VK_RBUTTON)) {
+        if (allowed.mouse && input.IsKeyDown(VK_RBUTTON)) {
             const core::Int2 delta = input.RawMouseDelta();
             AdjustRotation(camera, static_cast<float>(delta.y) * kRotationSpeed,
                            static_cast<float>(delta.x) * kRotationSpeed, 0.0f);
+        }
+        if (!allowed.keyboard) {
+            return;
         }
 
         const float speed = kMoveSpeed * static_cast<float>(deltaSeconds * 1000.0);

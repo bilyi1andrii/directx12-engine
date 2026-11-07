@@ -106,7 +106,7 @@ namespace {
         // The default far plane (1000) would cut off the far side of a big grid
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
-        const engine::render::RendererSettings settings{.drawPath = options.drawPath};
+        const engine::render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
 
         BenchRun run{.adapterName = renderer.AdapterName(),
                      .driverVersion = renderer.DriverVersion(),
@@ -155,7 +155,7 @@ namespace {
                 if (frame >= options.warmupFrames) {
                     run.timings[frame - options.warmupFrames].cpuRecordMs = ToMs(recordEnd - recordStart);
                 }
-                renderer.EndFrame(false); // vsync off
+                renderer.EndFrame(); // vsync off (settings)
             } catch (const engine::core::HResultError &) {
                 renderer.LogDeviceRemovedInfo();
                 throw;

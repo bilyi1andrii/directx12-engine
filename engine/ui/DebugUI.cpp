@@ -1,5 +1,6 @@
 #include "ui/DebugUI.h"
 
+#include <array>
 #include <stdexcept>
 
 #include <imgui.h>
@@ -47,15 +48,40 @@ namespace engine::ui {
         ImGui::NewFrame();
     }
 
-    void DebugUI::ShowStats(const FrameStats &stats) {
+    bool DebugUI::WantsMouse() const {
+        // Set by NewFrame from the input received so far
+        return ImGui::GetIO().WantCaptureMouse;
+    }
+
+    bool DebugUI::WantsKeyboard() const {
+        return ImGui::GetIO().WantCaptureKeyboard;
+    }
+
+    void DebugUI::ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings) {
         const float scale = ImGui::GetStyle().FontScaleDpi;
         ImGui::SetNextWindowPos(ImVec2(10.0f * scale, 10.0f * scale), ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("Stats", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        if (ImGui::Begin("Renderer", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             if (stats.fps > 0.0) {
                 ImGui::Text("%.1f FPS (%.2f ms)", stats.fps, 1000.0 / stats.fps);
             } else {
                 ImGui::TextUnformatted("Measuring...");
             }
+            ImGui::Text("%zu objects", stats.objectCount);
+            if (!stats.scene.empty()) {
+                ImGui::TextUnformatted(stats.scene.data(), stats.scene.data() + stats.scene.size());
+            }
+            ImGui::Text("Camera at %.2f, %.2f, %.2f", stats.cameraPosition.x, stats.cameraPosition.y,
+                        stats.cameraPosition.z);
+
+            // The keyboard shortcuts in brackets do the same
+            ImGui::SeparatorText("Settings");
+            // In DrawPath order: the combo's index is the enum's value
+            constexpr std::array<const char *, 2> kDrawPaths{"Instanced", "Non-instanced"};
+            int drawPath = static_cast<int>(settings.drawPath);
+            if (ImGui::Combo("Draw path (I)", &drawPath, kDrawPaths.data(), static_cast<int>(kDrawPaths.size()))) {
+                settings.drawPath = static_cast<render::DrawPath>(drawPath);
+            }
+            ImGui::Checkbox("VSync (V)", &settings.vsync);
         }
         // End() even when Begin() returned false (window collapsed)
         ImGui::End();

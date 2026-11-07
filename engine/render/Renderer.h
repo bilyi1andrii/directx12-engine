@@ -51,7 +51,7 @@ namespace engine::render {
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
     // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
-    // -> EndFrame(vsync). Any of them can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
+    // -> EndFrame(). Any of them can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
@@ -109,8 +109,9 @@ namespace engine::render {
         // Draws the UI on top of the frame: after Render, before EndFrame, at most once per frame. Needs EnableUi.
         void RenderUi(ImDrawData *drawData);
 
-        // Submits the frame, presents it and remembers the fence value that marks its end
-        void EndFrame(bool vsync);
+        // Submits the frame, presents it (with this frame's RendererSettings::vsync) and remembers the fence value
+        // that marks its end
+        void EndFrame();
 
         // If the device was removed, logs the reason (and DRED info in Debug builds)
         void LogDeviceRemovedInfo() const { m_device.LogDeviceRemovedInfo(); }

@@ -10,10 +10,13 @@ namespace engine::render {
         NonInstanced, // one draw per object (DX11 RenderMode::NonInstanced); measures per-draw cost
     };
 
-    // Options changed at runtime by the app (later by the debug UI). The renderer copies them once per
+    // Options changed at runtime by the app and the debug UI (ui::DebugUI). The renderer copies them once per
     // frame, in BeginFrame, so they never change in the middle of a frame.
     struct RendererSettings {
         DrawPath drawPath = DrawPath::Instanced;
+        // Present waits for the display's next refresh. Off: presents at once (with tearing if supported), so
+        // the frame rate is not capped; benchmarks run with it off.
+        bool vsync = true;
     };
 } // namespace engine::render
 

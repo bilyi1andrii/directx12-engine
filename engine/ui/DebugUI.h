@@ -1,16 +1,25 @@
 #ifndef D3D12_ENGINE_DEBUGUI_H
 #define D3D12_ENGINE_DEBUGUI_H
 
+#include <cstddef>
+#include <string_view>
+
+#include <DirectXMath.h>
+
 #include "core/Window.h"
+#include "renderdata/RendererSettings.h"
 
 // ImGui types, opaque outside DebugUI.cpp and the renderer
 struct ImDrawData;
 struct ImGuiContext;
 
 namespace engine::ui {
-    // What the stats window shows
+    // What the renderer window shows about the current frame
     struct FrameStats {
         double fps = 0.0; // 0 until the first measurement
+        size_t objectCount = 0;
+        std::string_view scene; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
+        DirectX::XMFLOAT3 cameraPosition{};
     };
 
     // The debug UI (Dear ImGui). Owns the ImGui context and its Win32 platform backend (mouse, keyboard, cursor
@@ -18,6 +27,9 @@ namespace engine::ui {
     // result to Renderer::RenderUi.
     //
     // Per frame: NewFrame() -> Show*() -> Render().
+    //
+    // The UI only edits data (RendererSettings); the app passes it on to the renderer, which reads it once per
+    // frame. It never calls the renderer itself.
     //
     // ImGui keeps its current context in a global, so there is one DebugUI per process. Create it after the window
     // and before the renderer, and destroy it after the renderer (the renderer's ImGui backend uses the context).
@@ -42,8 +54,14 @@ namespace engine::ui {
         // Must be followed by Render() in the same frame (ImGui asserts on two NewFrame calls in a row).
         void NewFrame();
 
-        // A small window with the frame rate
-        void ShowStats(const FrameStats &stats);
+        // From NewFrame on: the input ImGui uses this frame, which the app should then ignore.
+        // Mouse: the cursor is over an ImGui window, or a drag started on one. Keyboard: a widget takes typed
+        // input (e.g. Ctrl+click on a slider to type a value).
+        [[nodiscard]] bool WantsMouse() const;
+        [[nodiscard]] bool WantsKeyboard() const;
+
+        // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
+        void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
         // Ends the UI frame and returns what to draw, valid until the next NewFrame
         [[nodiscard]] ImDrawData *Render();

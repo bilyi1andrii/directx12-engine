@@ -29,6 +29,18 @@ using engine::core::LogInfo;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
+    // Logs what the renderer window or a shortcut changed this frame
+    void LogSettingsChanges(const engine::render::RendererSettings &before,
+                            const engine::render::RendererSettings &after) {
+        if (after.drawPath != before.drawPath) {
+            LogInfo("Draw path: {}",
+                    after.drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced");
+        }
+        if (after.vsync != before.vsync) {
+            LogInfo("VSync {}", after.vsync ? "on" : "off");
+        }
+    }
+
     // Creates the window and the renderer and runs the game loop until the window closes
     // (in a smoke test: after the requested number of frames). Everything it creates is
     // destroyed before it returns, so `validation` is complete afterwards.
@@ -85,61 +97,69 @@ namespace {
         const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
 
-        engine::render::RendererSettings settings; // draw path toggled with I
+        // Edited by the renderer window and the shortcuts I and V; the renderer takes a copy in BeginFrame
+        engine::render::RendererSettings settings;
+
+        // For the renderer window; the grid does not change while the sandbox runs
+        const std::string sceneInfo =
+            std::format("grid {} x {}, {}", grid.Side(), grid.Side(), engine::apps::ToString(grid.Mode()));
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
-        bool vsync = true; // toggled with V
         uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
             frameTimer.Tick();
-            if (input.WasKeyPressed(VK_ESCAPE)) {
-                window.Close();
-            }
-            if (input.WasKeyPressed('V')) {
-                vsync = !vsync;
-                LogInfo("VSync {}", vsync ? "on" : "off");
-            }
-            if (input.WasKeyPressed('I')) {
-                settings.drawPath = (settings.drawPath == engine::render::DrawPath::Instanced)
-                                        ? engine::render::DrawPath::NonInstanced
-                                        : engine::render::DrawPath::Instanced;
-                LogInfo("Draw path: {}",
-                        settings.drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced");
-            }
-
-            if (input.WasKeyPressed(VK_F11) || (input.WasKeyPressed(VK_RETURN) && input.IsKeyDown(VK_MENU))) {
-                window.ToggleFullscreen();
-            }
-
-            cameraController.Update(camera, input, frameTimer.DeltaSeconds());
-
-            if (frameTimer.FpsUpdated()) {
-                const double fps = frameTimer.Fps();
-                // The grid plus the spinning cube; the scene does not change size
-                window.SetTitle(std::format(
-                    L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
-                    settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
-                    grid.ObjectCount() + 1));
-            }
-
-            // Everything above has read this frame's input; clear the
-            // per-frame values (pressed, deltas).
-            input.EndFrame();
 
             // A minimized window has nothing to show.
             // WaitMessage() sleeps until the next message.
             // A smoke test keeps rendering, or it would never reach its frame count: the swap chain
             // ignores the 0x0 size, and Present returns DXGI_STATUS_OCCLUDED, which is a success code.
+            // Before the UI frame, so that every NewFrame gets its Render.
             if (window.IsMinimized() && !smokeTestFrames) {
+                input.EndFrame();
                 ::WaitMessage();
                 continue;
             }
 
-            // The UI frame: after the minimized check, so every NewFrame gets its Render
+            // The UI frame starts first: NewFrame decides which input ImGui uses this frame, and the app ignores
+            // that input (no camera look while dragging a window, no shortcuts while typing into a widget)
             ui.NewFrame();
-            ui.ShowStats({.fps = frameTimer.Fps()});
+            const bool appKeyboard = !ui.WantsKeyboard();
+            const bool appMouse = !ui.WantsMouse();
+
+            const engine::render::RendererSettings previousSettings = settings;
+            if (appKeyboard) {
+                if (input.WasKeyPressed(VK_ESCAPE)) {
+                    window.Close();
+                }
+                if (input.WasKeyPressed('V')) {
+                    settings.vsync = !settings.vsync;
+                }
+                if (input.WasKeyPressed('I')) {
+                    settings.drawPath = (settings.drawPath == engine::render::DrawPath::Instanced)
+                                            ? engine::render::DrawPath::NonInstanced
+                                            : engine::render::DrawPath::Instanced;
+                }
+                if (input.WasKeyPressed(VK_F11) || (input.WasKeyPressed(VK_RETURN) && input.IsKeyDown(VK_MENU))) {
+                    window.ToggleFullscreen();
+                }
+            }
+
+            cameraController.Update(camera, input, frameTimer.DeltaSeconds(),
+                                    {.mouse = appMouse, .keyboard = appKeyboard});
+
+            ui.ShowRendererWindow({.fps = frameTimer.Fps(),
+                                   .objectCount = grid.ObjectCount() + 1, // the grid plus the spinning cube
+                                   .scene = sceneInfo,
+                                   .cameraPosition = camera.position},
+                                  settings);
             ImDrawData *const uiDrawData = ui.Render();
+            LogSettingsChanges(previousSettings, settings);
+
+            // Everything above has read this frame's input; clear the
+            // per-frame values (pressed, deltas).
+            input.EndFrame();
+
             // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
             // the angle precise however long the program runs.
             const float angle =
@@ -157,7 +177,7 @@ namespace {
                 renderer.Render(engine::apps::MakeFrameView(camera, renderer.AspectRatio()), renderList,
                                 grid.StaticLists());
                 renderer.RenderUi(uiDrawData); // on top of the scene
-                renderer.EndFrame(vsync);
+                renderer.EndFrame();
             } catch (const engine::core::HResultError &) {
                 // Reset, ResizeBuffers, Present, Signal and others fail with
                 // DXGI_ERROR_DEVICE_REMOVED once the GPU is lost

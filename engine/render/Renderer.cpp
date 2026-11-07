@@ -580,7 +580,7 @@ namespace engine::render {
         m_ui->Render(drawData, m_context, CurrentFrame(), m_swapChain.CurrentUiRtv());
     }
 
-    void Renderer::EndFrame(bool vsync) {
+    void Renderer::EndFrame() {
         m_context.Transition(m_swapChain.CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
                              D3D12_RESOURCE_STATE_PRESENT);
         m_context.Close();
@@ -592,7 +592,7 @@ namespace engine::render {
 
         // Submit, present, and remember which fence value marks the end of this frame's GPU work
         m_queue.ExecuteCommandList(m_context.Native());
-        m_swapChain.Present(vsync);
+        m_swapChain.Present(m_settings.vsync);
         CurrentFrame().SetFenceValue(m_queue.Signal());
         // Logs this frame's DXGI messages (Present, ResizeBuffers) next to the frame that caused them
         m_device.DrainDxgiMessages();
