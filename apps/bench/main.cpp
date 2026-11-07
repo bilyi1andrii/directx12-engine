@@ -40,7 +40,8 @@ ENGINE_EXPORT_AGILITY_SDK()
 namespace {
     using Clock = std::chrono::steady_clock;
 
-    // The run stopped before all frames were rendered (Esc, window closed), or its results could not be written
+    // The run stopped before all frames were rendered (Esc, window closed), or its results could not be written.
+    // Same value as engine::apps::kExitSmokeTestFailed, which Debug runs return on debug-layer errors or leaks.
     constexpr int kExitBenchFailed = 1;
 
     // The build that produced the numbers, for run.txt; benchmark numbers come from Release only
@@ -248,7 +249,14 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             return kExitBenchFailed;
         }
         LogInfo("Results: {}", engine::core::ToUtf8(folder->native()));
+
+#if defined(_DEBUG)
+        // Builds with the debug layer (Debug, ASan) check the run like the sandbox's smoke test: debug-layer errors,
+        // live objects at shutdown or inactive validation fail it (CTest bench_smoke). Release has nothing to check.
+        return engine::apps::SmokeTestExitCode(expectedFrames, run.result, validation);
+#else
         return run.result.exitCode;
+#endif
     } catch (const std::exception &e) {
         LogError("{}", e.what());
         return -1;

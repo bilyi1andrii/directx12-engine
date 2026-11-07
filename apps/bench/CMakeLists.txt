@@ -37,3 +37,10 @@ target_link_libraries(bench PRIVATE
 add_dependencies(bench compile_shaders)
 engine_copy_agility_runtime(bench)
 engine_copy_asan_runtime(bench)
+
+# Smoke test: a short run of the dynamic grid (the path that uploads every frame) into the build folder. Fails on
+# debug-layer errors or leaks (builds with the debug layer), a crash, an early exit, or results that could not be
+# written (the bench exits with 1 if frames.csv or run.txt is missing). Not a measurement: Debug numbers mean nothing.
+add_test(NAME bench_smoke
+        COMMAND bench --grid dynamic --count 1000 --frames 5 --warmup 1 --out "${CMAKE_BINARY_DIR}/bench_smoke")
+set_tests_properties(bench_smoke PROPERTIES TIMEOUT 30)
