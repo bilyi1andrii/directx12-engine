@@ -1,11 +1,13 @@
-# engine_scene: what is drawn and from where (Camera; later Scene, Transform, MeshRenderer, Light).
+# engine_scene: what is drawn and from where (Camera, CameraPath; later Scene, Transform, MeshRenderer, Light).
 # CPU only: must never link engine_rhi, d3d12 or dxgi.
 
 add_library(engine_scene STATIC
         Camera.cpp
         Camera.h
         CameraController.cpp
-        CameraController.h)
+        CameraController.h
+        CameraPath.cpp
+        CameraPath.h)
 
 engine_target_defaults(engine_scene)
 

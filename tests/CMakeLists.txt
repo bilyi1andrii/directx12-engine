@@ -2,6 +2,7 @@
 
 add_executable(engine_tests
         main.cpp
+        CameraPathTests.cpp
         FileTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
@@ -16,6 +17,7 @@ target_link_libraries(engine_tests PRIVATE
         engine_core
         engine_assets
         engine_renderdata
+        engine_scene
         GTest::gtest) # not gtest_main: main.cpp holds the process-wide core::ComScope
 
 # Before gtest_discover_tests: discovery runs the exe at build time, so the runtime must already be next to it
