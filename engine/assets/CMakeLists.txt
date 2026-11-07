@@ -1,7 +1,9 @@
-# engine_assets: CPU side of asset loading (TextureLoader; later ModelImporter, AssetCache).
+# engine_assets: CPU side of asset loading (TextureLoader, ModelImporter; later AssetCache).
 # Must never link engine_rhi, d3d12 or dxgi.
 
 add_library(engine_assets STATIC
+        ModelImporter.cpp
+        ModelImporter.h
         TextureLoader.cpp
         TextureLoader.h)
 
@@ -14,6 +16,7 @@ target_link_libraries(engine_assets
         engine_core
         # TextureLoader.h returns render::TextureData
         engine_renderdata
-        # PRIVATE: DirectXTex.h is used only in .cpp files
+        # PRIVATE: DirectXTex and Assimp headers are used only in .cpp files
         PRIVATE
-        Microsoft::DirectXTex)
+        Microsoft::DirectXTex
+        assimp::assimp)

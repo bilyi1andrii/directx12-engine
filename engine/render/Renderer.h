@@ -1,6 +1,8 @@
 #ifndef D3D12_ENGINE_RENDERER_H
 #define D3D12_ENGINE_RENDERER_H
 
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string_view>
@@ -17,6 +19,7 @@
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
+#include "rhi/PipelineCache.h"
 #include "rhi/SwapChain.h"
 #include "rhi/Texture.h"
 #include "rhi/UploadContext.h"
@@ -94,6 +97,12 @@ namespace engine::render {
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
 
     private:
+        enum class VertexFormat : uint8_t {
+            PositionColor, // the built-in vertex-colour cube (vs_basic)
+            Mesh,          // renderdata/Vertex.h (vs_mesh)
+            Count,
+        };
+
         // A mesh's GPU buffers and how to draw them. MeshHandle::index points into m_meshes.
         struct GpuMesh {
             rhi::Buffer vertices;
@@ -101,8 +110,7 @@ namespace engine::render {
             uint32_t vertexStride = 0;
             DXGI_FORMAT indexFormat = DXGI_FORMAT_UNKNOWN;
             uint32_t indexCount = 0;
-            // Temporary: chosen by the mesh's vertex layout until PipelineCache exists
-            ID3D12PipelineState *pipelineState = nullptr;
+            VertexFormat vertexFormat = VertexFormat::Mesh;
         };
 
         // One instanced draw: `count` objects with the same key, from element `firstElement` of the instance
@@ -134,11 +142,9 @@ namespace engine::render {
 
         [[nodiscard]] const GpuStaticList &StaticList(StaticListHandle handle) const;
 
-        // Creates a PSO from two compiled shaders and the vertex layout; all other state is the same for both.
-        // Temporary: PipelineCache replaces it.
-        [[nodiscard]] rhi::ComPtr<ID3D12PipelineState>
-        CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
-                            std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name);
+        void CreatePipelines();
+
+        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
 
         // Uploads the vertex and index buffers of both cubes (constructor only)
         void UploadCubes();
@@ -189,9 +195,10 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        rhi::ComPtr<ID3D12RootSignature> m_rootSignature;       // the global one (shaders/common/root_signature.hlsli)
-        rhi::ComPtr<ID3D12PipelineState> m_vertexColorPipeline; // vs_basic + ps_basic
-        rhi::ComPtr<ID3D12PipelineState> m_unlitPipeline;       // vs_mesh + ps_unlit
+        // The global root signature and every PSO
+        rhi::PipelineCache m_pipelines;
+        // Filled by CreatePipelines; indexed by VertexFormat
+        std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
         std::vector<GpuMesh> m_meshes;
         MeshHandle m_cubeMesh;
         MeshHandle m_texturedCubeMesh;

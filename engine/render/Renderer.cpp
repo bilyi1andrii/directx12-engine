@@ -7,7 +7,6 @@
 #include <exception>
 #include <format>
 #include <span>
-#include <stdexcept>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -34,15 +33,6 @@ namespace engine::render {
 
         // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
         constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
-
-        // Compiled shader bytecode (DXIL), written by the build to <exe dir>/shaders/<name>.cso
-        std::vector<std::byte> LoadShader(std::wstring_view fileName) {
-            auto bytecode = core::ReadBinaryFile(core::ExecutableDirectory() / L"shaders" / fileName);
-            if (!bytecode) {
-                throw std::runtime_error(std::format("Cannot load shader {}", bytecode.error().message));
-            }
-            return std::move(*bytecode);
-        }
 
         // Matches vs_basic.hlsl's VSInput
         struct VertexPosColor {
@@ -207,21 +197,14 @@ namespace engine::render {
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
-          m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer") {
+          m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer"),
+          m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders") {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
                                   std::format(L"Frame {}", i));
         }
-        // The global root signature is defined in HLSL (shaders/common/root_signature.hlsli) and compiled by
-        // DXC into its own file, already validated and serialized: the device only deserializes it
-        const std::vector<std::byte> rootSignature = LoadShader(L"rs_global.cso");
-        ThrowIfFailed(m_device.Native()->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),
-                                                             IID_PPV_ARGS(&m_rootSignature)));
-        ThrowIfFailed(m_rootSignature->SetName(L"Global root signature"));
-        m_vertexColorPipeline =
-            CreatePipelineState(L"vs_basic.cso", L"ps_basic.cso", kVertexPosColorLayout, L"Vertex colour PSO");
-        m_unlitPipeline = CreatePipelineState(L"vs_mesh.cso", L"ps_unlit.cso", kVertexLayout, L"Unlit textured PSO");
+        CreatePipelines();
 
         // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
@@ -346,7 +329,7 @@ namespace engine::render {
 
         m_context.SetRenderTarget(rtv, m_depth.Dsv());
         m_context.SetViewportAndScissor(m_swapChain.Width(), m_swapChain.Height());
-        m_context.SetGraphicsRootSignature(m_rootSignature.Get());
+        m_context.SetGraphicsRootSignature(m_pipelines.RootSignature());
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
@@ -458,17 +441,19 @@ namespace engine::render {
 
     void Renderer::RecordDraws(std::span<const InstanceDraw> draws) {
         // Root constants (b0) are copied into the command list, so every draw keeps its own values
-        ID3D12PipelineState *currentPipeline = nullptr;
+        rhi::PipelineHandle currentPipeline;
         const GpuMesh *currentMesh = nullptr;
         for (const InstanceDraw &draw : draws) {
             const GpuMesh &mesh = Mesh(draw.key.mesh);
+            // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the mesh's vertex format
+            // and on the material, so it is checked for every draw.
+            const rhi::PipelineHandle pipeline = PipelineFor(mesh.vertexFormat, draw.key.material);
+            if (pipeline != currentPipeline) {
+                m_context.SetPipelineState(m_pipelines.Native(pipeline));
+                currentPipeline = pipeline;
+            }
             // A bucket split between two chunks gives two draws with the same mesh: bind it only once
             if (&mesh != currentMesh) {
-                // Switch PSOs only when needed: it costs CPU and GPU time
-                if (mesh.pipelineState != currentPipeline) {
-                    m_context.SetPipelineState(mesh.pipelineState);
-                    currentPipeline = mesh.pipelineState;
-                }
                 m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
                 m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
                 currentMesh = &mesh;
@@ -533,7 +518,7 @@ namespace engine::render {
             .vertexStride = sizeof(VertexPosColor),
             .indexFormat = DXGI_FORMAT_R16_UINT,
             .indexCount = static_cast<uint32_t>(kCubeIndices.size()),
-            .pipelineState = m_vertexColorPipeline.Get(),
+            .vertexFormat = VertexFormat::PositionColor,
         };
         m_cubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
         m_meshes.push_back(std::move(colorCube));
@@ -548,45 +533,36 @@ namespace engine::render {
             .vertexStride = sizeof(Vertex),
             .indexFormat = DXGI_FORMAT_R16_UINT,
             .indexCount = static_cast<uint32_t>(cube.indices.size()),
-            .pipelineState = m_unlitPipeline.Get(),
+            .vertexFormat = VertexFormat::Mesh,
         };
         m_texturedCubeMesh = MeshHandle{.index = static_cast<uint32_t>(m_meshes.size())};
         m_meshes.push_back(std::move(texturedCube));
     }
 
-    rhi::ComPtr<ID3D12PipelineState>
-    Renderer::CreatePipelineState(std::wstring_view vertexShaderFile, std::wstring_view pixelShaderFile,
-                                  std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout, std::wstring_view name) {
-        const std::vector<std::byte> vertexShader = LoadShader(vertexShaderFile);
-        const std::vector<std::byte> pixelShader = LoadShader(pixelShaderFile);
+    void Renderer::CreatePipelines() {
+        constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
-        // A pipeline state object (PSO) bakes shaders and all fixed-function state into one object
-        // up front, so the driver compiles everything once instead of at draw time. D3D12 has no
-        // separate RSSetState/OMSetBlendState: changing any of this means switching PSOs.
-        // The CD3DX12 defaults: no blending; solid fill, back faces culled, clockwise = front;
-        // depth test LESS with depth writes on.
-        const D3D12_GRAPHICS_PIPELINE_STATE_DESC desc{
-            .pRootSignature = m_rootSignature.Get(),
-            .VS = {.pShaderBytecode = vertexShader.data(), .BytecodeLength = vertexShader.size()},
-            .PS = {.pShaderBytecode = pixelShader.data(), .BytecodeLength = pixelShader.size()},
-            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
-            .SampleMask = D3D12_DEFAULT_SAMPLE_MASK, // all samples
-            .RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT),
-            .DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT),
-            .InputLayout = {.pInputElementDescs = inputLayout.data(),
-                            .NumElements = static_cast<UINT>(inputLayout.size())},
-            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
-            .NumRenderTargets = 1,
-            // The RTV's format (sRGB), not the back buffer's
-            .RTVFormats = {rhi::SwapChain::kRtvFormat},
-            // Must match the depth buffer; checked against the bound DSV when drawing
-            .DSVFormat = rhi::DepthBuffer::kFormat,
-            .SampleDesc = {.Count = 1, .Quality = 0},
-        };
+        m_pipelineByFormat[static_cast<size_t>(VertexFormat::PositionColor)] = m_pipelines.Get({
+            .vertexShader = L"vs_basic.cso",
+            .pixelShader = L"ps_basic.cso",
+            .inputLayout = kVertexPosColorLayout,
+            .renderTargetFormats = kBackBufferTargets,
+            .depthFormat = rhi::DepthBuffer::kFormat,
+            .name = L"Vertex colour PSO",
+        });
+        m_pipelineByFormat[static_cast<size_t>(VertexFormat::Mesh)] = m_pipelines.Get({
+            .vertexShader = L"vs_mesh.cso",
+            .pixelShader = L"ps_unlit.cso",
+            .inputLayout = kVertexLayout,
+            .renderTargetFormats = kBackBufferTargets,
+            .depthFormat = rhi::DepthBuffer::kFormat,
+            .name = L"Unlit textured PSO",
+        });
+    }
 
-        rhi::ComPtr<ID3D12PipelineState> pipelineState;
-        ThrowIfFailed(m_device.Native()->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pipelineState)));
-        ThrowIfFailed(pipelineState->SetName(std::wstring(name).c_str()));
-        return pipelineState;
+    rhi::PipelineHandle Renderer::PipelineFor(VertexFormat format, MaterialHandle /*material*/) const {
+        const rhi::PipelineHandle pipeline = m_pipelineByFormat[static_cast<size_t>(format)];
+        ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}", static_cast<int>(format));
+        return pipeline;
     }
 } // namespace engine::render

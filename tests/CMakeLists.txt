@@ -5,6 +5,7 @@ add_executable(engine_tests
         FileTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
+        ModelImporterTests.cpp
         RenderListTests.cpp
         TestFiles.h
         TextureLoaderTests.cpp)
