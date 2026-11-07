@@ -169,7 +169,8 @@ engine/renderdata
                (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle, StaticListHandle),
                TextureData, and Vertex, MeshData, MaterialDesc, ModelData for model loading
 engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
-               once) and the frame's RenderList (uploaded every frame)
+               once) and the frame's RenderList (uploaded every frame); CreateMesh uploads a model's geometry
+               into one vertex and one index buffer and returns a MeshHandle per submesh
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)
