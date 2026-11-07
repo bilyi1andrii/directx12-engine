@@ -1,8 +1,13 @@
 #include "core/Window.h"
 
 #include <algorithm>
+#include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
+#include <vector>
+
+#include <shellapi.h>
 
 #include "core/ThrowIfFailed.h"
 
@@ -11,6 +16,29 @@ namespace engine::core {
         constexpr wchar_t kClassName[] = L"EngineWindow";
         constexpr DWORD kWindowedStyle = WS_OVERLAPPEDWINDOW;
         constexpr LONG kMinClientSize = 64; // keeps the swap chain away from tiny sizes
+
+        // A WM_DROPFILES handle must be released with DragFinish
+        struct DropFinisher {
+            void operator()(HDROP drop) const noexcept { ::DragFinish(drop); }
+        };
+        using UniqueDrop = std::unique_ptr<std::remove_pointer_t<HDROP>, DropFinisher>;
+
+        // The paths in a WM_DROPFILES message, in the order Windows gives them
+        std::vector<std::filesystem::path> DroppedPaths(HDROP drop) {
+            // Index 0xFFFFFFFF asks for the number of files
+            const UINT count = ::DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
+            std::vector<std::filesystem::path> paths;
+            paths.reserve(count);
+            for (UINT i = 0; i < count; ++i) {
+                // Without a buffer it returns the length, without the terminating null
+                const UINT length = ::DragQueryFileW(drop, i, nullptr, 0);
+                std::wstring path(length, L'\0');
+                if (length > 0 && ::DragQueryFileW(drop, i, path.data(), length + 1) == length) {
+                    paths.emplace_back(std::move(path));
+                }
+            }
+            return paths;
+        }
     } // namespace
 
     Window::Window(const WindowDesc &desc) {
@@ -47,6 +75,8 @@ namespace engine::core {
         ::CreateWindowExW(0, kClassName, title.c_str(), kWindowedStyle, x, y, windowWidth, windowHeight, nullptr,
                           nullptr, instance, this);
         ThrowIfWin32Failed(m_hwnd != nullptr);
+
+        ::DragAcceptFiles(m_hwnd, TRUE);
 
         RECT client{};
         ::GetClientRect(m_hwnd, &client);
@@ -185,6 +215,18 @@ namespace engine::core {
             const auto *suggested = reinterpret_cast<const RECT *>(msg.lParam);
             ::SetWindowPos(m_hwnd, nullptr, suggested->left, suggested->top, suggested->right - suggested->left,
                            suggested->bottom - suggested->top, SWP_NOZORDER | SWP_NOACTIVATE);
+            return 0;
+        }
+        case WM_DROPFILES: {
+            // wParam is a handle to the list of dropped files, released by DragFinish
+            const UniqueDrop drop(reinterpret_cast<HDROP>(msg.wParam));
+            const std::vector<std::filesystem::path> paths = DroppedPaths(drop.get());
+            // Where the mouse button was released, in client-area coordinates
+            POINT point{};
+            ::DragQueryPoint(drop.get(), &point);
+            if (m_callbacks.onFilesDropped && !paths.empty()) {
+                m_callbacks.onFilesDropped(paths, point.x, point.y);
+            }
             return 0;
         }
         case WM_SYSCHAR:

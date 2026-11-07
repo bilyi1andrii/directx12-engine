@@ -1,7 +1,9 @@
 #include "assets/ModelImporter.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cwctype>
 #include <filesystem>
 #include <format>
 #include <optional>
@@ -312,5 +314,12 @@ namespace engine::assets {
             model.materials.push_back(materials.Read(*scene->mMaterials[i]));
         }
         return model;
+    }
+
+    bool IsModelFile(const std::filesystem::path &path) {
+        std::wstring extension = path.extension().native();
+        std::ranges::transform(extension, extension.begin(),
+                               [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+        return extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx";
     }
 } // namespace engine::assets

@@ -15,6 +15,7 @@
 #include "core/Utf8.h"
 
 using engine::assets::ImportModel;
+using engine::assets::IsModelFile;
 using engine::core::ErrorCode;
 using engine::render::AlphaMode;
 using engine::render::EmbeddedTexture;
@@ -289,4 +290,15 @@ TEST(ImportModel, GltfMaterialKeepsTheFileValues) {
     ASSERT_EQ(image.bytes.size(), 4u);
     EXPECT_EQ(image.bytes[0], std::byte{1});
     EXPECT_EQ(image.bytes[3], std::byte{4});
+}
+
+TEST(IsModelFile, KnowsTheModelFormatsInAnyLetterCase) {
+    EXPECT_TRUE(IsModelFile("town/scene.gltf"));
+    EXPECT_TRUE(IsModelFile("town/Scene.GLB"));
+    EXPECT_TRUE(IsModelFile("cube.obj"));
+    EXPECT_TRUE(IsModelFile("C:/models/Rig.Fbx"));
+    EXPECT_FALSE(IsModelFile("texture.png"));
+    EXPECT_FALSE(IsModelFile("scene.gltf.bak"));
+    EXPECT_FALSE(IsModelFile("gltf")); // a name, not an extension
+    EXPECT_FALSE(IsModelFile("folder/"));
 }

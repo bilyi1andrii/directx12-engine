@@ -6,6 +6,8 @@ add_library(engine_scene STATIC
         Camera.h
         CameraController.cpp
         CameraController.h
+        Picking.cpp
+        Picking.h
         Scene.cpp
         Scene.h)
 
