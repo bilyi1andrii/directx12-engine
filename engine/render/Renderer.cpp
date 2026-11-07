@@ -345,78 +345,93 @@ namespace engine::render {
             CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
-        const uint32_t instanceBufferIndex = UploadInstances(list);
+        UploadInstances(list);
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        DrawBuckets(list, instanceBufferIndex);
+        DrawBuckets(list);
     }
 
-    uint32_t Renderer::UploadInstances(const RenderList &list) {
-        const size_t instanceCount = list.InstanceCount();
-        if (instanceCount == 0) {
-            return 0; // no draws, so no shader reads the index
-        }
-
-        // All buckets go into one allocation, in bucket order (plan §3.2). Aligned to the element size, so
-        // the allocation starts at a whole element of the page seen as an InstanceData array.
+    void Renderer::UploadInstances(const RenderList &list) {
+        // A shader view (SRV) covers a range of one buffer, and every ring page is its own buffer, so the
+        // instances go into chunks of at most one page, each with its own view
         constexpr uint64_t kStride = sizeof(gpu::InstanceData);
         rhi::FrameContext &frame = CurrentFrame();
-        const rhi::UploadAllocation instances = frame.Upload().Allocate(instanceCount * kStride, kStride);
+        const auto chunkCapacity = static_cast<uint32_t>(frame.Upload().PageSize() / kStride);
+        SplitIntoChunks(list.Buckets(), chunkCapacity, m_instanceRanges);
+        m_chunkBufferIndices.clear();
 
-        // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
+        const std::span<const BatchBucket> buckets = list.Buckets();
+        const uint64_t instanceCount = list.InstanceCount();
+        rhi::UploadAllocation chunk{};
         gpu::InstanceData instance{};
-        uint64_t offset = 0;
-        for (const BatchBucket &bucket : list.Buckets()) {
-            for (const DirectX::XMFLOAT4X4 &world : bucket.worlds) {
+        for (const InstanceRange &range : m_instanceRanges) {
+            if (range.chunk == m_chunkBufferIndices.size()) {
+                // The first range of a new chunk: allocate the whole chunk. Every chunk but the last is full.
+                // Aligned to the element size, so the chunk starts at a whole element of the page seen as an
+                // InstanceData array.
+                const uint64_t elements =
+                    std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity);
+                chunk = frame.Upload().Allocate(elements * kStride, kStride);
+
+                // A view over exactly these elements, in a fresh bindless slot: the data moves around the ring
+                // from frame to frame, and a slot must not be rewritten while the previous frame may still
+                // read it. The slot goes back to the heap after this frame's fence.
+                const uint32_t index = m_bindlessHeap.Allocate();
+                frame.DeferFree(m_bindlessHeap, index);
+                m_bindlessHeap.CreateStructuredBufferSrv(index, chunk.resource, chunk.offset / kStride,
+                                                         static_cast<uint32_t>(elements), kStride);
+                m_chunkBufferIndices.push_back(index);
+            }
+
+            // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
+            const BatchBucket &bucket = buckets[range.bucket];
+            uint64_t offset = uint64_t{range.firstElement} * kStride;
+            for (uint32_t i = 0; i < range.count; ++i) {
+                const DirectX::XMFLOAT4X4 &world = bucket.worlds[range.firstObject + i];
                 DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
-                instances.Write(offset, instance);
+                chunk.Write(offset, instance);
                 offset += kStride;
             }
         }
-
-        // A shader resource view (SRV) over exactly these elements, in a fresh bindless slot: the data
-        // moves around the ring from frame to frame, and a slot must not be rewritten while the previous
-        // frame may still read it. The slot goes back to the heap after this frame's fence.
-        const uint32_t index = m_bindlessHeap.Allocate();
-        frame.DeferFree(m_bindlessHeap, index);
-        m_bindlessHeap.CreateStructuredBufferSrv(index, instances.resource, instances.offset / kStride,
-                                                 static_cast<uint32_t>(instanceCount), kStride);
-        return index;
     }
 
-    void Renderer::DrawBuckets(const RenderList &list, uint32_t instanceBufferIndex) {
+    void Renderer::DrawBuckets(const RenderList &list) {
         // Root constants (b0) are copied into the command list, so every draw keeps its own values
 
-        // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
-        uint32_t firstInstance = 0;
+        // m_instanceRanges was built from this list by UploadInstances
+        const std::span<const BatchBucket> buckets = list.Buckets();
         ID3D12PipelineState *currentPipeline = nullptr;
-        for (const BatchBucket &bucket : list.Buckets()) {
-            const GpuMesh &mesh = Mesh(bucket.key.mesh);
-            // Switch PSOs only when needed: it costs CPU and GPU time
-            if (mesh.pipelineState != currentPipeline) {
-                m_context.SetPipelineState(mesh.pipelineState);
-                currentPipeline = mesh.pipelineState;
+        const GpuMesh *currentMesh = nullptr;
+        for (const InstanceRange &range : m_instanceRanges) {
+            const BatchKey &key = buckets[range.bucket].key;
+            const GpuMesh &mesh = Mesh(key.mesh);
+            // A bucket split between two chunks gives two ranges with the same mesh: bind it only once
+            if (&mesh != currentMesh) {
+                // Switch PSOs only when needed: it costs CPU and GPU time
+                if (mesh.pipelineState != currentPipeline) {
+                    m_context.SetPipelineState(mesh.pipelineState);
+                    currentPipeline = mesh.pipelineState;
+                }
+                m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
+                m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
+                currentMesh = &mesh;
             }
-            m_context.SetVertexBuffer(mesh.vertices.VertexBufferView(mesh.vertexStride));
-            m_context.SetIndexBuffer(mesh.indices.IndexBufferView(mesh.indexFormat));
 
-            const auto objectCount = static_cast<uint32_t>(bucket.worlds.size());
-            gpu::DrawConstants constants{.instanceOffset = firstInstance,
-                                         .materialIndex = bucket.key.material.index,
-                                         .instanceBufferIndex = instanceBufferIndex};
+            gpu::DrawConstants constants{.instanceOffset = range.firstElement,
+                                         .materialIndex = key.material.index,
+                                         .instanceBufferIndex = m_chunkBufferIndices[range.chunk]};
             if (m_settings.drawPath == DrawPath::Instanced) {
-                // One draw for the whole bucket: object i reads element instanceOffset + SV_InstanceID (= i)
+                // One draw for the whole range: object i reads element instanceOffset + SV_InstanceID (= i)
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
-                m_context.DrawIndexedInstanced(mesh.indexCount, objectCount);
+                m_context.DrawIndexedInstanced(mesh.indexCount, range.count);
             } else {
                 // One draw per object, each with its own element in the root constants (plan §2.6: keeps
                 // the per-draw cost measurable)
-                for (uint32_t i = 0; i < objectCount; ++i) {
-                    constants.instanceOffset = firstInstance + i;
+                for (uint32_t i = 0; i < range.count; ++i) {
+                    constants.instanceOffset = range.firstElement + i;
                     m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                     m_context.DrawIndexed(mesh.indexCount);
                 }
             }
-            firstInstance += objectCount;
         }
     }
 

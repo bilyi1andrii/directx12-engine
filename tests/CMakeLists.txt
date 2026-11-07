@@ -3,6 +3,7 @@
 add_executable(engine_tests
         main.cpp
         FileTests.cpp
+        InstanceChunksTests.cpp
         ModelDataTests.cpp
         RenderListTests.cpp
         TestFiles.h

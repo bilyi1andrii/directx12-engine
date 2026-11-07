@@ -23,6 +23,7 @@
 #include "rhi/ValidationStats.h"
 
 #include "renderdata/Handles.h"
+#include "renderdata/InstanceChunks.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
@@ -64,8 +65,7 @@ namespace engine::render {
             return static_cast<float>(m_swapChain.Width()) / static_cast<float>(m_swapChain.Height());
         }
 
-        // Records the frame's commands: draws `list` seen through `view`.
-        // All instance data must fit in one upload page (2 MB: 32768 objects); more throws std::length_error.
+        // Records the frame's commands: draws `list` seen through `view`
         void Render(const FrameView &view, const RenderList &list);
 
         // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
@@ -123,13 +123,13 @@ namespace engine::render {
         // Shutdown only: waits for the GPU, then destroys every texture
         void DestroyTextures() noexcept;
 
-        // Writes the world matrix of every object in `list` into this frame's upload ring and creates a
-        // bindless view of them. Returns its index (DrawConstants::instanceBufferIndex); 0 if the list is empty.
-        [[nodiscard]] uint32_t UploadInstances(const RenderList &list);
+        // Writes the world matrix of every object in `list` into this frame's upload ring, in chunks of at
+        // most one page, with a bindless view per chunk. Fills m_instanceRanges and m_chunkBufferIndices.
+        void UploadInstances(const RenderList &list);
 
-        // Records the draws of every bucket, on the path chosen in m_settings. Every draw reads its world
-        // matrices from the instance buffer at bindless index `instanceBufferIndex`.
-        void DrawBuckets(const RenderList &list, uint32_t instanceBufferIndex);
+        // Records the draws of m_instanceRanges, on the path chosen in m_settings: one instanced draw per
+        // range, or one draw per object
+        void DrawBuckets(const RenderList &list);
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
@@ -164,6 +164,10 @@ namespace engine::render {
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
         TextureHandle m_unhandledTexture;
+
+        // This frame's instance data, rebuilt by UploadInstances. Members, so their capacity is reused.
+        std::vector<InstanceRange> m_instanceRanges;
+        std::vector<uint32_t> m_chunkBufferIndices; // bindless index of each chunk's view, by InstanceRange::chunk
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;
