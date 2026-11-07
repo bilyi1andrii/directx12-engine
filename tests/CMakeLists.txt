@@ -3,6 +3,7 @@
 add_executable(engine_tests
         main.cpp
         CameraPathTests.cpp
+        CameraTests.cpp
         FileTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp

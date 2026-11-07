@@ -95,6 +95,26 @@ namespace engine::apps {
         }
     }
 
+    float StressGrid::Extent() const noexcept {
+        constexpr float kCubeSize = 2.0f;
+        return m_side == 0 ? 0.0f : static_cast<float>(m_side - 1) * kGridSpacing + kCubeSize;
+    }
+
+    std::array<scene::CameraKeyframe, 5> StressGrid::CameraPath() const noexcept {
+        // Far enough out (and +10 for tiny grids) that most of the grid is in view at a 60 degree FOV
+        const float radius = 0.75f * Extent() + 10.0f;
+        const float height = kGridHeight + 0.4f * Extent() + 10.0f;
+        const DirectX::XMFLOAT3 centre{0.0f, kGridHeight, 0.0f};
+        constexpr uint32_t kQuarter = kStressPathFrames / 4;
+        return {{
+            {.frame = 0 * kQuarter, .position = {radius, height, 0.0f}, .target = centre},
+            {.frame = 1 * kQuarter, .position = {0.0f, height, radius}, .target = centre},
+            {.frame = 2 * kQuarter, .position = {-radius, height, 0.0f}, .target = centre},
+            {.frame = 3 * kQuarter, .position = {0.0f, height, -radius}, .target = centre},
+            {.frame = kStressPathFrames, .position = {radius, height, 0.0f}, .target = centre},
+        }};
+    }
+
     std::span<const render::StaticListHandle> StressGrid::StaticLists() const noexcept {
         if (!m_staticList) {
             return {};

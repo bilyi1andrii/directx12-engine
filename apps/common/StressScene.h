@@ -1,6 +1,7 @@
 #ifndef D3D12_ENGINE_STRESSSCENE_H
 #define D3D12_ENGINE_STRESSSCENE_H
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -14,9 +15,13 @@
 #include "renderdata/Handles.h"
 #include "renderdata/RenderList.h"
 #include "scene/Camera.h"
+#include "scene/CameraPath.h"
 
 // Scene code shared by the apps (sandbox, bench)
 namespace engine::apps {
+    // Frames of one loop of the stress grid's camera path (StressGrid::CameraPath); the default --frames
+    inline constexpr uint32_t kStressPathFrames = 1000;
+
     // The stress grid without --count: 20 x 20
     inline constexpr uint32_t kDefaultGridCount = 400;
 
@@ -54,6 +59,13 @@ namespace engine::apps {
         [[nodiscard]] GridMode Mode() const noexcept { return m_mode; }
         [[nodiscard]] uint32_t Side() const noexcept { return m_side; }
         [[nodiscard]] size_t ObjectCount() const noexcept { return size_t{m_side} * m_side; }
+        // Width (and depth) of the grid in world units, from the outer faces of the outer cubes
+        [[nodiscard]] float Extent() const noexcept;
+
+        // The benchmark's camera path (keyframes at frames 0 to kStressPathFrames): one loop around the grid's
+        // centre at a distance and height that grow with Extent(), always looking at the centre. The keyframes
+        // are corners of a diamond, so the camera comes closer halfway between them. DX11 copies this formula.
+        [[nodiscard]] std::array<scene::CameraKeyframe, 5> CameraPath() const noexcept;
 
     private:
         GridMode m_mode;
