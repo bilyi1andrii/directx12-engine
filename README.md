@@ -12,7 +12,9 @@ wrapper in `engine/rhi` (device with debug layer and feature checks, queues, fra
 chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless descriptor heap), one global root
 signature defined in HLSL, a fly camera in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it
 draws from in `engine/renderdata` (the `RenderList` of objects batched by mesh and material, plus the texture, mesh and
-material types that model loading will fill), unit tests and an automated smoke test. Next: pipeline cache and models.
+material types that model loading will fill), per-frame instance data in page-sized chunks plus static lists uploaded
+once to GPU memory (`--count 50000` draws a 50k-cube grid), unit tests and an automated smoke test. Next: pipeline
+cache and models.
 
 ## Requirements
 

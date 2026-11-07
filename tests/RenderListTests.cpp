@@ -49,15 +49,23 @@ TEST(RenderList, GroupsObjectsByKeyInFirstAddedOrder) {
     ExpectTranslation(list.Buckets()[1].worlds[0], 2, 0, 0);
 }
 
-TEST(RenderList, ClearRemovesEveryObjectAndBucket) {
+TEST(RenderList, ClearRemovesEveryObjectAndBucketButKeepsTheirMemory) {
     RenderList list;
-    list.Add(kKeyA, Translation(1, 0, 0));
+    for (int i = 0; i < 100; ++i) {
+        list.Add(kKeyA, Translation(1, 0, 0));
+    }
     list.Add(kKeyB, Translation(2, 0, 0));
 
     list.Clear();
 
     EXPECT_TRUE(list.Buckets().empty());
     EXPECT_EQ(list.InstanceCount(), 0u);
+
+    // The next frame's first bucket gets the first bucket's memory back, so refilling it does not reallocate
+    list.Add(kKeyA, Translation(1, 0, 0));
+    ASSERT_EQ(list.Buckets().size(), 1u);
+    EXPECT_EQ(list.Buckets()[0].worlds.size(), 1u);
+    EXPECT_GE(list.Buckets()[0].worlds.capacity(), 100u);
 }
 
 TEST(SubmitGrid, CentresTheGridOnTheBaseWithOffsetsInWorldSpace) {

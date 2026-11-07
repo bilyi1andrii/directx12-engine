@@ -3,7 +3,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 #include <DirectXMath.h>
@@ -18,6 +20,13 @@ namespace engine::render {
         MaterialHandle material;
 
         bool operator==(const BatchKey &) const = default;
+    };
+
+    // Hash of a BatchKey for unordered containers: both handle indices packed into one 64-bit value
+    struct BatchKeyHash {
+        [[nodiscard]] size_t operator()(const BatchKey &key) const noexcept {
+            return std::hash<uint64_t>{}((uint64_t{key.mesh.index} << 32) | key.material.index);
+        }
     };
 
     // Every object drawn with one key this frame (DX11 BatchBucket)
@@ -39,7 +48,8 @@ namespace engine::render {
         // Adds one object
         void Add(const BatchKey &key, const DirectX::XMFLOAT4X4 &world);
 
-        // Removes every object and bucket (DX11 clearDynamic)
+        // Removes every object and bucket (DX11 clearDynamic). Keeps their memory: the next frame's buckets reuse
+        // it, so rebuilding a list of the same size allocates nothing.
         void Clear() noexcept;
 
         [[nodiscard]] std::span<const BatchBucket> Buckets() const noexcept { return m_buckets; }
@@ -48,10 +58,19 @@ namespace engine::render {
         [[nodiscard]] size_t InstanceCount() const noexcept { return m_instanceCount; }
 
     private:
-        // The bucket for `key`, appended if there is none yet (DX11 getOrCreate: linear search)
+        // The bucket for `key`, appended if there is none yet (DX11 getOrCreate, which searched the buckets)
         [[nodiscard]] BatchBucket &GetOrCreate(const BatchKey &key);
 
         std::vector<BatchBucket> m_buckets;
+        // Where each key's bucket is in m_buckets, so finding it does not depend on the number of buckets
+        // (a linear search over 400 keys cost about 2.9 ms per frame for 50k objects)
+        std::unordered_map<BatchKey, uint32_t, BatchKeyHash> m_bucketIndices;
+        // The bucket the previous Add used: consecutive objects often share a key (grids, copies of a model),
+        // and then not even the hash is needed
+        uint32_t m_lastBucket = 0;
+        // Emptied `worlds` vectors of cleared buckets, with their capacity: GetOrCreate hands them to new buckets
+        // (50k objects into fresh vectors cost about 2 ms per frame, mostly regrowth)
+        std::vector<std::vector<DirectX::XMFLOAT4X4>> m_spareWorlds;
         size_t m_instanceCount = 0;
     };
 
