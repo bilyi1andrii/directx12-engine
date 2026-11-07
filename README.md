@@ -57,13 +57,19 @@ Command-line options of `sandbox.exe`:
 
 | Option | Effect |
 |---|---|
-| `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of the checkerboard |
+| `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of `data/textures/grass.jpg` |
 | `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
 | `--model PATH` | Show this model file (`.gltf`, `.glb`, `.obj`, `.fbx`, ...) on the grid. Without it, every model in the repo's `assets/` folder is shown in a row (except in a smoke test); without any model, a spinning cube |
 | `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
 
 Models are not committed: put them in `assets/` at the repository root (gitignored), each in its own folder with its
-textures, e.g. `assets/fantasy_town/scene.gltf`. Credit the authors as their licenses require.
+textures, e.g. `assets/fantasy_town/scene.gltf`. Credit the authors as their licenses require. Small files the apps
+always need (the grid's texture) are committed in `data/`; the build copies them to `build/<preset>/bin/data/`.
+
+While the sandbox runs, drag files from Explorer onto its window: a model (`.gltf`, `.glb`, `.obj`, `.fbx`) stands
+where you drop it, on the height of the grid's top (dropped on the sky, it joins the row of models); any other file is
+tried as an image for the grid. The window waits while a file loads (a large model takes seconds). Windows does not
+allow dropping from Explorer onto a program that runs as administrator.
 
 An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
 run the `sandbox` target. The IDE must either set up the MSVC environment itself or be started from a Developer
@@ -140,19 +146,20 @@ build/x64-debug/bin/
 ```
 apps/sandbox   test application (entry point, --smoke-test, --count, --texture, --model)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
+data/          small runtime files committed to git (textures/grass.jpg, the grid's texture); copied to bin/data/
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
                ComScope (no D3D12)
 engine/assets  ModelImporter: reads model files with Assimp into geometry, node placements and materials;
                TextureLoader: loads images (files or bytes inside a model) with DirectXTex and generates mips;
                AssetCache: loads each model and texture once and uploads it through the renderer's GpuUploader
-               interface (no D3D12)
+               interface; Primitives: meshes made in code (the cube) (no D3D12)
 engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
                Allocator (D3D12MA), Buffer, DepthBuffer, Texture, UploadRing (per-frame upload memory),
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index), PipelineCache (PSOs built from a description and cached; the global
                root signature)
 engine/scene   Scene (entities with a transform and a mesh + material; Instantiate places a model, Extract fills
-               the RenderList), Camera and fly-camera controls (no D3D12)
+               the RenderList), Camera and fly-camera controls, Picking (the ray under a screen point) (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
                and material), InstanceChunks (how instance data is split into upload pages), RendererSettings

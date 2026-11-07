@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Every executable lands in build/<preset>/bin, next to the shared D3D12/ (Agility runtime)
-# and shaders/ folders, so all apps (sandbox, later bench) find them the same way.
+# shaders/ and data/ folders, so all apps (sandbox, later bench) find them the same way.
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
 # Tests run with `ctest --preset <preset>` after a build. Must be enabled in the top-level
@@ -34,5 +34,6 @@ add_subdirectory(engine/scene)
 add_subdirectory(engine/renderdata)
 add_subdirectory(engine/render)
 add_subdirectory(shaders)
+add_subdirectory(data)
 add_subdirectory(apps/sandbox)
 add_subdirectory(tests)

@@ -1,29 +1,26 @@
 #include <format>
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cwctype>
 #include <expected>
 #include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
-#include <system_error>
+#include <utility>
 #include <vector>
 
 #include "SandboxOptions.h"
+#include "SandboxScene.h"
 #include "assets/AssetCache.h"
-#include "assets/TextureLoader.h"
+#include "assets/Primitives.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
-#include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
-#include "core/Utf8.h"
 #include "core/Window.h"
 #include "core/Input.h"
 #include "core/Assert.h"
@@ -33,6 +30,7 @@
 #include "render/Renderer.h"
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
+#include "scene/Picking.h"
 #include "scene/Scene.h"
 
 using engine::core::LogError;
@@ -53,20 +51,6 @@ namespace {
     constexpr bool kValidationExpected = false;
 #endif
 
-    // The sandbox scene: a square grid of cubes below the origin (--count, default 20 x 20) and one cube
-    // spinning at the origin
-    constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
-    constexpr float kGridHeight = -4.0f;
-
-    // Side of the grid for --count: the smallest n with n * n >= count (64-bit, so the square cannot overflow)
-    uint32_t GridSide(uint32_t count) {
-        uint32_t side = 0;
-        while (uint64_t{side} * side < count) {
-            ++side;
-        }
-        return side;
-    }
-
     // The renderer's input for one frame, from the camera (scene and render do not know each other)
     engine::render::FrameView MakeFrameView(const engine::scene::Camera &camera, float aspectRatio) {
         engine::render::FrameView view{};
@@ -76,103 +60,12 @@ namespace {
         return view;
     }
 
-    // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
-    std::expected<engine::render::TextureData, engine::core::Error> MakeCheckerboard() {
-        constexpr uint32_t kSize = 256;
-        constexpr uint32_t kSquare = 32;
-        std::vector<std::byte> rgba8(size_t{kSize} * kSize * 4);
-        for (uint32_t y = 0; y < kSize; ++y) {
-            for (uint32_t x = 0; x < kSize; ++x) {
-                const bool light = (x / kSquare + y / kSquare) % 2 == 0;
-                const std::byte value{light ? uint8_t{220} : uint8_t{60}};
-                std::byte *pixel = &rgba8[(size_t{y} * kSize + x) * 4];
-                pixel[0] = value;
-                pixel[1] = value;
-                pixel[2] = value;
-                pixel[3] = std::byte{255};
-            }
-        }
-        return engine::assets::CreateTextureFromPixels(rgba8, kSize, kSize, engine::assets::TextureUsage::Diffuse);
-    }
-
-    // The grid's texture: the --texture file or the checkerboard. If loading fails, a warning and grey.
-    engine::render::TextureHandle CreateGridTexture(engine::render::Renderer &renderer, const SandboxOptions &options) {
-        const std::expected<engine::render::TextureData, engine::core::Error> texture =
-            options.texturePath
-                ? engine::assets::LoadTexture(*options.texturePath, engine::assets::TextureUsage::Diffuse)
-                : MakeCheckerboard();
-        if (!texture) {
-            LogWarning("Grid texture: {}. Using the grey fallback.", texture.error().message);
-            return renderer.UnloadedTexture();
-        }
-        const std::wstring name =
-            options.texturePath ? L"Grid/" + options.texturePath->filename().wstring() : L"Grid/Checkerboard";
-        return renderer.CreateTexture(*texture, name);
-    }
-
-    // Models are scaled so their largest side is this long, and stand this far apart in a row
-    constexpr float kModelSize = 8.0f;
-    constexpr float kModelSpacing = 10.0f;
-
-    // Every model file in the repository's assets/ folder (gitignored: models are not committed), sorted by path.
-    // Found from the executable (build/<preset>/bin), so it works from any working directory.
-    std::vector<std::filesystem::path> FindAssetModels() {
-        const std::filesystem::path root =
-            (engine::core::ExecutableDirectory() / L"../../../assets").lexically_normal();
-        std::vector<std::filesystem::path> models;
-        std::error_code ec;
-        for (auto it = std::filesystem::recursive_directory_iterator(root, ec);
-             !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-            std::wstring extension = it->path().extension().native();
-            std::ranges::transform(extension, extension.begin(),
-                                   [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-            if (extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx") {
-                models.push_back(it->path());
-            }
-        }
-        std::ranges::sort(models);
-        return models;
-    }
-
-    // Places the model in `path` on the grid at x = `x`, standing on it, scaled so its largest side is kModelSize.
-    // False, with a warning, if it cannot be loaded.
-    bool AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets, const std::filesystem::path &path,
-                  float x) {
-        using namespace DirectX;
-
-        const auto model = assets.LoadModel(path);
-        if (!model) {
-            LogWarning("Model: {}", model.error().message);
-            return false;
-        }
-        const engine::render::Aabb &bounds = (*model)->bounds;
-        const float extent =
-            std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
-        const float scale = kModelSize / extent;
-        // Row vectors: centre on the origin with the bottom at 0, scale, then lift onto the grid's top
-        // (the grid cubes reach up to kGridHeight + 1)
-        XMFLOAT4X4 world{};
-        XMStoreFloat4x4(&world, XMMatrixTranslation(-(bounds.min.x + bounds.max.x) / 2, -bounds.min.y,
-                                                    -(bounds.min.z + bounds.max.z) / 2) *
-                                    XMMatrixScaling(scale, scale, scale) *
-                                    XMMatrixTranslation(x, kGridHeight + 1.0f, 0.0f));
-        scene.Instantiate(**model, world);
-        LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}",
-                engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring()),
-                (*model)->parts.size(), extent, scale);
-        return true;
-    }
-
-    // Puts `paths` in a row along X, centred on the origin. Returns how many loaded.
-    size_t AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
-                     std::span<const std::filesystem::path> paths) {
-        size_t added = 0;
-        for (size_t i = 0; i < paths.size(); ++i) {
-            const float x = (static_cast<float>(i) - static_cast<float>(paths.size() - 1) / 2) * kModelSpacing;
-            added += AddModel(scene, assets, paths[i], x) ? 1 : 0;
-        }
-        return added;
-    }
+    // A file dropped on the window, and where: client-area pixels, (0, 0) at the top-left
+    struct DroppedFile {
+        std::filesystem::path path;
+        int32_t x = 0;
+        int32_t y = 0;
+    };
 
     struct RunResult {
         int exitCode = 0; // the window's
@@ -187,6 +80,7 @@ namespace {
         initTimer.Start();
 
         engine::core::Input input;
+        std::vector<DroppedFile> droppedFiles;
 
         engine::core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
 
@@ -197,6 +91,12 @@ namespace {
                 [&input](const engine::core::WindowMessage &message) {
                     input.HandleMessage(message);
                     return false; // let the window handle it as well
+                },
+            .onFilesDropped =
+                [&droppedFiles](std::span<const std::filesystem::path> paths, int32_t x, int32_t y) {
+                    for (const std::filesystem::path &path : paths) {
+                        droppedFiles.push_back({.path = path, .x = x, .y = y});
+                    }
                 },
         });
 
@@ -220,16 +120,18 @@ namespace {
         // What to draw: the textured grid (a stress test, submitted straight into the list) and the scene's
         // entities (a material is its texture for now). Both are rebuilt and uploaded every frame.
         engine::render::RenderList renderList; // this frame's dynamic objects
-        const engine::render::TextureHandle gridTexture = CreateGridTexture(renderer, options);
-        const engine::render::BatchKey gridKey{.mesh = renderer.TexturedCubeMesh(),
-                                               .material = {.index = gridTexture.index}};
+        // One cube mesh for the grid and the spinning cube, uploaded like any model
+        const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
+        const engine::render::TextureHandle gridTexture = sandbox::CreateGridTexture(renderer, options);
+        // Not const: an image dropped on the window replaces the grid's texture
+        engine::render::BatchKey gridKey{.mesh = cubeMesh, .material = {.index = gridTexture.index}};
         DirectX::XMFLOAT4X4 gridBase{};
-        DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
+        DirectX::XMStoreFloat4x4(&gridBase, DirectX::XMMatrixTranslation(0.0f, sandbox::kGridHeight, 0.0f));
         // Rounded up to a square: --count 50000 gives 224 x 224 = 50,176 cubes
-        const uint32_t gridSide = GridSide(options.gridCount.value_or(kDefaultGridCount));
+        const uint32_t gridSide = sandbox::GridSide(options.gridCount.value_or(kDefaultGridCount));
         LogInfo("Grid: {} x {} = {} cubes", gridSide, gridSide, uint64_t{gridSide} * gridSide);
         // engine::render::RenderList gridList;
-        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
+        // engine::render::SubmitGrid(gridList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing, sandbox::kGridSpacing);
         // const std::array staticLists{renderer.CreateStaticList(gridList, L"Grid/Instances")};
         // const size_t staticObjectCount = gridList.InstanceCount();
         const size_t staticObjectCount = 0;
@@ -244,15 +146,20 @@ namespace {
         if (options.modelPath) {
             modelPaths.push_back(*options.modelPath);
         } else if (!smokeTestFrames) {
-            modelPaths = FindAssetModels();
+            modelPaths = sandbox::FindAssetModels();
         }
-        const size_t modelsShown = AddModels(scene, assets, modelPaths);
+        const size_t modelsShown = sandbox::AddModels(scene, assets, modelPaths);
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
         DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
         std::optional<engine::scene::Entity> spinningCube;
         if (modelsShown == 0) {
-            spinningCube = scene.Add({.mesh = renderer.CubeMesh(), .material = {}}, spinningCubeWorld);
+            const engine::render::TextureHandle uvGradient = sandbox::CreateUvGradientTexture(renderer);
+            spinningCube = scene.Add({.mesh = cubeMesh, .material = {.index = uvGradient.index}}, spinningCubeWorld);
         }
+        // Dropped models continue the row to the right; with no model yet, they start next to the spinning cube
+        float nextModelX = modelsShown > 0
+                               ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
+                               : sandbox::kModelSpacing;
 
         engine::render::RendererSettings settings; // draw path toggled with I
 
@@ -282,6 +189,15 @@ namespace {
             }
 
             cameraController.Update(camera, input, frameTimer.DeltaSeconds());
+
+            // Between frames, so new meshes and textures go into the upload batch EndFrame submits first
+            for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
+                const engine::scene::Ray ray =
+                    engine::scene::ScreenRay(camera, static_cast<float>(drop.x), static_cast<float>(drop.y),
+                                             static_cast<float>(window.Width()), static_cast<float>(window.Height()));
+                sandbox::LoadDroppedFile(drop.path, engine::scene::IntersectHorizontalPlane(ray, sandbox::kGridTop),
+                                         renderer, assets, scene, nextModelX, gridKey);
+            }
 
             if (frameTimer.FpsUpdated()) {
                 const double fps = frameTimer.Fps();
@@ -315,9 +231,9 @@ namespace {
             }
 
             renderList.Clear();
-            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, kGridSpacing, kGridSpacing);
+            engine::render::SubmitGrid(renderList, gridKey, gridBase, gridSide, gridSide, sandbox::kGridSpacing,
+                                       sandbox::kGridSpacing);
             engine::scene::Extract(scene, renderList);
-
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
