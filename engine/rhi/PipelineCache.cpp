@@ -19,8 +19,7 @@ namespace engine::rhi {
     using core::ThrowIfFailed;
 
     namespace {
-        // FNV-1a, 64 bit: a simple, well-spread hash over bytes. Fields are added one by one, so struct padding
-        // never ends up in the hash.
+        // FNV-1a 64-bit hasher. Fields are added sequentially, ignoring struct padding bytes.
         class Hasher {
         public:
             void AddBytes(std::span<const std::byte> bytes) noexcept {
@@ -36,7 +35,7 @@ namespace engine::rhi {
                 AddBytes(std::as_bytes(std::span(&value, 1)));
             }
 
-            // The length first, so that "ab" + "c" and "a" + "bc" hash differently
+            // Length is added first to prevent collisions (e.g., "ab" + "c" vs "a" + "bc")
             template <typename Char> void AddString(std::basic_string_view<Char> text) noexcept {
                 Add(text.size());
                 AddBytes(std::as_bytes(std::span(text)));
@@ -52,8 +51,7 @@ namespace engine::rhi {
 
     PipelineCache::PipelineCache(NativeDevice *device, std::filesystem::path shaderDirectory)
         : m_device(device), m_shaderDirectory(std::move(shaderDirectory)) {
-        // The global root signature is defined in HLSL (shaders/common/root_signature.hlsli) and compiled by
-        // DXC into its own file, already validated and serialized: the device only deserializes it
+        // Defined in HLSL (shaders/common/root_signature.hlsli) and compiled by DXC into its own file
         const std::vector<std::byte> &rootSignature = Shader(L"rs_global.cso");
         ThrowIfFailed(m_device->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),
                                                     IID_PPV_ARGS(&m_rootSignature)));
@@ -144,14 +142,12 @@ namespace engine::rhi {
         const std::vector<std::byte> &vertexShader = Shader(desc.vertexShader);
         const std::vector<std::byte> *pixelShader = desc.pixelShader.empty() ? nullptr : &Shader(desc.pixelShader);
 
-        // CD3DX12 defaults: no blending; solid fill, back faces culled, clockwise = front;
-        // depth test LESS with depth writes on. The desc's settings change only what differs.
         D3D12_RASTERIZER_DESC rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
         rasterizer.CullMode = desc.cull == CullMode::None ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
         if (desc.depthFormat == DXGI_FORMAT_UNKNOWN) {
-            depthStencil.DepthEnable = FALSE; // no depth buffer bound
+            depthStencil.DepthEnable = FALSE;
         }
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC pipelineDesc{
@@ -161,18 +157,16 @@ namespace engine::rhi {
                                                                  .BytecodeLength = pixelShader->size()}
                                          : D3D12_SHADER_BYTECODE{},
             .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
-            .SampleMask = D3D12_DEFAULT_SAMPLE_MASK, // all samples
+            .SampleMask = D3D12_DEFAULT_SAMPLE_MASK,
             .RasterizerState = rasterizer,
             .DepthStencilState = depthStencil,
             .InputLayout = {.pInputElementDescs = desc.inputLayout.data(),
                             .NumElements = static_cast<UINT>(desc.inputLayout.size())},
             .PrimitiveTopologyType = desc.topology,
             .NumRenderTargets = static_cast<UINT>(desc.renderTargetFormats.size()),
-            // Must match the depth buffer; the debug layer checks it against the bound DSV when drawing (#615)
             .DSVFormat = desc.depthFormat,
             .SampleDesc = {.Count = 1, .Quality = 0},
         };
-        // The RTVs' formats (an sRGB view of the back buffer, for example), not the resources' formats
         for (size_t i = 0; i < desc.renderTargetFormats.size(); ++i) {
             pipelineDesc.RTVFormats[i] = desc.renderTargetFormats[i];
         }
@@ -189,7 +183,6 @@ namespace engine::rhi {
             return found->second;
         }
 
-        // Compiled shader bytecode (DXIL), written by the build to <exe dir>/shaders/<name>.cso
         auto bytecode = core::ReadBinaryFile(m_shaderDirectory / fileName);
         if (!bytecode) {
             throw std::runtime_error(std::format("Cannot load shader {}", bytecode.error().message));

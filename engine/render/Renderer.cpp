@@ -372,7 +372,7 @@ namespace engine::render {
 
         // Element of the current bucket's first object in the instance buffer (UploadInstances' order)
         uint32_t firstInstance = 0;
-        rhi::PipelineHandle currentPipeline; // none yet
+        rhi::PipelineHandle currentPipeline;
         for (const BatchBucket &bucket : list.Buckets()) {
             const GpuMesh &mesh = Mesh(bucket.key.mesh);
             // Switch PSOs only when needed: it costs CPU and GPU time
@@ -459,8 +459,6 @@ namespace engine::render {
     }
 
     void Renderer::CreatePipelines() {
-        // Every PSO draws into the back buffer's sRGB view and tests against the main depth buffer. The formats
-        // come from the classes that create those views, so a PSO can never disagree with them (#615).
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
         m_pipelineByFormat[static_cast<size_t>(VertexFormat::PositionColor)] = m_pipelines.Get({
