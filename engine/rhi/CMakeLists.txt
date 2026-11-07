@@ -21,6 +21,8 @@ add_library(engine_rhi STATIC
         FrameContext.cpp
         FrameContext.h
         GpuCopyable.h
+        PipelineCache.cpp
+        PipelineCache.h
         RhiCommon.h
         SwapChain.cpp
         SwapChain.h
