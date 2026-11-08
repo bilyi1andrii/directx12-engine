@@ -3,14 +3,21 @@
 #include <cmath>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <optional>
+#include <span>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "SandboxOptions.h"
+#include "SandboxScene.h"
+#include "assets/AssetCache.h"
 #include "common/AppChecks.h"
 #include "common/StressScene.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
+#include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
@@ -21,6 +28,8 @@
 #include "render/Renderer.h"
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
+#include "scene/Picking.h"
+#include "scene/Scene.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -28,6 +37,13 @@ using engine::core::LogInfo;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
+    // A dropped file and its drop point (client pixels, (0, 0) top-left)
+    struct DroppedFile {
+        std::filesystem::path path;
+        int32_t x = 0;
+        int32_t y = 0;
+    };
+
     // Creates the window and the renderer and runs the game loop until the window closes
     // (in a smoke test: after the requested number of frames). Everything it creates is
     // destroyed before it returns, so `validation` is complete afterwards.
@@ -36,6 +52,7 @@ namespace {
         initTimer.Start();
 
         engine::core::Input input;
+        std::vector<DroppedFile> droppedFiles;
 
         engine::core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
 
@@ -46,6 +63,12 @@ namespace {
                 [&input](const engine::core::WindowMessage &message) {
                     input.HandleMessage(message);
                     return false; // let the window handle it as well
+                },
+            .onFilesDropped =
+                [&droppedFiles](std::span<const std::filesystem::path> paths, int32_t x, int32_t y) {
+                    for (const std::filesystem::path &path : paths) {
+                        droppedFiles.push_back({.path = path, .x = x, .y = y});
+                    }
                 },
         });
 
@@ -66,14 +89,40 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // The textured grid (--count, --grid) and a vertex-colour cube spinning at the origin. The spinning cube is
+        // The textured grid (--count, --grid) and the scene's entities (models or a spinning cube). The scene is
         // uploaded every frame, the grid only in dynamic mode.
         engine::render::RenderList renderList; // this frame's dynamic objects
-        const engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
-                                            options.gridCount.value_or(engine::apps::kDefaultGridCount),
-                                            engine::apps::CreateGridTexture(renderer, options.texturePath));
-        const engine::render::BatchKey spinningCubeKey{.mesh = renderer.CubeMesh(), .material = {}};
+        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
+        const std::filesystem::path gridTexturePath =
+            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        // Not const: a dropped image replaces the grid texture
+        engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
+                                      options.gridCount.value_or(engine::apps::kDefaultGridCount),
+                                      engine::apps::CreateGridTexture(renderer, gridTexturePath));
+
+        // Destroyed before the renderer, which owns what the cache created
+        engine::assets::AssetCache assets(renderer);
+        engine::scene::Scene scene;
+        // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git); none: a spinning cube
+        std::vector<std::filesystem::path> modelPaths;
+        if (options.modelPath) {
+            modelPaths.push_back(*options.modelPath);
+        } else if (!smokeTestFrames) {
+            modelPaths = sandbox::FindAssetModels();
+        }
+        const size_t modelsShown = sandbox::AddModels(scene, assets, modelPaths);
         DirectX::XMFLOAT4X4 spinningCubeWorld{};
+        DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixIdentity());
+        std::optional<engine::scene::Entity> spinningCube;
+        if (modelsShown == 0) {
+            const engine::render::TextureHandle cubeTexture = sandbox::CreateSpinningCubeTexture(renderer);
+            spinningCube =
+                scene.Add({.mesh = grid.CubeMesh(), .material = {.index = cubeTexture.index}}, spinningCubeWorld);
+        }
+        // Where a model dropped on the sky goes: the end of the row
+        float nextModelX = modelsShown > 0
+                               ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
+                               : sandbox::kModelSpacing;
 
         engine::render::RendererSettings settings; // draw path toggled with I
 
@@ -104,13 +153,23 @@ namespace {
 
             cameraController.Update(camera, input, frameTimer.DeltaSeconds());
 
+            // Between frames: EndFrame submits their uploads before the frame
+            for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
+                const engine::scene::Ray ray =
+                    engine::scene::ScreenRay(camera, static_cast<float>(drop.x), static_cast<float>(drop.y),
+                                             static_cast<float>(window.Width()), static_cast<float>(window.Height()));
+                sandbox::LoadDroppedFile(drop.path,
+                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
+                                         assets, scene, nextModelX, grid);
+            }
+
             if (frameTimer.FpsUpdated()) {
                 const double fps = frameTimer.Fps();
-                // The grid plus the spinning cube; the scene does not change size
+                // The grid plus the scene's entities
                 window.SetTitle(std::format(
                     L"D3D12 Engine - {:.1f} FPS ({:.2f} ms) - {}, {} objects", fps, 1000.0 / fps,
                     settings.drawPath == engine::render::DrawPath::Instanced ? L"instanced" : L"non-instanced",
-                    grid.ObjectCount() + 1));
+                    grid.ObjectCount() + scene.EntityCount()));
             }
 
             // Everything above has read this frame's input; clear the
@@ -125,16 +184,19 @@ namespace {
                 ::WaitMessage();
                 continue;
             }
-            // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
-            // the angle precise however long the program runs.
-            const float angle =
-                DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
-            DirectX::XMStoreFloat4x4(
-                &spinningCubeWorld, DirectX::XMMatrixRotationAxis(DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
+            if (spinningCube) {
+                // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube. fmod in double keeps
+                // the angle precise however long the program runs.
+                const float angle =
+                    DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
+                DirectX::XMStoreFloat4x4(&spinningCubeWorld, DirectX::XMMatrixRotationAxis(
+                                                                 DirectX::XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle));
+                scene.SetWorld(*spinningCube, spinningCubeWorld);
+            }
 
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
-            renderList.Add(spinningCubeKey, spinningCubeWorld);
+            engine::scene::Extract(scene, renderList);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);

@@ -3,11 +3,13 @@
 # Must never link engine_rhi, d3d12 or dxgi.
 
 add_library(engine_renderdata STATIC
+        GpuUploader.h
         Handles.h
         InstanceChunks.cpp
         InstanceChunks.h
         MaterialDesc.h
         MeshData.h
+        Model.h
         ModelData.h
         RendererSettings.h
         RenderList.cpp

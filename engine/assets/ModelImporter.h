@@ -12,6 +12,8 @@ namespace engine::assets {
     // submesh is placed, materials and the textures stored inside the file. Textures in separate files are not
     // loaded, only their paths are recorded.
     [[nodiscard]] std::expected<render::ModelData, core::Error> ImportModel(const std::filesystem::path &path);
+
+    [[nodiscard]] bool IsModelFile(const std::filesystem::path &path);
 } // namespace engine::assets
 
 #endif // D3D12_ENGINE_MODELIMPORTER_H
