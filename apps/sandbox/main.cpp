@@ -41,12 +41,12 @@ using engine::core::LogInfo;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
-    // Where an object is: the translation row of its world matrix
+    // The object's position in the world
     DirectX::XMFLOAT3 ObjectPosition(const engine::scene::SceneObject &object) {
         return {object.world._41, object.world._42, object.world._43};
     }
 
-    // Moves an object to `position` and keeps its rotation and scale
+    // Moves an object to `position`, keeping its rotation and scale
     void MoveObject(engine::scene::Scene &scene, engine::scene::ObjectId id, const DirectX::XMFLOAT3 &position) {
         DirectX::XMFLOAT4X4 world = scene.Object(id).world;
         world._41 = position.x;
@@ -134,17 +134,16 @@ namespace {
         engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
 
-        // The textured grid (--count, --grid), as scene objects like everything else
+        // The textured grid (--count, --grid)
         const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
-        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
+        // Without --texture, the grid uses the sandbox's texture from data/
         const std::filesystem::path gridTexturePath =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
         const sandbox::GridObjects grid =
             sandbox::AddGrid(scene, cubeMesh, engine::apps::CreateGridTexture(renderer, gridTexturePath),
                              options.gridMode.value_or(engine::apps::GridMode::Dynamic),
                              options.gridCount.value_or(engine::apps::kDefaultGridCount));
-        // Static objects go into GPU memory once, so none may be added after this. Everything else is uploaded every
-        // frame.
+        // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
         std::vector<engine::render::StaticListHandle> staticLists;
         if (grid.mode == engine::apps::GridMode::Static) {
             engine::render::RenderList staticObjects;
@@ -165,9 +164,7 @@ namespace {
                                ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
                                : sandbox::kModelSpacing;
 
-        // Cubes the user can select and move, next to the models: a textured cube spinning at the origin (only
-        // without models, which stand there) and three plain-coloured cubes around it. A material is its albedo
-        // texture for now (Handles.h).
+        // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
         const auto addCube = [&scene, cubeMesh](std::string name, engine::render::TextureHandle texture, float x,
                                                 float z) {
             const engine::render::ModelPart part = sandbox::CubePart(cubeMesh, texture);
@@ -179,13 +176,13 @@ namespace {
         if (modelsShown == 0) {
             spinningCube = addCube("Spinning cube", sandbox::CreateSpinningCubeTexture(renderer), 0.0f, 0.0f);
         }
-        // Models fill z in [-kModelSize / 2, kModelSize / 2] along the row: the cubes go behind it, not inside a model
+        // With models loaded, the cubes stand behind the row so that they do not end up inside a model
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
         const engine::scene::ObjectId orangeCube =
             addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, cubesZ);
         addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, cubesZ);
         addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, cubesZ + 5.0f);
-        // The smoke test selects a movable cube, so that the gizmo runs in every frame
+        // The smoke test selects a cube so that the gizmo runs every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
             selected = orangeCube;
@@ -247,30 +244,28 @@ namespace {
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
             const engine::render::FrameView frameView =
                 engine::apps::MakeFrameView(camera, viewportPx.x / viewportPx.y);
-            // The ray through the centre of a client-area pixel
+            // The camera ray through the centre of a pixel
             const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
                 return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
                                                   viewportPx);
             };
             if (spinningCube) {
                 using namespace DirectX;
-                // 90 degrees per second around (0, 1, 1), like the step-1 cube. fmod in double keeps the angle precise
-                // however long the program runs.
+                // 90 degrees per second. fmod in double keeps the angle precise in long runs.
                 const float angle =
                     XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
                 const XMFLOAT3 position = ObjectPosition(scene.Object(*spinningCube));
                 XMFLOAT4X4 world{};
-                // Row vectors: spin first, then move, so it spins around its own (moved) centre
+                // Spin first, then move, so it spins around its own centre
                 XMStoreFloat4x4(&world, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle) *
                                             XMMatrixTranslation(position.x, position.y, position.z));
                 scene.SetObjectWorld(*spinningCube, world);
             }
 
-            // The gizmo on the selected object, unless it is static; it moves the object while a handle is dragged
+            // Show the gizmo on the selected object, unless it is static
             if (selected && scene.Object(*selected).mobility == engine::scene::Mobility::Movable) {
                 const DirectX::XMFLOAT3 position = ObjectPosition(scene.Object(*selected));
-                // The position only: the gizmo's axes are the world's (ImGuizmo::WORLD), however the object is
-                // turned or scaled
+                // Position only, so the arrows follow the world axes however the object is turned
                 DirectX::XMFLOAT4X4 gizmoWorld{};
                 DirectX::XMStoreFloat4x4(&gizmoWorld, DirectX::XMMatrixTranslation(position.x, position.y, position.z));
                 if (ui.TranslateGizmo(frameView.view, frameView.projection, gizmoWorld)) {

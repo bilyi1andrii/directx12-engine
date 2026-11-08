@@ -155,7 +155,7 @@ TEST(AssetCache, ModelHasAPartPerSubmeshAndItsBounds) {
     EXPECT_NEAR(model.parts[1].bounds.max.y, 2.0f, 1e-5f);
 }
 
-// Picking transforms a part's box with the part's world, so the node transform must not be in the box already
+// A part's box must not include the node transform: picking applies that separately
 TEST(AssetCache, PartBoundsAreInTheSubmeshsOwnSpace) {
     std::string text(kEmbeddedTextureGltf);
     const std::string_view node = R"({"mesh": 0})";

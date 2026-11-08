@@ -14,7 +14,7 @@ namespace engine::scene {
         const XMMATRIX fromPivot = XMMatrixTranslation(-pivot.x, -pivot.y, -pivot.z);
         const XMMATRIX objectWorld = XMLoadFloat4x4(&world);
         for (const render::ModelPart &part : parts) {
-            // Row vectors: a point goes through the part's transform first, then the pivot, then the object's world
+            // Row vectors: first the part's transform, then the pivot, then the object's world
             const XMMATRIX toObject = XMLoadFloat4x4(&part.transform) * fromPivot;
             EntityPart entityPart{.bounds = part.bounds};
             XMStoreFloat4x4(&entityPart.toObject, toObject);

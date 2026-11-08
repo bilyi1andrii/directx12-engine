@@ -62,7 +62,7 @@ namespace sandbox {
         XMFLOAT4X4 base{};
         XMStoreFloat4x4(&base, XMMatrixTranslation(0.0f, engine::apps::kGridHeight, 0.0f));
 
-        // SubmitGrid knows where each cube goes, so the layout stays the same as the bench's
+        // SubmitGrid computes the positions, so the layout matches the bench's
         engine::render::RenderList placed;
         engine::render::SubmitGrid(placed, {.mesh = part.mesh, .material = part.material}, base, grid.side, grid.side,
                                    engine::apps::kGridSpacing, engine::apps::kGridSpacing);
@@ -106,12 +106,12 @@ namespace sandbox {
         const float extent =
             std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
         const float scale = kModelSize / extent;
-        // The pivot is the bottom centre: world scales the model around it and stands it at (x, kGridTop, z)
+        // The pivot is the model's bottom centre, so the model stands on the grid at (x, z)
         const XMFLOAT3 pivot{(bounds.min.x + bounds.max.x) / 2, bounds.min.y, (bounds.min.z + bounds.max.z) / 2};
         XMFLOAT4X4 world{};
         XMStoreFloat4x4(&world,
                         XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, engine::apps::kGridTop, z));
-        // Folder/file: model files are often all named scene.gltf
+        // Include the folder: model files are often all named scene.gltf
         std::string name = engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring());
         LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}", name, (*model)->parts.size(), extent,
                 scale);

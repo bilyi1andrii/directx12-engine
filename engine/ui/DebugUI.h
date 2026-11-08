@@ -60,7 +60,7 @@ namespace engine::ui {
         [[nodiscard]] bool WantsMouse() const;
         [[nodiscard]] bool WantsKeyboard() const;
 
-        // WantsMouse for looking around: the cursor merely being over a gizmo handle does not count
+        // Like WantsMouse, for turning the camera: hovering a gizmo handle does not count
         [[nodiscard]] bool WantsMouseForCamera() const;
 
         // The translate gizmo (ImGuizmo) on the object placed by `world`: arrows along the world X/Y/Z axes, plus
@@ -77,11 +77,10 @@ namespace engine::ui {
         // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
-        // The "Selection" window for a selected object: its name and position. A movable object's position can be
-        // edited in place, and then this returns true. A static object's is only shown.
+        // The "Selection" window for a selected object. Returns true if the user edited `position` (movable only).
         [[nodiscard]] bool ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable);
 
-        // The "Selection" window while nothing is selected: says how to select something
+        // The "Selection" window when nothing is selected
         void ShowEmptySelectionWindow();
 
         // Ends the UI frame and returns what to draw, valid until the next NewFrame
@@ -90,9 +89,9 @@ namespace engine::ui {
     private:
         ImGuiContext *m_context = nullptr;
         float m_dpiScale = 1.0f;
-        bool m_gizmoDrawn = false;            // this frame's gizmo is on screen (false for an object behind the camera)
-        bool m_gizmoHovered = false;          // ... and the cursor is over a handle, without dragging it
-        bool m_gizmoHoveredLastFrame = false; // when ImGuizmo claimed the mouse that NewFrame reports
+        bool m_gizmoDrawn = false;            // the gizmo is on screen this frame
+        bool m_gizmoHovered = false;          // the cursor is over a handle, not dragging it
+        bool m_gizmoHoveredLastFrame = false; // last frame's value: ImGuizmo's claim on the mouse lags one frame
     };
 } // namespace engine::ui
 

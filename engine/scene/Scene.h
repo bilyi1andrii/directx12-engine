@@ -28,13 +28,13 @@ namespace engine::scene {
         render::MaterialHandle material;
     };
 
-    // How an entity relates to its object: for recomputing its world when the object moves, and for picking
+    // What an entity needs to follow its object and to be picked
     struct EntityPart {
-        DirectX::XMFLOAT4X4 toObject{}; // the part's transform, measured from the object's pivot
-        render::Aabb bounds;            // around the mesh, in the mesh's own space
+        DirectX::XMFLOAT4X4 toObject{}; // the part's place relative to the object's pivot
+        render::Aabb bounds;            // box around the mesh, in mesh space
     };
 
-    // Static objects never move and can live in GPU memory (Renderer::CreateStaticList); they can still be selected
+    // Static objects never move, so they are uploaded once; they can still be selected
     enum class Mobility : uint8_t { Static, Movable };
 
     // An index into Scene::Objects()
@@ -48,25 +48,25 @@ namespace engine::scene {
     struct SceneObject {
         std::string name;
         Mobility mobility = Mobility::Movable;
-        DirectX::XMFLOAT4X4 world{}; // places the pivot: the translation row is where the object is
-        // Its parts are the entities firstEntity .. firstEntity + entityCount - 1
+        DirectX::XMFLOAT4X4 world{}; // its translation row is where the object stands
+        // Its parts: entityCount entities, starting at firstEntity
         uint32_t firstEntity = 0;
         uint32_t entityCount = 0;
     };
 
-    // Objects, and their parts as entities in parallel arrays: entity i is Transforms()[i] + Renderers()[i] +
-    // Parts()[i]. Nothing is removed yet, so an ObjectId stays valid as long as the scene.
+    // Objects and their parts (entities). Entity i is Transforms()[i] + Renderers()[i] + Parts()[i]. Nothing is removed
+    // yet, so an ObjectId stays valid as long as the scene.
     class Scene {
     public:
-        // Adds an object with one entity per part, in part order. `pivot` is the point of the parts' common space
-        // that `world` places: an entity's world is part.transform * translation(-pivot) * world.
+        // Adds an object with one entity per part. `world` places `pivot`, a point in the parts' shared space, so an
+        // entity's world is part.transform * translation(-pivot) * world.
         ObjectId AddObject(std::string name, std::span<const render::ModelPart> parts, const DirectX::XMFLOAT4X4 &world,
                            Mobility mobility, DirectX::XMFLOAT3 pivot = {});
 
         // Moves a Movable object and all its parts
         void SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world);
 
-        // Draws every part of a Movable object with `material` (a static object's draws are already in GPU memory)
+        // Gives every part of a Movable object this material (a static object's draws are already on the GPU)
         void SetObjectMaterial(ObjectId id, render::MaterialHandle material);
 
         [[nodiscard]] const SceneObject &Object(ObjectId id) const;
@@ -84,7 +84,7 @@ namespace engine::scene {
         std::vector<EntityPart> m_parts;
     };
 
-    // Adds the entities of every object with this `mobility` to `list`, batched by mesh and material. No culling yet.
+    // Adds every object with this `mobility` to `list`, batched by mesh and material. No culling yet.
     void Extract(const Scene &scene, render::RenderList &list, Mobility mobility);
 } // namespace engine::scene
 

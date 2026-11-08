@@ -13,24 +13,23 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg
 
 namespace engine::ui {
     namespace {
-        // Distance of the panels from the window's edges, before DPI scaling
+        // Gap between the panels and the window's edges, before DPI scaling
         constexpr float kPanelMargin = 10.0f;
 
-        // The window is per-monitor DPI aware, so nothing scales the UI for us: 1.0 at 96 DPI, 1.5 at 144 DPI
+        // Windows does not scale the UI for us: 1.0 at 96 DPI, 1.5 at 144 DPI
         void ApplyDpiScale(float dpiScale) {
-            // ScaleAllSizes multiplies what is already there, so always start from a fresh, unscaled style
+            // ScaleAllSizes multiplies the current sizes, so start from a fresh style
             ImGuiStyle style;
             ImGui::StyleColorsDark(&style);
             style.ScaleAllSizes(dpiScale); // paddings, rounding, borders
-            style.FontScaleDpi = dpiScale; // fonts are rasterized at the scaled size (no blurry upscaling)
+            style.FontScaleDpi = dpiScale; // sharp text at the new size
             ImGui::GetStyle() = style;
         }
 
         // Must be followed by ImGui::End(), whatever it returns
         bool BeginSelectionWindow() {
             const float margin = kPanelMargin * ImGui::GetStyle().FontScaleDpi;
-            // Top-right corner, away from the objects in the middle of the view. Set every frame: the window's width
-            // changes with its text, and pivot (1, 0) keeps its right edge at this position.
+            // Keeps the window in the top-right corner. Set every frame because its width changes with its text.
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - margin, margin), ImGuiCond_Always,
                                     ImVec2(1.0f, 0.0f));
             return ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
@@ -68,7 +67,7 @@ namespace engine::ui {
 
     void DebugUI::NewFrame() {
         ImGui_ImplWin32_NewFrame();
-        // The window may have moved to a monitor with another scale. Before NewFrame, which uses the style's font scale.
+        // The window may have moved to another monitor. Before NewFrame, which reads the font scale.
         const float dpiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(ImGui::GetMainViewport()->PlatformHandleRaw);
         if (dpiScale != m_dpiScale) {
             m_dpiScale = dpiScale;
@@ -89,8 +88,7 @@ namespace engine::ui {
     }
 
     bool DebugUI::WantsMouseForCamera() const {
-        // Over a handle, ImGuizmo claims the mouse for the next frame whichever button is down. That is meant for a
-        // click on the handle; turning the camera with the right button should carry on.
+        // ImGuizmo claims the mouse whenever the cursor is over a handle. That should not stop the camera from turning.
         return ImGui::GetIO().WantCaptureMouse && !m_gizmoHoveredLastFrame;
     }
 
@@ -102,7 +100,7 @@ namespace engine::ui {
                                  DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
-        // Before Manipulate, which moves `world`: the object's position in clip space
+        // Read before Manipulate, which changes `world`
         const float clipZ = XMVectorGetZ(XMVector3Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
                                                             XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection)));
         // The whole client area, in the pixels ImGui uses (the same as the back buffer)
@@ -115,8 +113,8 @@ namespace engine::ui {
         // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection and [0, 1] depth.
         const bool moved = ImGuizmo::Manipulate(&view.m[0][0], &projection.m[0][0], ImGuizmo::TRANSLATE,
                                                 ImGuizmo::WORLD, &world.m[0][0]);
-        // ImGuizmo draws nothing for an object behind the camera, but IsOver() still reports handles around the
-        // position mirrored through the screen's centre. The same test as the one Manipulate stops at.
+        // For an object behind the camera ImGuizmo draws nothing, but IsOver() can still be true. Manipulate uses this
+        // same check.
         constexpr float kBehindCamera = 0.001f;
         m_gizmoDrawn = clipZ >= kBehindCamera || ImGuizmo::IsUsing();
         m_gizmoHovered = m_gizmoDrawn && !ImGuizmo::IsUsing() && ImGuizmo::IsOver();

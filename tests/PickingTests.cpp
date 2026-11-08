@@ -117,7 +117,7 @@ TEST(Picking, NearerBoxHasTheSmallerDistance) {
     EXPECT_FALSE(IntersectCube(ray, ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, -20.0f))).has_value());
 }
 
-// A box of a part need not be centred: x in [2, 4], moved to z in [4, 6]
+// An off-centre box: x in [2, 4], moved to z in [4, 6]
 TEST(Picking, BoxCornersAreTheSlabs) {
     const Aabb box{.min = {2.0f, -1.0f, -1.0f}, .max = {4.0f, 1.0f, 1.0f}};
     const XMFLOAT4X4 world = ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, 5.0f));
@@ -129,7 +129,7 @@ TEST(Picking, BoxCornersAreTheSlabs) {
     EXPECT_FALSE(IntersectRayBox({.origin = {0.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}, world, box));
 }
 
-// A flat part (a floor plane at y = 0) is hit from above without any padding
+// A flat floor at y = 0 is hit from above
 TEST(Picking, FlatBoxIsHitWhereTheRayCrossesIt) {
     const Aabb floor{.min = {-1.0f, 0.0f, -1.0f}, .max = {1.0f, 0.0f, 1.0f}};
     const XMFLOAT4X4 world = ToFloat4x4(XMMatrixIdentity());
@@ -143,8 +143,7 @@ TEST(Picking, FlatBoxIsHitWhereTheRayCrossesIt) {
     EXPECT_FALSE(IntersectRayBox({.origin = {-5.0f, 1.0f, 0.0f}, .direction = {1.0f, 0.0f, 0.0f}}, world, floor));
 }
 
-// The ray hits a part of the static model, in front of the cube added first: the whole model is selected.
-// The model's other part, off to the side, is where a wrong entity -> object link would show.
+// The ray hits one part of the model, in front of the cube: the whole model is selected
 TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     Scene scene;
     AddCube(scene, XMMatrixTranslation(0.0f, 0.0f, 10.0f));
@@ -158,7 +157,7 @@ TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     EXPECT_FALSE(Pick(scene, {.origin = {9.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}).has_value());
 }
 
-// Standing inside a large part's box, a click on empty space selects nothing, and a click on another object selects it
+// Inside a large box, that box is ignored: empty space selects nothing, another object is selected
 TEST(Pick, BoxesTheRayStartsInsideDoNotCount) {
     Scene scene;
     AddCube(scene, XMMatrixScaling(20.0f, 20.0f, 20.0f));

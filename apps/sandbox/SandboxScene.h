@@ -16,24 +16,24 @@
 #include "render/Renderer.h"
 #include "scene/Scene.h"
 
-// The sandbox's scene: a cube grid laid out like the bench's (common/StressScene), models in a row, or a spinning cube
-// if no model is loaded. All of them are scene objects.
+// The sandbox's scene objects: a cube grid laid out like the bench's, models in a row, or a spinning cube if there are
+// no models.
 namespace sandbox {
     inline constexpr float kModelSize = 8.0f;
     inline constexpr float kModelSpacing = 10.0f;
 
-    // The grid's cubes: side * side consecutive scene objects, starting at firstObject
+    // The grid's cubes in the scene: side * side objects, one after another from firstObject
     struct GridObjects {
         engine::apps::GridMode mode = engine::apps::GridMode::Dynamic;
         uint32_t side = 0;
         uint32_t firstObject = 0;
     };
 
-    // A scene-object part: the cube mesh drawn with `texture` (a material is its albedo texture for now, Handles.h)
+    // A part that draws the cube mesh with `texture`
     [[nodiscard]] engine::render::ModelPart CubePart(engine::render::MeshHandle cube,
                                                      engine::render::TextureHandle texture);
 
-    // Adds `count` cubes (rounded up to a square) to the scene: Movable in dynamic mode, Static in static mode
+    // Adds `count` cubes (rounded up to a square): movable in dynamic mode, fixed in static mode
     [[nodiscard]] GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
                                       engine::render::TextureHandle texture, engine::apps::GridMode mode,
                                       uint32_t count);

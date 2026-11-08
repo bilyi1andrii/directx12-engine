@@ -33,6 +33,6 @@ engine_copy_asan_runtime(sandbox)
 # instead of a ctest run that never ends.
 add_test(NAME sandbox_smoke COMMAND sandbox --smoke-test 120)
 set_tests_properties(sandbox_smoke PROPERTIES TIMEOUT 30)
-# The same with the grid in a static list: its objects stay in the scene for picking, but are drawn from GPU memory
+# The same smoke test with a static grid
 add_test(NAME sandbox_smoke_static COMMAND sandbox --smoke-test 120 --grid static)
 set_tests_properties(sandbox_smoke_static PROPERTIES TIMEOUT 30)

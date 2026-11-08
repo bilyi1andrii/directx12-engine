@@ -38,7 +38,7 @@ namespace engine::scene {
         XMVECTOR determinant;
         const XMMATRIX toLocal = XMMatrixInverse(&determinant, XMLoadFloat4x4(&world));
         if (std::abs(XMVectorGetX(determinant)) < std::numeric_limits<float>::min()) {
-            return std::nullopt; // the world matrix flattens everything, so there is no local space to go back to
+            return std::nullopt; // a scale of 0 cannot be inverted
         }
         XMFLOAT3 origin{};
         XMFLOAT3 direction{};
@@ -50,7 +50,7 @@ namespace engine::scene {
         const std::array highs{box.max.x, box.max.y, box.max.z};
 
         // Slab test: the box is where the ray is between both planes of every axis, so intersect the t intervals
-        // of the three slabs [low, high]. Starting at 0: points behind the ray's origin do not count.
+        // of the three slabs [low, high]. Starting at 0 ignores everything behind the ray.
         float tEnter = 0.0f;
         float tExit = std::numeric_limits<float>::max();
         for (size_t axis = 0; axis < origins.size(); ++axis) {
@@ -85,7 +85,7 @@ namespace engine::scene {
             const SceneObject &object = objects[index];
             for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
                 const std::optional<float> distance = IntersectRayBox(ray, transforms[i].world, parts[i].bounds);
-                // Distance 0: the ray starts inside this box, which does not count
+                // Distance 0 means the ray starts inside this box: skip it
                 if (distance && *distance > 0.0f && *distance < nearestDistance) {
                     nearest = ObjectId{.index = index};
                     nearestDistance = *distance;

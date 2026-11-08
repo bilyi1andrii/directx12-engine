@@ -17,7 +17,7 @@
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
-// The cube grid's layout and options, shared by the sandbox and the bench, and the bench's StressGrid
+// Cube-grid settings shared by the sandbox and the bench, and the bench's grid
 namespace engine::apps {
     // Length of the grid's camera path in frames, the same as the bench's default --frames
     inline constexpr uint32_t kStressPathFrames = 1000;
