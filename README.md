@@ -14,10 +14,11 @@ descriptor heap, a pipeline cache), one global root signature defined in HLSL, a
 in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the
 `RenderList` of objects batched by mesh and material, plus the texture, mesh, material and model types), per-frame
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
-grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Models from
+grid), a benchmark app that draws a grid of copies of any model and writes per-frame CPU times to CSV, unit tests and
+automated smoke tests. Models from
 files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
 vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved, rotated and scaled
-with a gizmo (with `--grid static` the grid's cubes can only be selected). Next: drawing Sponza.
+with a gizmo (with `--grid static` the grid's cubes can only be selected). Next: lighting.
 
 ## Requirements
 
@@ -128,10 +129,12 @@ Only Debug builds have the debug layer. In Release the test only checks that the
 
 ### Benchmark
 
-`bench.exe` measures how fast the engine renders a fixed scene, so changes (and later the DX11 engine) can be
-compared on the same workload. It flies a camera around the cube grid for a few seconds in fullscreen and closes by
-itself. The CPU time of every frame goes to `results/dx12/<scene>/<date-time>/frames.csv`, the settings, GPU and
-driver to `run.txt` next to it.
+`bench.exe` measures how the engine scales with the number of objects, so changes (and later the DX11 engine) can be
+compared on the same workload. It draws a square grid of copies of one model, flies a camera around it for a few
+seconds in fullscreen and closes by itself. The model is a cube, or any model file with `--model FILE --count COPIES`;
+every copy is scaled to the size of a cube. The CPU time of every frame goes to
+`results/dx12/<name>/<date-time>/frames.csv`, where `<name>` is `cube` or the model's folder and file name. The
+settings, the size of the run (parts, instances, triangles), GPU and driver go to `run.txt` next to it.
 
 Run it from the `x64-release` build: the other builds are slower, so their numbers can't be compared.
 
@@ -166,7 +169,7 @@ build/x64-debug/bin/
 ```
 apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture, --model; the grid, models and
                dropped files in SandboxScene)
-apps/bench     benchmark: renders a fixed scene and writes per-frame times to CSV
+apps/bench     benchmark: renders a grid of copies of a model and writes per-frame times to CSV
 apps/common    code both apps share (the grid's layout and texture, option parsing, end-of-run checks)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 data/          small runtime files committed to git (textures/Endstone.jpg, the grid's texture); copied to bin/data/
