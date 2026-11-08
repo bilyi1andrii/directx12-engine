@@ -179,7 +179,7 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index), PipelineCache (PSOs built from a description and cached; the global
                root signature)
-engine/scene   Scene (entities with a transform and a mesh + material; Instantiate places a model, Extract fills
+engine/scene   Scene (entities with a transform and a mesh + material; AddObject places a model, Extract fills
                the RenderList), Camera, fly-camera controls, scripted camera paths and Picking (the ray under a
                screen point) (no D3D12)
 engine/renderdata

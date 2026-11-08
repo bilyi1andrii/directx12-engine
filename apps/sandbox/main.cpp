@@ -312,7 +312,7 @@ namespace {
 
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
-            engine::scene::Extract(scene, renderList);
+            engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
             for (const MovableObject &object : objects) {
                 renderList.Add(object.key, WorldMatrix(object, spinAngle));
             }
