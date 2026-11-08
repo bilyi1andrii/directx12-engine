@@ -5,6 +5,7 @@ add_executable(engine_tests
         main.cpp
         AssetCacheTests.cpp
         BenchOutputTests.cpp
+        CameraControllerTests.cpp
         CameraPathTests.cpp
         CameraTests.cpp
         FileTests.cpp
