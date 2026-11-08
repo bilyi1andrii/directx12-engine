@@ -92,8 +92,8 @@ namespace engine::ui {
         float m_dpiScale = 1.0f;
         enum class GizmoMode : uint8_t { Translate, Rotate, Scale };
         GizmoMode m_gizmoMode = GizmoMode::Translate; // W/E/R or the Selection window
-        bool m_gizmoDrawn = false;            // the gizmo is on screen this frame
-        bool m_gizmoHovered = false;          // the cursor is over a handle, not dragging it
+        bool m_gizmoDrawn = false;                    // the gizmo is on screen this frame
+        bool m_gizmoHovered = false;                  // the cursor is over a handle, not dragging it
         bool m_gizmoHoveredLastFrame = false; // last frame's value: ImGuizmo's claim on the mouse lags one frame
     };
 } // namespace engine::ui
