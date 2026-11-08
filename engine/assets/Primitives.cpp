@@ -1,9 +1,13 @@
 #include "assets/Primitives.h"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include <DirectXMath.h>
+
+#include "assets/TextureLoader.h"
 
 namespace engine::assets {
     render::MeshData MakeCube() {
@@ -44,5 +48,23 @@ namespace engine::assets {
         }
         cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
         return cube;
+    }
+
+    std::expected<render::TextureData, core::Error> MakeCheckerboard() {
+        constexpr uint32_t kSize = 256;
+        constexpr uint32_t kSquare = 32;
+        std::vector<std::byte> rgba8(size_t{kSize} * kSize * 4);
+        for (uint32_t y = 0; y < kSize; ++y) {
+            for (uint32_t x = 0; x < kSize; ++x) {
+                const bool light = (x / kSquare + y / kSquare) % 2 == 0;
+                const std::byte value{light ? uint8_t{220} : uint8_t{60}};
+                std::byte *pixel = &rgba8[(size_t{y} * kSize + x) * 4];
+                pixel[0] = value;
+                pixel[1] = value;
+                pixel[2] = value;
+                pixel[3] = std::byte{255};
+            }
+        }
+        return CreateTextureFromPixels(rgba8, kSize, kSize, TextureUsage::Diffuse);
     }
 } // namespace engine::assets

@@ -12,7 +12,7 @@
 #include <DirectXMath.h>
 
 #include "assets/AssetCache.h"
-#include "common/StressScene.h"
+#include "common/GridSetup.h"
 #include "render/Renderer.h"
 #include "scene/Scene.h"
 
@@ -29,12 +29,8 @@ namespace sandbox {
         uint32_t firstObject = 0;
     };
 
-    // A part that draws the cube mesh with `texture`
-    [[nodiscard]] engine::render::ModelPart CubePart(engine::render::MeshHandle cube,
-                                                     engine::render::TextureHandle texture);
-
     // Adds `count` cubes (rounded up to a square): movable in dynamic mode, fixed in static mode
-    [[nodiscard]] GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
+    [[nodiscard]] GridObjects AddGrid(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                                       engine::render::TextureHandle texture, engine::apps::GridMode mode,
                                       uint32_t count);
 

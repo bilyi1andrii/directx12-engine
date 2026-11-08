@@ -77,10 +77,9 @@ namespace engine::bench {
         return std::format("{:%Y%m%d-%H%M%S}", local);
     }
 
-    std::expected<std::filesystem::path, std::string> WriteResults(const std::filesystem::path &outDir,
-                                                                   std::string_view scene, std::string_view timestamp,
-                                                                   std::span<const FrameTiming> timings,
-                                                                   std::span<const RunField> fields) {
+    std::expected<std::filesystem::path, std::string>
+    WriteResults(const std::filesystem::path &outDir, const std::filesystem::path &scene, std::string_view timestamp,
+                 std::span<const FrameTiming> timings, std::span<const RunField> fields) {
         const std::expected<std::filesystem::path, std::string> folder =
             CreateNewFolder(outDir / kEngineName / scene / timestamp);
         if (!folder) {

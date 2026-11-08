@@ -14,7 +14,6 @@
 #include <DirectXMath.h>
 
 #include "assets/ModelImporter.h"
-#include "assets/Primitives.h"
 #include "assets/TextureLoader.h"
 #include "core/Error.h"
 #include "core/File.h"
@@ -47,15 +46,11 @@ namespace sandbox {
         return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
     }
 
-    engine::render::ModelPart CubePart(engine::render::MeshHandle cube, engine::render::TextureHandle texture) {
-        return {.mesh = cube, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
-    }
-
-    GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
+    GridObjects AddGrid(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                         engine::render::TextureHandle texture, engine::apps::GridMode mode, uint32_t count) {
         using namespace DirectX;
 
-        const engine::render::ModelPart part = CubePart(cube, texture);
+        const engine::render::Model &cube = assets.CubeModel(texture);
         const GridObjects grid{.mode = mode,
                                .side = engine::apps::GridSide(count),
                                .firstObject = static_cast<uint32_t>(scene.Objects().size())};
@@ -64,13 +59,13 @@ namespace sandbox {
 
         // SubmitGrid computes the positions, so the layout matches the bench's
         engine::render::RenderList placed;
-        engine::render::SubmitGrid(placed, {.mesh = part.mesh, .material = part.material}, base, grid.side, grid.side,
-                                   engine::apps::kGridSpacing, engine::apps::kGridSpacing);
+        engine::render::SubmitGrid(placed, cube.parts, base, grid.side, grid.side, engine::apps::kGridSpacing,
+                                   engine::apps::kGridSpacing);
         const engine::scene::Mobility mobility =
             mode == engine::apps::GridMode::Static ? engine::scene::Mobility::Static : engine::scene::Mobility::Movable;
         for (const engine::render::BatchBucket &bucket : placed.Buckets()) {
             for (const XMFLOAT4X4 &world : bucket.worlds) {
-                scene.AddObject("Grid cube", {&part, 1}, world, mobility);
+                scene.AddObject("Grid cube", cube.parts, world, mobility);
             }
         }
         LogInfo("Grid: {} x {} = {} cubes, {}", grid.side, grid.side, placed.InstanceCount(),

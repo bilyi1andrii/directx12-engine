@@ -14,7 +14,9 @@ target_link_libraries(bench_output PRIVATE
 add_executable(bench
         main.cpp
         BenchOptions.cpp
-        BenchOptions.h)
+        BenchOptions.h
+        StressGrid.cpp
+        StressGrid.h)
 
 # Like the sandbox: a GUI exe only in Release, a console exe otherwise, so terminals and IDEs show the log
 set_target_properties(bench PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
@@ -29,6 +31,8 @@ target_compile_definitions(bench PRIVATE "ENGINE_BUILD_CONFIG=\"$<CONFIG>\"")
 target_link_libraries(bench PRIVATE
         app_common
         bench_output
+        # AssetCache: the model the grid draws
+        engine_assets
         engine_core
         engine_rhi
         engine_render

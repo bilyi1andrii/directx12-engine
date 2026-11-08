@@ -15,9 +15,8 @@
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
-#include "assets/Primitives.h"
 #include "common/AppChecks.h"
-#include "common/StressScene.h"
+#include "common/GridSetup.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
 #include "core/File.h"
@@ -135,12 +134,11 @@ namespace {
         engine::scene::Scene scene;
 
         // The textured grid (--count, --grid)
-        const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
         // Without --texture, the grid uses the sandbox's texture from data/
         const std::filesystem::path gridTexturePath =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
         const sandbox::GridObjects grid =
-            sandbox::AddGrid(scene, cubeMesh, engine::apps::CreateGridTexture(renderer, gridTexturePath),
+            sandbox::AddGrid(scene, assets, engine::apps::CreateGridTexture(renderer, gridTexturePath),
                              options.gridMode.value_or(engine::apps::GridMode::Dynamic),
                              options.gridCount.value_or(engine::apps::kDefaultGridCount));
         // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
@@ -165,12 +163,12 @@ namespace {
                                : sandbox::kModelSpacing;
 
         // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
-        const auto addCube = [&scene, cubeMesh](std::string name, engine::render::TextureHandle texture, float x,
-                                                float z) {
-            const engine::render::ModelPart part = sandbox::CubePart(cubeMesh, texture);
+        const auto addCube = [&scene, &assets](std::string name, engine::render::TextureHandle texture, float x,
+                                               float z) {
             DirectX::XMFLOAT4X4 world{};
             DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
-            return scene.AddObject(std::move(name), {&part, 1}, world, engine::scene::Mobility::Movable);
+            return scene.AddObject(std::move(name), assets.CubeModel(texture).parts, world,
+                                   engine::scene::Mobility::Movable);
         };
         std::optional<engine::scene::ObjectId> spinningCube;
         if (modelsShown == 0) {

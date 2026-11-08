@@ -13,6 +13,7 @@
 
 #include "assets/ModelImporter.h"
 #include "assets/Paths.h"
+#include "assets/Primitives.h"
 #include "core/Log.h"
 #include "core/Timer.h"
 #include "core/Utf8.h"
@@ -109,11 +110,28 @@ namespace engine::assets {
                                                     .material = *material,
                                                     .transform = node.transform,
                                                     .bounds = SubmeshBounds(data->mesh, submesh)});
+            model.triangleCount += submesh.indexCount / 3;
         }
 
         core::LogInfo("AssetCache: {} in {:.0f} ms: {} parts, {} new textures", core::ToUtf8(name), timer.ElapsedMs(),
                       model.parts.size(), TextureCount() - texturesBefore);
         return &m_models.emplace(key, std::move(model)).first->second;
+    }
+
+    const render::Model &AssetCache::CubeModel(TextureHandle texture) {
+        if (const auto it = m_cubeModels.find(texture.index); it != m_cubeModels.end()) {
+            return it->second;
+        }
+        if (!m_cubeMesh) {
+            m_cubeMesh = m_gpu->CreateMesh(MakeCube(), L"Cube").front();
+        }
+        render::Model model;
+        // A material is its albedo texture for now
+        model.parts.push_back(render::ModelPart{
+            .mesh = *m_cubeMesh, .material = MaterialHandle{.index = texture.index}, .bounds = kCubeBounds});
+        model.bounds = kCubeBounds;
+        model.triangleCount = kCubeTriangleCount;
+        return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
     }
 
     TextureHandle AssetCache::LoadTexture(const std::filesystem::path &path, TextureUsage usage) {

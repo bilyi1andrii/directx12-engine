@@ -35,6 +35,10 @@ namespace engine::assets {
         // cached: the next call tries again.
         [[nodiscard]] std::expected<const render::Model *, core::Error> LoadModel(const std::filesystem::path &path);
 
+        // A model of one cube with `texture`. All cubes share one mesh, uploaded on the first call. The reference
+        // lives as long as the cache.
+        [[nodiscard]] const render::Model &CubeModel(render::TextureHandle texture);
+
         // Loads `path` as `usage` on the first call. A failure gives the grey texture and is cached too.
         [[nodiscard]] render::TextureHandle LoadTexture(const std::filesystem::path &path, TextureUsage usage);
 
@@ -58,6 +62,9 @@ namespace engine::assets {
         render::GpuUploader *m_gpu;
         // By normalized path; unordered_map keeps elements in place, so Model pointers stay valid
         std::unordered_map<std::wstring, render::Model> m_models;
+        std::optional<render::MeshHandle> m_cubeMesh;
+        // By texture index; unordered_map keeps elements in place here too
+        std::unordered_map<uint32_t, render::Model> m_cubeModels;
         // By normalized path + usage (one file read as colour and as data is two textures)
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value

@@ -4,6 +4,7 @@
 #include <array>
 #include <format>
 #include <optional>
+#include <system_error>
 #include <vector>
 
 #include "common/OptionValues.h"
@@ -12,17 +13,9 @@ using engine::apps::ParseUint32;
 
 namespace {
     // Each of them takes one value
-    constexpr std::array<std::string_view, 7> kOptionNames{"--scene",  "--grid",   "--count", "--instanced",
+    constexpr std::array<std::string_view, 7> kOptionNames{"--model",  "--grid",   "--count", "--instanced",
                                                            "--frames", "--warmup", "--out"};
 } // namespace
-
-std::string_view ToString(BenchScene scene) noexcept {
-    switch (scene) {
-    case BenchScene::Stress:
-        return "stress";
-    }
-    return "unknown";
-}
 
 std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::string> args) {
     BenchOptions options;
@@ -41,11 +34,11 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
         }
         const std::string_view value = args[++i];
 
-        if (arg == "--scene") {
-            if (value != "stress") {
-                return std::unexpected(std::format("--scene needs stress, got '{}'", value));
+        if (arg == "--model") {
+            if (value.empty()) {
+                return std::unexpected("--model needs a file");
             }
-            options.scene = BenchScene::Stress;
+            options.modelPath = engine::apps::PathFromUtf8(value);
         } else if (arg == "--grid") {
             const std::optional<engine::apps::GridMode> mode = engine::apps::ParseGridMode(value);
             if (!mode) {
@@ -55,7 +48,7 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
         } else if (arg == "--count") {
             const std::optional<uint32_t> count = ParseUint32(value);
             if (!count) {
-                return std::unexpected(std::format("--count needs a number of cubes >= 0, got '{}'", value));
+                return std::unexpected(std::format("--count needs a number of copies >= 0, got '{}'", value));
             }
             options.count = *count;
         } else if (arg == "--instanced") {
@@ -83,5 +76,24 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             options.outDir = engine::apps::PathFromUtf8(value);
         }
     }
+    // The default suits a cube: 50,000 copies of a detailed model are billions of triangles per frame
+    if (options.modelPath && std::ranges::find(seen, std::string_view{"--count"}) == seen.end()) {
+        return std::unexpected("--model needs --count, the number of copies");
+    }
     return options;
+}
+
+std::filesystem::path BenchSceneName(const BenchOptions &options) {
+    if (!options.modelPath) {
+        return L"cube";
+    }
+    // Absolute, because a bare file name has no folder in it
+    std::error_code error;
+    std::filesystem::path full = std::filesystem::absolute(*options.modelPath, error);
+    if (error) {
+        full = *options.modelPath;
+    }
+    full = full.lexically_normal();
+    const std::wstring folder = full.parent_path().filename().wstring();
+    return folder.empty() ? full.stem().wstring() : folder + L"-" + full.stem().wstring();
 }

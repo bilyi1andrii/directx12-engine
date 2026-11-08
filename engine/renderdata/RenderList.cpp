@@ -1,5 +1,7 @@
 #include "renderdata/RenderList.h"
 
+#include <algorithm>
+
 namespace engine::render {
     void RenderList::Add(const BatchKey &key, const DirectX::XMFLOAT4X4 &world) {
         GetOrCreate(key).worlds.push_back(world);
@@ -50,7 +52,7 @@ namespace engine::render {
         return bucket;
     }
 
-    void SubmitGrid(RenderList &list, const BatchKey &key, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
+    void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ) {
         using namespace DirectX;
 
@@ -60,14 +62,35 @@ namespace engine::render {
         const float centreZ = (static_cast<float>(rows) - 1.0f) * 0.5f;
 
         XMFLOAT4X4 world{};
-        for (uint32_t row = 0; row < rows; ++row) {
-            for (uint32_t col = 0; col < cols; ++col) {
-                const float x = (static_cast<float>(col) - centreX) * spacingX;
-                const float z = (static_cast<float>(row) - centreZ) * spacingZ;
-                // Row vectors: the offset is applied after `base`, i.e. in world space
-                XMStoreFloat4x4(&world, baseMatrix * XMMatrixTranslation(x, 0.0f, z));
-                list.Add(key, world);
+        // One part at a time: its copies share a key, so RenderList::Add does not have to look up the bucket
+        for (const ModelPart &part : parts) {
+            const BatchKey key{.mesh = part.mesh, .material = part.material};
+            const XMMATRIX partBase = XMLoadFloat4x4(&part.transform) * baseMatrix;
+            for (uint32_t row = 0; row < rows; ++row) {
+                for (uint32_t col = 0; col < cols; ++col) {
+                    const float x = (static_cast<float>(col) - centreX) * spacingX;
+                    const float z = (static_cast<float>(row) - centreZ) * spacingZ;
+                    // Row vectors: the offset is applied after `base`, i.e. in world space
+                    XMStoreFloat4x4(&world, partBase * XMMatrixTranslation(x, 0.0f, z));
+                    list.Add(key, world);
+                }
             }
         }
+    }
+
+    DirectX::XMFLOAT4X4 FitToCell(const Aabb &bounds, float size, const DirectX::XMFLOAT3 &centre) {
+        using namespace DirectX;
+
+        const float largest =
+            std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z});
+        const float scale = largest > 0.0f ? size / largest : 1.0f;
+        const XMMATRIX toOrigin = XMMatrixTranslation(-(bounds.min.x + bounds.max.x) * 0.5f, //
+                                                      -(bounds.min.y + bounds.max.y) * 0.5f, //
+                                                      -(bounds.min.z + bounds.max.z) * 0.5f);
+
+        XMFLOAT4X4 result{};
+        XMStoreFloat4x4(&result, toOrigin * XMMatrixScaling(scale, scale, scale) *
+                                     XMMatrixTranslation(centre.x, centre.y, centre.z));
+        return result;
     }
 } // namespace engine::render

@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-#include "common/StressScene.h"
+#include "common/GridSetup.h"
 
 // Command-line options of the sandbox app
 struct SandboxOptions {
