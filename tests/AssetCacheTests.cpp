@@ -81,6 +81,23 @@ namespace {
                                                   "usemtl engine_test_second\n"
                                                   "f 4 5 6\n";
 
+    // One triangle whose material's albedo is a 2x2 PNG stored in the file (a data URI): an embedded texture
+    constexpr std::string_view kEmbeddedTextureGltf = R"({
+  "asset": {"version": "2.0"},
+  "buffers": [{"byteLength": 44,
+               "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAABAAIAAAA="}],
+  "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}, {"buffer": 0, "byteOffset": 36, "byteLength": 6}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3", "min": [0, 0, 0], "max": [1, 1, 0]},
+                {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}, "indices": 1, "material": 0}]}],
+  "materials": [{"pbrMetallicRoughness": {"baseColorTexture": {"index": 0}}}],
+  "textures": [{"source": 0}],
+  "images": [{"uri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAARSURBVBhXYziRYvQfhBlgDABUQAl1/dX3fwAAAABJRU5ErkJggg=="}],
+  "scene": 0,
+  "scenes": [{"nodes": [0]}],
+  "nodes": [{"mesh": 0}]
+})";
+
     [[nodiscard]] std::string Mtl(std::string_view first, std::string_view second) {
         return "newmtl engine_test_first\n" + std::string(first) + "\nnewmtl engine_test_second\n" +
                std::string(second) + "\n";
@@ -193,4 +210,20 @@ TEST(AssetCache, TextureFilesLoadOnceAndMissingOnesAreGrey) {
     EXPECT_EQ(cache.LoadTexture(MissingFile(L"engine_test_cache_none.png"), TextureUsage::Diffuse).index,
               FakeUploader::kUnloaded);
     EXPECT_EQ(gpu.textures.size(), 1u);
+    // The grey texture of the missing file was not created by the cache
+    EXPECT_EQ(cache.TextureCount(), 1u);
+}
+
+// TextureCount() (the "new textures" of the load log) includes images stored in the model file
+TEST(AssetCache, TextureCountIncludesEmbeddedImages) {
+    const TempFile gltf(L"engine_test_cache_embedded.gltf", Bytes(kEmbeddedTextureGltf));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &model = Load(cache, gltf.Path());
+
+    ASSERT_EQ(gpu.textures.size(), 1u);
+    EXPECT_EQ(cache.TextureCount(), 1u);
+    ASSERT_EQ(model.parts.size(), 1u);
+    EXPECT_NE(model.parts[0].material, (MaterialHandle{.index = FakeUploader::kUnloaded}));
 }

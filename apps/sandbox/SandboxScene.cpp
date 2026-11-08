@@ -119,14 +119,13 @@ namespace sandbox {
             LogWarning("Dropped {}: a static grid keeps its texture (start with --grid dynamic)", name);
             return;
         }
-        const std::expected<engine::render::TextureData, engine::core::Error> texture =
-            engine::assets::LoadTexture(path, engine::assets::TextureUsage::Diffuse);
-        if (!texture) {
-            LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image: {}", name,
-                       texture.error().message);
+
+        const engine::render::TextureHandle texture = assets.LoadTexture(path, engine::assets::TextureUsage::Diffuse);
+        if (texture == renderer.UnloadedTexture()) {
+            LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        grid.SetTexture(renderer.CreateTexture(*texture, L"Grid/" + path.filename().wstring()));
+        grid.SetTexture(texture);
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
 } // namespace sandbox

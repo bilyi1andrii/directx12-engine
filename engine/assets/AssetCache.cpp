@@ -105,7 +105,7 @@ namespace engine::assets {
 
         TextureHandle handle;
         if (const std::expected<render::TextureData, core::Error> data = assets::LoadTexture(path, usage)) {
-            handle = m_gpu->CreateTexture(*data, path.filename().native());
+            handle = CreateTexture(*data, path.filename().native());
         } else {
             core::LogWarning("AssetCache: {}. Using the grey texture.", data.error().message);
             handle = m_gpu->UnloadedTexture();
@@ -125,7 +125,7 @@ namespace engine::assets {
             if (!texture) {
                 const render::EmbeddedTextureData &image = model.embeddedTextures[inFile->index];
                 if (const auto data = LoadTextureFromMemory(image.bytes, image.formatHint, TextureUsage::Diffuse)) {
-                    texture = m_gpu->CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
+                    texture = CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
                 } else {
                     core::LogWarning("AssetCache: {} of {}. Using the grey texture.", data.error().message,
                                      core::ToUtf8(modelName));
@@ -157,9 +157,15 @@ namespace engine::assets {
         const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
         TextureHandle handle = m_gpu->UnloadedTexture();
         if (const auto data = CreateTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse)) {
-            handle = m_gpu->CreateTexture(*data, std::format(L"Color/{:02X}{:02X}{:02X}", red, green, blue));
+            handle = CreateTexture(*data, std::format(L"Color/{:02X}{:02X}{:02X}", red, green, blue));
         }
         m_solidColors.emplace(key, handle);
+        return handle;
+    }
+
+    TextureHandle AssetCache::CreateTexture(const render::TextureData &data, std::wstring_view name) {
+        const TextureHandle handle = m_gpu->CreateTexture(data, name);
+        ++m_createdTextures;
         return handle;
     }
 } // namespace engine::assets

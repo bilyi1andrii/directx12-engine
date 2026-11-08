@@ -121,6 +121,21 @@ TEST(ImportModel, DamagedFileReturnsDecodeFailed) {
     EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
 }
 
+// Lines and points are skipped, so nothing is left to draw: an error, not an empty index buffer for CreateMesh
+TEST(ImportModel, ModelWithoutTrianglesReturnsDecodeFailed) {
+    const TempFile file(L"engine_test_lines.obj", Bytes("v 0 0 0\n"
+                                                        "v 1 0 0\n"
+                                                        "v 0 1 0\n"
+                                                        "l 1 2\n"
+                                                        "p 3\n"));
+
+    const auto result = ImportModel(file.Path());
+
+    ASSERT_FALSE(result.has_value()) << result->mesh.vertices.size() << " vertices, " << result->mesh.indices.size()
+                                     << " indices";
+    EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
+}
+
 TEST(ImportModel, ReadsObj) {
     const TempFile file(L"engine_test_triangle.obj", Bytes(kTriangleObj));
 

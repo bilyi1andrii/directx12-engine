@@ -39,8 +39,8 @@ namespace engine::assets {
         [[nodiscard]] render::TextureHandle LoadTexture(const std::filesystem::path &path, TextureUsage usage);
 
         [[nodiscard]] size_t ModelCount() const noexcept { return m_models.size(); }
-        // Textures created so far: files and solid colours
-        [[nodiscard]] size_t TextureCount() const noexcept { return m_textures.size() + m_solidColors.size(); }
+        // Textures the cache created: files, embedded images and solid colours
+        [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
         // `material`'s handle (its albedo texture). `embedded` remembers the images of `model` already decoded.
@@ -52,6 +52,9 @@ namespace engine::assets {
         // A 1x1 sRGB texture of `material`'s base colour, made once per colour
         [[nodiscard]] render::TextureHandle SolidColor(const render::MaterialDesc &material);
 
+        // Every texture the cache makes goes through here, so TextureCount() sees it
+        [[nodiscard]] render::TextureHandle CreateTexture(const render::TextureData &data, std::wstring_view name);
+
         render::GpuUploader *m_gpu;
         // By normalized path; unordered_map keeps elements in place, so Model pointers stay valid
         std::unordered_map<std::wstring, render::Model> m_models;
@@ -59,6 +62,7 @@ namespace engine::assets {
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
+        size_t m_createdTextures = 0;
     };
 } // namespace engine::assets
 
