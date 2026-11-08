@@ -127,6 +127,7 @@ TEST(AssetCache, CubeModelsShareOneMeshAndUseTheirTexture) {
     EXPECT_EQ(second.parts[0].material, MaterialHandle{.index = 8});
     EXPECT_EQ(first.bounds.min.x, -1.0f);
     EXPECT_EQ(first.bounds.max.y, 1.0f);
+    EXPECT_EQ(first.triangleCount, 12u);
 }
 
 // Also a second spelling of the same file: "." and another letter case
@@ -166,6 +167,7 @@ TEST(AssetCache, ModelHasAPartPerSubmeshAndItsBounds) {
 
     ASSERT_EQ(model.parts.size(), 2u);
     EXPECT_NE(model.parts[0].mesh, model.parts[1].mesh);
+    EXPECT_EQ(model.triangleCount, 2u);
     EXPECT_NEAR(model.bounds.min.x, 0.0f, 1e-5f);
     EXPECT_NEAR(model.bounds.max.x, 1.0f, 1e-5f);
     EXPECT_NEAR(model.bounds.max.y, 2.0f, 1e-5f);

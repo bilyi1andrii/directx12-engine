@@ -110,6 +110,7 @@ namespace engine::assets {
                                                     .material = *material,
                                                     .transform = node.transform,
                                                     .bounds = SubmeshBounds(data->mesh, submesh)});
+            model.triangleCount += submesh.indexCount / 3;
         }
 
         core::LogInfo("AssetCache: {} in {:.0f} ms: {} parts, {} new textures", core::ToUtf8(name), timer.ElapsedMs(),
@@ -129,6 +130,7 @@ namespace engine::assets {
         model.parts.push_back(render::ModelPart{
             .mesh = *m_cubeMesh, .material = MaterialHandle{.index = texture.index}, .bounds = kCubeBounds});
         model.bounds = kCubeBounds;
+        model.triangleCount = kCubeTriangleCount;
         return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
     }
 

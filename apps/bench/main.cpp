@@ -76,6 +76,8 @@ namespace {
         uint32_t height = 0;
         bool tearingSupported = false;
         size_t objectCount = 0;
+        size_t partCount = 0;       // of one object
+        uint64_t triangleCount = 0; // of all objects: what one frame draws
     };
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
@@ -140,7 +142,9 @@ namespace {
                      .width = window.Width(),
                      .height = window.Height(),
                      .tearingSupported = renderer.TearingSupported(),
-                     .objectCount = grid.ObjectCount()};
+                     .objectCount = grid.ObjectCount(),
+                     .partCount = (*model)->parts.size(),
+                     .triangleCount = grid.ObjectCount() * (*model)->triangleCount};
         LogInfo("Bench: {}x{}, {} warm-up + {} measured frames", run.width, run.height, options.warmupFrames,
                 options.frames);
 
@@ -203,6 +207,10 @@ namespace {
             {"scene", engine::core::ToUtf8(BenchSceneName(options).native())},
             {"grid", std::string(engine::apps::ToString(options.gridMode))},
             {"objects", std::format("{} (--count {})", run.objectCount, options.count)},
+            {"model", options.modelPath ? engine::core::ToUtf8(options.modelPath->native()) : "cube"},
+            {"parts", std::format("{}", run.partCount)},
+            {"instances", std::format("{}", run.objectCount * run.partCount)},
+            {"triangles", std::format("{}", run.triangleCount)},
             {"draw_path", instanced ? "instanced" : "non-instanced"},
             {"resolution", std::format("{}x{}", run.width, run.height)},
             {"window", "borderless fullscreen"},

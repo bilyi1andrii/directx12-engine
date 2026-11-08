@@ -1,6 +1,7 @@
 #ifndef D3D12_ENGINE_PRIMITIVES_H
 #define D3D12_ENGINE_PRIMITIVES_H
 
+#include <cstdint>
 #include <expected>
 
 #include "core/Error.h"
@@ -13,6 +14,9 @@ namespace engine::assets {
 
     // The box around MakeCube's vertices
     inline constexpr render::Aabb kCubeBounds{.min = {-1.0f, -1.0f, -1.0f}, .max = {1.0f, 1.0f, 1.0f}};
+
+    // Two per face of MakeCube's cube
+    inline constexpr uint64_t kCubeTriangleCount = 12;
 
     // Cube with corners at +-1, 4 vertices per face (whole texture and own normal per face), one submesh,
     // triangles clockwise seen from outside.

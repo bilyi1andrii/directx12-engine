@@ -1,6 +1,7 @@
 #ifndef D3D12_ENGINE_MODEL_H
 #define D3D12_ENGINE_MODEL_H
 
+#include <cstdint>
 #include <vector>
 
 #include <DirectXMath.h>
@@ -29,7 +30,8 @@ namespace engine::render {
     // A model on the GPU: parts and bounds. AssetCache makes it from ModelData; Scene::AddObject places it.
     struct Model {
         std::vector<ModelPart> parts;
-        Aabb bounds; // of all parts, in model space
+        Aabb bounds;                // of all parts, in model space
+        uint64_t triangleCount = 0; // of all parts
     };
 } // namespace engine::render
 
