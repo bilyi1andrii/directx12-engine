@@ -8,10 +8,14 @@
 #include <limits>
 #include <span>
 
+#include "core/Assert.h"
+
 namespace engine::scene {
     using namespace DirectX;
 
     Ray MakePickRay(const Camera &camera, XMFLOAT2 pointPx, XMFLOAT2 viewportPx) {
+        ENGINE_ASSERT_MSG(viewportPx.x > 0.0f && viewportPx.y > 0.0f, "MakePickRay on a {} x {} view", viewportPx.x,
+                          viewportPx.y);
         const XMMATRIX view = ViewMatrix(camera);
         const XMMATRIX projection = ProjectionMatrix(camera, viewportPx.x / viewportPx.y);
         // Unproject: pixel + depth -> world, the inverse of what the GPU does (world -> clip -> pixel). Depth 0 is

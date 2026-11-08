@@ -46,9 +46,6 @@ namespace engine::core {
         // Frames per second
         [[nodiscard]] double Fps() const noexcept { return m_fps; }
 
-        // True only on the Tick() that updated Fps
-        [[nodiscard]] bool FpsUpdated() const noexcept { return m_fpsUpdated; }
-
     private:
         Clock::time_point m_start = Clock::now();
         Clock::time_point m_last = m_start;
@@ -57,7 +54,6 @@ namespace engine::core {
         uint64_t m_frameCount = 0;
 
         double m_fps = 0.0;
-        bool m_fpsUpdated = false;
         double m_fpsWindowSeconds = 0.0;
         uint32_t m_fpsWindowFrames = 0;
     };

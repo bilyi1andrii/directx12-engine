@@ -180,10 +180,12 @@ namespace {
         if (modelsShown == 0) {
             spinningCube = addCube("Spinning cube", sandbox::CreateSpinningCubeTexture(renderer), 0.0f, 0.0f);
         }
+        // Models fill z in [-kModelSize / 2, kModelSize / 2] along the row: the cubes go behind it, not inside a model
+        const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
         const engine::scene::ObjectId orangeCube =
-            addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, 0.0f);
-        addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, 0.0f);
-        addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, 5.0f);
+            addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, cubesZ);
+        addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, cubesZ);
+        addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, cubesZ + 5.0f);
         // The smoke test selects a movable cube, so that the gizmo runs in every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
@@ -239,13 +241,18 @@ namespace {
             }
 
             cameraController.Update(camera, input, frameTimer.DeltaSeconds(),
-                                    {.mouse = appMouse, .keyboard = appKeyboard});
+                                    {.mouse = !ui.WantsMouseForCamera(), .keyboard = appKeyboard});
 
             // One view for the gizmo, picking and rendering. BeginFrame gives the swap chain the window's size, so
             // the window's aspect ratio is also the rendered one.
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
             const engine::render::FrameView frameView =
                 engine::apps::MakeFrameView(camera, viewportPx.x / viewportPx.y);
+            // The ray through the centre of a client-area pixel
+            const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
+                return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
+                                                  viewportPx);
+            };
             if (spinningCube) {
                 using namespace DirectX;
                 // 90 degrees per second around (0, 1, 1), like the step-1 cube. fmod in double keeps the angle precise
@@ -275,15 +282,13 @@ namespace {
             // gizmo, so that a click on one of its handles stays the gizmo's.
             if (appMouse && !ui.GizmoWantsMouse() && input.WasKeyPressed(VK_LBUTTON)) {
                 const engine::core::Int2 mouse = input.MousePosition();
-                const engine::scene::Ray ray = engine::scene::MakePickRay(
-                    camera, {static_cast<float>(mouse.x) + 0.5f, static_cast<float>(mouse.y) + 0.5f}, viewportPx);
-                selected = engine::scene::Pick(scene, ray);
+                selected = engine::scene::Pick(scene, pickRayAt(mouse.x, mouse.y));
                 LogInfo("Selected: {}", selected ? std::string_view(scene.Object(*selected).name) : "nothing");
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
                                    .objectCount = scene.EntityCount(),
-                                   .scene = sceneInfo,
+                                   .sceneInfo = sceneInfo,
                                    .cameraPosition = camera.position},
                                   settings);
             if (selected) {
@@ -305,8 +310,7 @@ namespace {
 
             // Between frames: EndFrame submits their uploads before the frame
             for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
-                const engine::scene::Ray ray = engine::scene::MakePickRay(
-                    camera, {static_cast<float>(drop.x) + 0.5f, static_cast<float>(drop.y) + 0.5f}, viewportPx);
+                const engine::scene::Ray ray = pickRayAt(drop.x, drop.y);
                 sandbox::LoadDroppedFile(drop.path,
                                          engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
                                          assets, scene, nextModelX, grid);

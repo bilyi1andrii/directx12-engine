@@ -18,7 +18,7 @@ namespace engine::ui {
     struct FrameStats {
         double fps = 0.0; // 0 until the first measurement
         size_t objectCount = 0;
-        std::string_view scene; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
+        std::string_view sceneInfo; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
         DirectX::XMFLOAT3 cameraPosition{};
     };
 
@@ -60,6 +60,9 @@ namespace engine::ui {
         [[nodiscard]] bool WantsMouse() const;
         [[nodiscard]] bool WantsKeyboard() const;
 
+        // WantsMouse for looking around: the cursor merely being over a gizmo handle does not count
+        [[nodiscard]] bool WantsMouseForCamera() const;
+
         // The translate gizmo (ImGuizmo) on the object placed by `world`: arrows along the world X/Y/Z axes, plus
         // plane handles and a centre handle that moves in the screen plane. `view` and `projection` are the
         // camera's DirectXMath matrices as they are (not transposed). While the user drags a handle it changes
@@ -86,7 +89,10 @@ namespace engine::ui {
 
     private:
         ImGuiContext *m_context = nullptr;
-        bool m_gizmoDrawn = false; // TranslateGizmo was called this frame
+        float m_dpiScale = 1.0f;
+        bool m_gizmoDrawn = false;            // this frame's gizmo is on screen (false for an object behind the camera)
+        bool m_gizmoHovered = false;          // ... and the cursor is over a handle, without dragging it
+        bool m_gizmoHoveredLastFrame = false; // when ImGuizmo claimed the mouse that NewFrame reports
     };
 } // namespace engine::ui
 

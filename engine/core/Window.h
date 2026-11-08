@@ -56,7 +56,6 @@ namespace engine::core {
 
         // Asks the window to close
         void Close();
-        void SetTitle(std::wstring_view title);
 
         // Borderless fullscreen
         void SetFullscreen(bool fullscreen);

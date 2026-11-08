@@ -123,10 +123,6 @@ namespace engine::core {
         ::PostMessageW(m_hwnd, WM_CLOSE, 0, 0);
     }
 
-    void Window::SetTitle(std::wstring_view title) {
-        ::SetWindowTextW(m_hwnd, std::wstring(title).c_str());
-    }
-
     void Window::SetFullscreen(bool fullscreen) {
         if (fullscreen == m_fullscreen || m_hwnd == nullptr || m_minimized) {
             return;
