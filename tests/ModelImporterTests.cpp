@@ -15,6 +15,7 @@
 #include "core/Utf8.h"
 
 using engine::assets::ImportModel;
+using engine::assets::IsModelFile;
 using engine::core::ErrorCode;
 using engine::render::AlphaMode;
 using engine::render::EmbeddedTexture;
@@ -117,6 +118,21 @@ TEST(ImportModel, DamagedFileReturnsDecodeFailed) {
     const auto result = ImportModel(file.Path());
 
     ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
+}
+
+// Lines and points are skipped, so nothing is left to draw: an error, not an empty index buffer for CreateMesh
+TEST(ImportModel, ModelWithoutTrianglesReturnsDecodeFailed) {
+    const TempFile file(L"engine_test_lines.obj", Bytes("v 0 0 0\n"
+                                                        "v 1 0 0\n"
+                                                        "v 0 1 0\n"
+                                                        "l 1 2\n"
+                                                        "p 3\n"));
+
+    const auto result = ImportModel(file.Path());
+
+    ASSERT_FALSE(result.has_value()) << result->mesh.vertices.size() << " vertices, " << result->mesh.indices.size()
+                                     << " indices";
     EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
 }
 
@@ -289,4 +305,15 @@ TEST(ImportModel, GltfMaterialKeepsTheFileValues) {
     ASSERT_EQ(image.bytes.size(), 4u);
     EXPECT_EQ(image.bytes[0], std::byte{1});
     EXPECT_EQ(image.bytes[3], std::byte{4});
+}
+
+TEST(IsModelFile, KnowsTheModelFormatsInAnyLetterCase) {
+    EXPECT_TRUE(IsModelFile("town/scene.gltf"));
+    EXPECT_TRUE(IsModelFile("town/Scene.GLB"));
+    EXPECT_TRUE(IsModelFile("cube.obj"));
+    EXPECT_TRUE(IsModelFile("C:/models/Rig.Fbx"));
+    EXPECT_FALSE(IsModelFile("texture.png"));
+    EXPECT_FALSE(IsModelFile("scene.gltf.bak"));
+    EXPECT_FALSE(IsModelFile("gltf")); // a name, not an extension
+    EXPECT_FALSE(IsModelFile("folder/"));
 }

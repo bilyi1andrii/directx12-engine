@@ -22,10 +22,13 @@ namespace engine::scene {
     // `viewportPx`: the client size, which also gives the aspect ratio (as for the renderer's projection).
     [[nodiscard]] Ray MakePickRay(const Camera &camera, DirectX::XMFLOAT2 pointPx, DirectX::XMFLOAT2 viewportPx);
 
-    // Where `ray` first enters the box [-1, 1]^3 (the built-in cubes) placed by `world`: the distance along the ray,
+    // Where `ray` first enters the box [-1, 1]^3 (assets::MakeCube) placed by `world`: the distance along the ray,
     // 0 if the ray starts inside it, nullopt if it misses (or `world` cannot be inverted, e.g. scale 0).
     // Any affine `world` works, rotated and scaled boxes included.
     [[nodiscard]] std::optional<float> IntersectRayBox(const Ray &ray, const DirectX::XMFLOAT4X4 &world);
+
+    // Where `ray` meets the horizontal plane y = `planeY`.
+    [[nodiscard]] std::optional<DirectX::XMFLOAT3> IntersectHorizontalPlane(const Ray &ray, float planeY);
 } // namespace engine::scene
 
 #endif // D3D12_ENGINE_PICKING_H

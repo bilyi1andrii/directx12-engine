@@ -1,7 +1,9 @@
 #include "assets/ModelImporter.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cwctype>
 #include <filesystem>
 #include <format>
 #include <optional>
@@ -20,6 +22,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/scene.h>
 
+#include "assets/Paths.h"
 #include "core/Log.h"
 #include "core/Utf8.h"
 
@@ -99,17 +102,6 @@ namespace engine::assets {
             for (unsigned i = 0; i < node.mNumChildren; ++i) {
                 AddNodes(*node.mChildren[i], transform, nodes);
             }
-        }
-
-        // Normalizes path for asset deduplication.
-        [[nodiscard]] std::filesystem::path NormalizedPath(const std::filesystem::path &path) {
-            std::error_code ec;
-            std::filesystem::path result = std::filesystem::weakly_canonical(path, ec);
-            if (!ec) {
-                return result;
-            }
-            result = std::filesystem::absolute(path, ec);
-            return (ec ? path : result).lexically_normal();
         }
 
         [[nodiscard]] std::optional<std::filesystem::path> PathFromUtf8(std::string_view text) {
@@ -313,6 +305,11 @@ namespace engine::assets {
         for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
             AddSubmesh(*scene->mMeshes[i], source, model.mesh);
         }
+        
+        if (model.mesh.indices.empty()) {
+            return std::unexpected(
+                Error{ErrorCode::DecodeFailed, std::format("{}: the file has no triangles", source)});
+        }
         AddNodes(*scene->mRootNode, DirectX::XMMatrixIdentity(), model.nodes);
 
         MaterialReader materials{
@@ -322,5 +319,12 @@ namespace engine::assets {
             model.materials.push_back(materials.Read(*scene->mMaterials[i]));
         }
         return model;
+    }
+
+    bool IsModelFile(const std::filesystem::path &path) {
+        std::wstring extension = path.extension().native();
+        std::ranges::transform(extension, extension.begin(),
+                               [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
+        return extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx";
     }
 } // namespace engine::assets

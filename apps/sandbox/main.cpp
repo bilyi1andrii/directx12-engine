@@ -1,21 +1,26 @@
 #include <format>
 
-#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "SandboxOptions.h"
+#include "SandboxScene.h"
+#include "assets/AssetCache.h"
 #include "common/AppChecks.h"
 #include "common/StressScene.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
+#include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
@@ -27,6 +32,7 @@
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
 #include "scene/Picking.h"
+#include "scene/Scene.h"
 #include "ui/DebugUI.h"
 
 using engine::core::LogError;
@@ -36,7 +42,7 @@ ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
     // An object the user can select (left click) and move (the gizmo, or the Selection window). The grid's cubes
-    // cannot be picked or moved before PR 4's Scene: their positions are not stored anywhere.
+    // cannot be picked or moved yet: their positions are not stored anywhere.
     struct MovableObject {
         std::string_view name;
         engine::render::BatchKey key;
@@ -85,6 +91,13 @@ namespace {
         }
     }
 
+    // A dropped file and its drop point (client pixels, (0, 0) top-left)
+    struct DroppedFile {
+        std::filesystem::path path;
+        int32_t x = 0;
+        int32_t y = 0;
+    };
+
     // Creates the window and the renderer and runs the game loop until the window closes
     // (in a smoke test: after the requested number of frames). Everything it creates is
     // destroyed before it returns, so `validation` is complete afterwards.
@@ -93,6 +106,7 @@ namespace {
         initTimer.Start();
 
         engine::core::Input input;
+        std::vector<DroppedFile> droppedFiles;
 
         engine::core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
 
@@ -111,6 +125,12 @@ namespace {
                     input.HandleMessage(message);
                     // Only true for WM_SETCURSOR over ImGui (and IME text): the window must not reset the cursor
                     return handledByUi;
+                },
+            .onFilesDropped =
+                [&droppedFiles](std::span<const std::filesystem::path> paths, int32_t x, int32_t y) {
+                    for (const std::filesystem::path &path : paths) {
+                        droppedFiles.push_back({.path = path, .x = x, .y = y});
+                    }
                 },
         });
 
@@ -132,31 +152,55 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // The textured grid (--count, --grid), uploaded every frame only in dynamic mode
+        // The textured grid (--count, --grid) and the scene's entities (the models). The scene is uploaded every
+        // frame, the grid only in dynamic mode.
         engine::render::RenderList renderList; // this frame's dynamic objects
-        const engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
-                                            options.gridCount.value_or(engine::apps::kDefaultGridCount),
-                                            engine::apps::CreateGridTexture(renderer, options.texturePath));
+        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
+        const std::filesystem::path gridTexturePath =
+            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        // Not const: a dropped image replaces the grid texture
+        engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
+                                      options.gridCount.value_or(engine::apps::kDefaultGridCount),
+                                      engine::apps::CreateGridTexture(renderer, gridTexturePath));
 
-        // Objects the user can select and move, uploaded every frame: the vertex-colour cube spinning at the origin
-        // and three plain-coloured cubes around it. A material is its albedo texture for now (Handles.h).
-        const auto colouredCube = [&renderer](uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
+        // Destroyed before the renderer, which owns what the cache created
+        engine::assets::AssetCache assets(renderer);
+        engine::scene::Scene scene;
+        // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git)
+        std::vector<std::filesystem::path> modelPaths;
+        if (options.modelPath) {
+            modelPaths.push_back(*options.modelPath);
+        } else if (!smokeTestFrames) {
+            modelPaths = sandbox::FindAssetModels();
+        }
+        const size_t modelsShown = sandbox::AddModels(scene, assets, modelPaths);
+        // Where a model dropped on the sky goes: the end of the row
+        float nextModelX = modelsShown > 0
+                               ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
+                               : sandbox::kModelSpacing;
+
+        // Objects the user can select and move, uploaded every frame: a textured cube spinning at the origin (only
+        // without models, which stand there) and three plain-coloured cubes around it. A material is its albedo
+        // texture for now (Handles.h).
+        const auto colouredCube = [&renderer, &grid](uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
             const engine::render::TextureHandle texture = renderer.CreateSolidColorTexture(red, green, blue, name);
-            return engine::render::BatchKey{.mesh = renderer.TexturedCubeMesh(), .material = {.index = texture.index}};
+            return engine::render::BatchKey{.mesh = grid.CubeMesh(), .material = {.index = texture.index}};
         };
-        std::array objects{
-            MovableObject{.name = "Spinning cube",
-                          .key = {.mesh = renderer.CubeMesh(), .material = {}},
-                          .position = {0.0f, 0.0f, 0.0f},
-                          .spins = true},
-            MovableObject{
-                .name = "Orange cube", .key = colouredCube(230, 120, 30, L"Orange"), .position = {-5.0f, 0.0f, 0.0f}},
-            MovableObject{
-                .name = "Green cube", .key = colouredCube(60, 170, 70, L"Green"), .position = {5.0f, 0.0f, 0.0f}},
-            MovableObject{
-                .name = "Blue cube", .key = colouredCube(50, 110, 220, L"Blue"), .position = {0.0f, 0.0f, 5.0f}},
-        };
-        // Index into `objects`. The smoke test selects the spinning cube, so that the gizmo runs in every frame.
+        std::vector<MovableObject> objects;
+        if (modelsShown == 0) {
+            const engine::render::TextureHandle cubeTexture = sandbox::CreateSpinningCubeTexture(renderer);
+            objects.push_back(MovableObject{.name = "Spinning cube",
+                                            .key = {.mesh = grid.CubeMesh(), .material = {.index = cubeTexture.index}},
+                                            .position = {0.0f, 0.0f, 0.0f},
+                                            .spins = true});
+        }
+        objects.push_back(MovableObject{
+            .name = "Orange cube", .key = colouredCube(230, 120, 30, L"Orange"), .position = {-5.0f, 0.0f, 0.0f}});
+        objects.push_back(MovableObject{
+            .name = "Green cube", .key = colouredCube(60, 170, 70, L"Green"), .position = {5.0f, 0.0f, 0.0f}});
+        objects.push_back(MovableObject{
+            .name = "Blue cube", .key = colouredCube(50, 110, 220, L"Blue"), .position = {0.0f, 0.0f, 5.0f}});
+        // Index into `objects`. The smoke test selects the first one, so that the gizmo runs in every frame.
         std::optional<size_t> selected;
         if (smokeTestFrames) {
             selected = 0;
@@ -244,7 +288,7 @@ namespace {
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
-                                   .objectCount = grid.ObjectCount() + objects.size(),
+                                   .objectCount = grid.ObjectCount() + objects.size() + scene.EntityCount(),
                                    .scene = sceneInfo,
                                    .cameraPosition = camera.position},
                                   settings);
@@ -257,8 +301,18 @@ namespace {
             // per-frame values (pressed, deltas).
             input.EndFrame();
 
+            // Between frames: EndFrame submits their uploads before the frame
+            for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
+                const engine::scene::Ray ray = engine::scene::MakePickRay(
+                    camera, {static_cast<float>(drop.x) + 0.5f, static_cast<float>(drop.y) + 0.5f}, viewportPx);
+                sandbox::LoadDroppedFile(drop.path,
+                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
+                                         assets, scene, nextModelX, grid);
+            }
+
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
+            engine::scene::Extract(scene, renderList);
             for (const MovableObject &object : objects) {
                 renderList.Add(object.key, WorldMatrix(object, spinAngle));
             }

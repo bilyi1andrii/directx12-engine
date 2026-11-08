@@ -29,6 +29,7 @@
 #include "rhi/UploadRing.h"
 #include "rhi/ValidationStats.h"
 
+#include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/MeshData.h"
@@ -55,13 +56,14 @@ namespace engine::render {
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
-    class Renderer {
+    // Asset loading uses it through GpuUploader.
+    class Renderer final : public GpuUploader {
     public:
         // `validation` collects debug-layer errors and leaks (Debug builds) and must outlive the renderer:
         // the device writes the live-object count when it is destroyed, after everything else
         Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation);
         // Waits for the GPU before any member is released
-        ~Renderer();
+        ~Renderer() override;
 
         Renderer(const Renderer &) = delete;
         Renderer &operator=(const Renderer &) = delete;
@@ -85,18 +87,13 @@ namespace engine::render {
         // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.
         [[nodiscard]] StaticListHandle CreateStaticList(const RenderList &list, std::wstring_view name);
 
-        // The built-in cubes (corners at +-1), until meshes come from AssetCache: CubeMesh has vertex colours,
-        // TexturedCubeMesh shows its material's texture
-        [[nodiscard]] MeshHandle CubeMesh() const noexcept { return m_cubeMesh; }
-        [[nodiscard]] MeshHandle TexturedCubeMesh() const noexcept { return m_texturedCubeMesh; }
-
         // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
         // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
         // can be drawn in the same frame and live as long as the renderer.
-        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name);
+        [[nodiscard]] std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name) override;
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
-        [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name);
+        [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) override;
 
         // A 1x1 texture of one colour (sRGB values, as in an image file), with the lifetime of CreateTexture's.
         // Callers above the renderer cannot name DXGI formats, so they use this for plain colours.
@@ -104,7 +101,7 @@ namespace engine::render {
                                                             std::wstring_view name);
 
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
-        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept { return m_unloadedTexture; }
+        [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
@@ -127,9 +124,9 @@ namespace engine::render {
         [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_device.DriverVersion(); }
 
     private:
+        // Every vertex layout the renderer draws, each with its own PSO
         enum class VertexFormat : uint8_t {
-            PositionColor, // the built-in vertex-colour cube (vs_basic)
-            Mesh,          // renderdata/Vertex.h (vs_mesh)
+            Mesh, // renderdata/Vertex.h (vs_mesh)
             Count,
         };
 
@@ -192,9 +189,6 @@ namespace engine::render {
         // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
         void PrepareUpload(uint64_t bytes);
 
-        // Uploads both built-in cubes (constructor only)
-        void UploadCubes();
-
         // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
 
@@ -243,8 +237,6 @@ namespace engine::render {
         std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
         std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
-        MeshHandle m_cubeMesh;
-        MeshHandle m_texturedCubeMesh;
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;

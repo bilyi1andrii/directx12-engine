@@ -1,7 +1,9 @@
 add_executable(sandbox
         main.cpp
         SandboxOptions.cpp
-        SandboxOptions.h)
+        SandboxOptions.h
+        SandboxScene.cpp
+        SandboxScene.h)
 
 # Equivalent of WIN32
 set_target_properties(sandbox PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
@@ -14,13 +16,15 @@ engine_target_defaults(sandbox)
 
 target_link_libraries(sandbox PRIVATE
         app_common
+        # AssetCache, model and texture loading for the models and dropped files
+        engine_assets
         engine_core
         engine_rhi
         engine_render
         engine_scene
         engine_ui)
 
-add_dependencies(sandbox compile_shaders)
+add_dependencies(sandbox compile_shaders copy_data)
 engine_copy_agility_runtime(sandbox)
 engine_copy_asan_runtime(sandbox)
 

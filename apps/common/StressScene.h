@@ -25,6 +25,12 @@ namespace engine::apps {
     // 20 x 20 cubes
     inline constexpr uint32_t kDefaultGridCount = 400;
 
+    // Cubes 2 units wide with 1 unit between them, their centres 4 units below the origin
+    inline constexpr float kGridSpacing = 3.0f;
+    inline constexpr float kGridHeight = -4.0f;
+    // The top of the grid's cubes, where models stand
+    inline constexpr float kGridTop = kGridHeight + 1.0f;
+
     // Static: uploaded to GPU memory once. Dynamic: rebuilt and uploaded every frame, like moving objects.
     enum class GridMode : uint8_t { Static, Dynamic };
 
@@ -45,11 +51,18 @@ namespace engine::apps {
     // A square grid of textured cubes 4 units below the origin
     class StressGrid {
     public:
-        // `count` is rounded up to a square. A static grid is uploaded here.
+        // `count` is rounded up to a square. Uploads the cube mesh, and a static grid.
         StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture);
+
+        // The grid's cube (assets::MakeCube), for other cubes in the scene
+        [[nodiscard]] render::MeshHandle CubeMesh() const noexcept { return m_key.mesh; }
 
         // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;
+
+        // Draws the grid with `texture` from the next Submit. Dynamic mode only: a static grid's draws are already
+        // in GPU memory with the old texture, so it returns false and nothing changes.
+        bool SetTexture(render::TextureHandle texture) noexcept;
 
         // Pass to Renderer::Render every frame; empty in dynamic mode
         [[nodiscard]] std::span<const render::StaticListHandle> StaticLists() const noexcept;

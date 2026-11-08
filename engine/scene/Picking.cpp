@@ -65,4 +65,17 @@ namespace engine::scene {
         }
         return tEnter;
     }
+
+    std::optional<XMFLOAT3> IntersectHorizontalPlane(const Ray &ray, float planeY) {
+        constexpr float kParallel = 1e-6f;
+        if (std::abs(ray.direction.y) < kParallel) {
+            return std::nullopt;
+        }
+        // origin.y + t * direction.y = planeY
+        const float t = (planeY - ray.origin.y) / ray.direction.y;
+        if (t < 0.0f) {
+            return std::nullopt; // the plane is behind the ray
+        }
+        return XMFLOAT3{ray.origin.x + t * ray.direction.x, planeY, ray.origin.z + t * ray.direction.z};
+    }
 } // namespace engine::scene

@@ -57,6 +57,14 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
                 return std::unexpected("--texture needs a file path");
             }
             options.texturePath = engine::apps::PathFromUtf8(args[++i]);
+        } else if (arg == "--model") {
+            if (options.modelPath) {
+                return std::unexpected("--model is given more than once");
+            }
+            if (i + 1 == args.size() || args[i + 1].empty()) {
+                return std::unexpected("--model needs a file path");
+            }
+            options.modelPath = engine::apps::PathFromUtf8(args[++i]);
         } else {
             return std::unexpected(std::format("Unknown argument '{}'", arg));
         }

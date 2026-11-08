@@ -3,6 +3,7 @@
 
 add_executable(engine_tests
         main.cpp
+        AssetCacheTests.cpp
         BenchOutputTests.cpp
         CameraPathTests.cpp
         CameraTests.cpp
@@ -11,7 +12,9 @@ add_executable(engine_tests
         ModelDataTests.cpp
         ModelImporterTests.cpp
         PickingTests.cpp
+        PrimitivesTests.cpp
         RenderListTests.cpp
+        SceneTests.cpp
         TestFiles.h
         TextureLoaderTests.cpp)
 

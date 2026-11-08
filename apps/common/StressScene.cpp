@@ -4,15 +4,13 @@
 #include <string>
 #include <vector>
 
+#include "assets/Primitives.h"
 #include "assets/TextureLoader.h"
 #include "core/Error.h"
 #include "core/Log.h"
 
 namespace engine::apps {
     namespace {
-        constexpr float kGridSpacing = 3.0f; // the cube is 2 units wide, so 1 unit of gap
-        constexpr float kGridHeight = -4.0f;
-
         // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
         std::expected<render::TextureData, core::Error> MakeCheckerboard() {
             constexpr uint32_t kSize = 256;
@@ -77,8 +75,8 @@ namespace engine::apps {
     }
 
     StressGrid::StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture)
-        : m_mode(mode), m_side(GridSide(count)),
-          m_key{.mesh = renderer.TexturedCubeMesh(), .material = {.index = texture.index}} {
+        : m_mode(mode), m_side(GridSide(count)), m_key{.mesh = renderer.CreateMesh(assets::MakeCube(), L"Cube").front(),
+                                                       .material = {.index = texture.index}} {
         DirectX::XMStoreFloat4x4(&m_base, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
         core::LogInfo("Grid: {} x {} = {} cubes, {}", m_side, m_side, ObjectCount(), ToString(m_mode));
         if (m_mode == GridMode::Static) {
@@ -93,6 +91,14 @@ namespace engine::apps {
         if (m_mode == GridMode::Dynamic) {
             render::SubmitGrid(list, m_key, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
         }
+    }
+
+    bool StressGrid::SetTexture(render::TextureHandle texture) noexcept {
+        if (m_mode != GridMode::Dynamic) {
+            return false;
+        }
+        m_key.material = {.index = texture.index};
+        return true;
     }
 
     float StressGrid::Extent() const noexcept {
