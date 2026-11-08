@@ -31,8 +31,8 @@ namespace engine::scene {
                                                        const render::Aabb &box);
 
     // The object `ray` selects: the one with the part whose box it enters first, static objects included. Boxes the
-    // ray starts inside count only if it enters no other box, or standing inside a large part would hide everything
-    // else. Tests every part: call it for a click, not every frame.
+    // ray starts inside do not count, or standing inside a large part would select it with every click, even on empty
+    // space. Tests every part: call it for a click, not every frame.
     [[nodiscard]] std::optional<ObjectId> Pick(const Scene &scene, const Ray &ray);
 
     // Where `ray` meets the horizontal plane y = `planeY`.

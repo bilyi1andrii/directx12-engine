@@ -29,6 +29,10 @@ namespace sandbox {
         uint32_t firstObject = 0;
     };
 
+    // A scene-object part: the cube mesh drawn with `texture` (a material is its albedo texture for now, Handles.h)
+    [[nodiscard]] engine::render::ModelPart CubePart(engine::render::MeshHandle cube,
+                                                     engine::render::TextureHandle texture);
+
     // Adds `count` cubes (rounded up to a square) to the scene: Movable in dynamic mode, Static in static mode
     [[nodiscard]] GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
                                       engine::render::TextureHandle texture, engine::apps::GridMode mode,

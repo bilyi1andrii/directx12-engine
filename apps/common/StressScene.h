@@ -17,7 +17,7 @@
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
-// The cube-grid scene, shared by the sandbox and the bench
+// The cube grid's layout and options, shared by the sandbox and the bench, and the bench's StressGrid
 namespace engine::apps {
     // Length of the grid's camera path in frames, the same as the bench's default --frames
     inline constexpr uint32_t kStressPathFrames = 1000;
@@ -54,21 +54,12 @@ namespace engine::apps {
         // `count` is rounded up to a square. Uploads the cube mesh, and a static grid.
         StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture);
 
-        // The grid's cube (assets::MakeCube), for other cubes in the scene
-        [[nodiscard]] render::MeshHandle CubeMesh() const noexcept { return m_key.mesh; }
-
         // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;
-
-        // Draws the grid with `texture` from the next Submit. Dynamic mode only: a static grid's draws are already
-        // in GPU memory with the old texture, so it returns false and nothing changes.
-        bool SetTexture(render::TextureHandle texture) noexcept;
 
         // Pass to Renderer::Render every frame; empty in dynamic mode
         [[nodiscard]] std::span<const render::StaticListHandle> StaticLists() const noexcept;
 
-        [[nodiscard]] GridMode Mode() const noexcept { return m_mode; }
-        [[nodiscard]] uint32_t Side() const noexcept { return m_side; }
         [[nodiscard]] size_t ObjectCount() const noexcept { return size_t{m_side} * m_side; }
         // Width of the grid in world units, edge to edge
         [[nodiscard]] float Extent() const noexcept;

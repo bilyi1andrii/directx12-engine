@@ -170,8 +170,7 @@ namespace {
         // texture for now (Handles.h).
         const auto addCube = [&scene, cubeMesh](std::string name, engine::render::TextureHandle texture, float x,
                                                 float z) {
-            const engine::render::ModelPart part{
-                .mesh = cubeMesh, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
+            const engine::render::ModelPart part = sandbox::CubePart(cubeMesh, texture);
             DirectX::XMFLOAT4X4 world{};
             DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
             return scene.AddObject(std::move(name), {&part, 1}, world, engine::scene::Mobility::Movable);
@@ -287,7 +286,7 @@ namespace {
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
-                                   .objectCount = scene.EntityCount(),
+                                   .objectCount = scene.Objects().size(),
                                    .sceneInfo = sceneInfo,
                                    .cameraPosition = camera.position},
                                   settings);

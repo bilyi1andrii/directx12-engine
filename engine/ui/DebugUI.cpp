@@ -33,7 +33,7 @@ namespace engine::ui {
             // changes with its text, and pivot (1, 0) keeps its right edge at this position.
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - margin, margin), ImGuiCond_Always,
                                     ImVec2(1.0f, 0.0f));
-            return ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+            return ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
         }
     } // namespace
 

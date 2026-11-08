@@ -81,25 +81,18 @@ namespace engine::scene {
 
         std::optional<ObjectId> nearest;
         float nearestDistance = std::numeric_limits<float>::max();
-        std::optional<ObjectId> around; // the first object with a box the ray starts inside
         for (uint32_t index = 0; index < objects.size(); ++index) {
             const SceneObject &object = objects[index];
             for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
                 const std::optional<float> distance = IntersectRayBox(ray, transforms[i].world, parts[i].bounds);
-                if (!distance) {
-                    continue;
-                }
-                if (*distance > 0.0f) {
-                    if (*distance < nearestDistance) {
-                        nearest = ObjectId{.index = index};
-                        nearestDistance = *distance;
-                    }
-                } else if (!around) {
-                    around = ObjectId{.index = index};
+                // Distance 0: the ray starts inside this box, which does not count
+                if (distance && *distance > 0.0f && *distance < nearestDistance) {
+                    nearest = ObjectId{.index = index};
+                    nearestDistance = *distance;
                 }
             }
         }
-        return nearest ? nearest : around;
+        return nearest;
     }
 
     std::optional<XMFLOAT3> IntersectHorizontalPlane(const Ray &ray, float planeY) {

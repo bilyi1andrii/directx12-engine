@@ -158,11 +158,12 @@ TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     EXPECT_FALSE(Pick(scene, {.origin = {9.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}).has_value());
 }
 
-TEST(Pick, BoxesTheRayStartsInsideRankLast) {
+// Standing inside a large part's box, a click on empty space selects nothing, and a click on another object selects it
+TEST(Pick, BoxesTheRayStartsInsideDoNotCount) {
     Scene scene;
-    const ObjectId room = AddCube(scene, XMMatrixScaling(20.0f, 20.0f, 20.0f));
+    AddCube(scene, XMMatrixScaling(20.0f, 20.0f, 20.0f));
     const Ray ray{.origin = {0.0f, 0.0f, -5.0f}, .direction = {0.0f, 0.0f, 1.0f}};
-    EXPECT_EQ(Pick(scene, ray), room); // nothing else to select
+    EXPECT_FALSE(Pick(scene, ray).has_value());
 
     const ObjectId cube = AddCube(scene, XMMatrixTranslation(0.0f, 0.0f, 5.0f));
     EXPECT_EQ(Pick(scene, ray), cube);

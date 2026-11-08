@@ -47,12 +47,15 @@ namespace sandbox {
         return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
     }
 
+    engine::render::ModelPart CubePart(engine::render::MeshHandle cube, engine::render::TextureHandle texture) {
+        return {.mesh = cube, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
+    }
+
     GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
                         engine::render::TextureHandle texture, engine::apps::GridMode mode, uint32_t count) {
         using namespace DirectX;
 
-        const engine::render::ModelPart part{
-            .mesh = cube, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
+        const engine::render::ModelPart part = CubePart(cube, texture);
         const GridObjects grid{.mode = mode,
                                .side = engine::apps::GridSide(count),
                                .firstObject = static_cast<uint32_t>(scene.Objects().size())};
