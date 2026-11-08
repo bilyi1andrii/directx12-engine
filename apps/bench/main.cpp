@@ -42,7 +42,7 @@ ENGINE_EXPORT_AGILITY_SDK()
 namespace {
     using Clock = std::chrono::steady_clock;
 
-    // Stopped early (Esc, window closed) or results not written. Same value as a failed smoke test.
+    // Model not usable, stopped early (Esc, window closed) or results not written. Same value as a failed smoke test.
     constexpr int kExitBenchFailed = 1;
 
     // Written into run.txt, so a result from the wrong build is easy to spot
@@ -78,9 +78,27 @@ namespace {
         size_t objectCount = 0;
     };
 
+    // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
+    std::expected<const engine::render::Model *, std::string>
+    LoadGridModel(const BenchOptions &options, engine::render::Renderer &renderer, engine::assets::AssetCache &assets) {
+        if (!options.modelPath) {
+            return &assets.CubeModel(engine::apps::CreateGridTexture(renderer, std::nullopt));
+        }
+        const auto model = assets.LoadModel(*options.modelPath);
+        if (!model) {
+            return std::unexpected(model.error().message);
+        }
+        if ((*model)->parts.empty()) {
+            return std::unexpected(
+                std::format("'{}' has no triangles to draw", engine::core::ToUtf8(options.modelPath->native())));
+        }
+        return *model;
+    }
+
     // Renders the warm-up frames, then the measured ones, in borderless fullscreen with vsync off and the camera on
-    // its path. Nothing is logged or written while measuring. Esc stops the run.
-    BenchRun RunBench(const BenchOptions &options, engine::rhi::ValidationStats &validation) {
+    // its path. Nothing is logged or written while measuring. Esc stops the run. An error if the model cannot be used.
+    std::expected<BenchRun, std::string> RunBench(const BenchOptions &options,
+                                                  engine::rhi::ValidationStats &validation) {
         engine::core::Input input;
         engine::core::Window window({.title = L"D3D12 Engine - bench", .width = 1280, .height = 720});
         window.SetCallbacks({
@@ -100,11 +118,15 @@ namespace {
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
+        const std::expected<const engine::render::Model *, std::string> model =
+            LoadGridModel(options, renderer, assets);
+        if (!model) {
+            return std::unexpected(model.error());
+        }
 
         // Only the grid, no spinning cube
         engine::render::RenderList renderList; // empty for a static grid
-        const engine::bench::StressGrid grid(renderer, options.gridMode, options.count,
-                                             assets.CubeModel(engine::apps::CreateGridTexture(renderer, std::nullopt)));
+        const engine::bench::StressGrid grid(renderer, options.gridMode, options.count, **model);
         const std::array path = grid.CameraPath();
         engine::scene::Camera camera;
         camera.fovDegrees = 60.0f; // as in the sandbox
@@ -178,7 +200,7 @@ namespace {
         const bool instanced = options.drawPath == engine::render::DrawPath::Instanced;
         return {
             {"engine", std::string(engine::bench::kEngineName)},
-            {"scene", std::string(ToString(options.scene))},
+            {"scene", engine::core::ToUtf8(BenchSceneName(options).native())},
             {"grid", std::string(engine::apps::ToString(options.gridMode))},
             {"objects", std::format("{} (--count {})", run.objectCount, options.count)},
             {"draw_path", instanced ? "instanced" : "non-instanced"},
@@ -210,8 +232,9 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             LogInfo("{}", kBenchUsage);
             return engine::apps::kExitBadCommandLine;
         }
-        LogInfo("Bench: scene {}, grid {}, {} cubes, {}, results in '{}'", ToString(options->scene),
-                engine::apps::ToString(options->gridMode), options->count,
+        LogInfo("Bench: {}, grid {}, --count {}, {}, results in '{}'",
+                engine::core::ToUtf8(BenchSceneName(*options).native()), engine::apps::ToString(options->gridMode),
+                options->count,
                 options->drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced",
                 engine::core::ToUtf8(options->outDir.native()));
         const std::chrono::system_clock::time_point started = std::chrono::system_clock::now();
@@ -221,8 +244,13 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
         engine::rhi::ValidationStats validation;
-        const BenchRun run = RunBench(*options, validation);
+        const std::expected<BenchRun, std::string> outcome = RunBench(*options, validation);
         engine::apps::LogValidationSummary(validation);
+        if (!outcome) {
+            LogError("{}; nothing written", outcome.error());
+            return kExitBenchFailed;
+        }
+        const BenchRun &run = *outcome;
 
         const uint64_t expectedFrames = uint64_t{options->warmupFrames} + options->frames;
         if (run.result.framesRendered != expectedFrames) {
@@ -247,7 +275,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         const std::string timestamp = engine::bench::FolderTimestamp(started);
         const std::vector<RunField> fields = RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs);
         const std::expected<std::filesystem::path, std::string> folder =
-            engine::bench::WriteResults(options->outDir, ToString(options->scene), timestamp, run.timings, fields);
+            engine::bench::WriteResults(options->outDir, BenchSceneName(*options), timestamp, run.timings, fields);
         if (!folder) {
             LogError("Results not written: {}", folder.error());
             return kExitBenchFailed;

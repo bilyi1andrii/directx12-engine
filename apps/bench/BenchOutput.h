@@ -40,7 +40,7 @@ namespace engine::bench {
     // Writes frames.csv and run.txt into a new folder <outDir>/dx12/<scene>/<timestamp>/. Never overwrites a run:
     // if the folder exists, the new one is called <timestamp>-2 (then -3, ...). Returns the folder or the error.
     [[nodiscard]] std::expected<std::filesystem::path, std::string>
-    WriteResults(const std::filesystem::path &outDir, std::string_view scene, std::string_view timestamp,
+    WriteResults(const std::filesystem::path &outDir, const std::filesystem::path &scene, std::string_view timestamp,
                  std::span<const FrameTiming> timings, std::span<const RunField> fields);
 } // namespace engine::bench
 
