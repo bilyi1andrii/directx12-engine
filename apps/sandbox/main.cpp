@@ -264,12 +264,10 @@ namespace {
 
             // Show the gizmo on the selected object, unless it is static
             if (selected && scene.Object(*selected).mobility == engine::scene::Mobility::Movable) {
-                const DirectX::XMFLOAT3 position = ObjectPosition(scene.Object(*selected));
-                // Position only, so the arrows follow the world axes however the object is turned
-                DirectX::XMFLOAT4X4 gizmoWorld{};
-                DirectX::XMStoreFloat4x4(&gizmoWorld, DirectX::XMMatrixTranslation(position.x, position.y, position.z));
-                if (ui.TranslateGizmo(frameView.view, frameView.projection, gizmoWorld)) {
-                    MoveObject(scene, *selected, {gizmoWorld._41, gizmoWorld._42, gizmoWorld._43});
+                // The whole matrix: the gizmo moves, turns or scales the object around its pivot
+                DirectX::XMFLOAT4X4 gizmoWorld = scene.Object(*selected).world;
+                if (ui.TransformGizmo(frameView.view, frameView.projection, gizmoWorld)) {
+                    scene.SetObjectWorld(*selected, gizmoWorld);
                 }
             }
             // A left click on the scene selects the object under the cursor, or clears the selection. After the
