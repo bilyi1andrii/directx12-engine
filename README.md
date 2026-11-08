@@ -15,7 +15,9 @@ in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draw
 `RenderList` of objects batched by mesh and material, plus the texture, mesh, material and model types), per-frame
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
 grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Models from
-files (glTF, OBJ, FBX, ...) are shown on the cube grid. Next: drawing Sponza and ImGui.
+files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
+vsync settings, and the spinning cube and three coloured cubes can be selected with the mouse and moved with a gizmo.
+Next: clicking models and grid cubes, and drawing Sponza.
 
 ## Requirements
 
@@ -82,9 +84,11 @@ PowerShell. Debug the exe with the Visual Studio debugger, or another debugger t
 | Key | Action |
 |---|---|
 | Esc | Quit |
-| V | Toggle vsync (the FPS is shown in the title bar) |
-| I | Toggle the draw path: instanced or one draw per object (shown in the title bar; the image stays the same) |
+| V | Toggle vsync (the FPS is shown in the Renderer window) |
+| I | Toggle the draw path: instanced or one draw per object (shown in the Renderer window; the image stays the same) |
 | F11 or Alt+Enter | Toggle borderless fullscreen |
+| Left mouse button | Select the cube under the cursor; a click on empty space clears the selection |
+| Drag a gizmo arrow | Move the selected cube along that axis (or edit its position in the Selection window) |
 | Right mouse button + mouse | Look around |
 | W / A / S / D | Fly forward / left / back / right |
 | Space / Left Shift | Fly up / down |
@@ -186,11 +190,10 @@ engine/renderdata
                parts) and GpuUploader (the interface asset loading creates GPU data through)
 engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
                once) and the frame's RenderList (uploaded every frame); CreateMesh uploads a model's geometry
-               into one vertex and one index buffer and returns a MeshHandle per submesh
+               into one vertex and one index buffer and returns a MeshHandle per submesh; UiRenderer draws ImGui
+engine/ui      DebugUI: the ImGui windows and the translate gizmo; writes RendererSettings (no D3D12)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)
 tests/         unit tests of the CPU code (GoogleTest; no GPU needed)
 ```
-
-More engine modules (`engine/ui`, …) are added in the next steps.

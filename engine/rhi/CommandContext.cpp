@@ -86,6 +86,11 @@ namespace engine::rhi {
         m_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
     }
 
+    void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
+        ENGINE_ASSERT(m_recording);
+        m_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr); // no DSV: no depth test or write
+    }
+
     void CommandContext::SetViewportAndScissor(uint32_t width, uint32_t height) {
         ENGINE_ASSERT(m_recording);
         // Viewport: maps clip space to pixels and depth to [0, 1]. Scissor: pixels outside the rectangle

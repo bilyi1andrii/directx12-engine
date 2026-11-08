@@ -1,5 +1,6 @@
 #include "AppChecks.h"
 
+#include <cstdlib>
 #include <format>
 #include <string>
 #include <vector>
@@ -15,6 +16,15 @@ namespace engine::apps {
         constexpr bool kValidationExpected = false;
 #endif
     } // namespace
+
+    void RouteCrtAssertsToStderr() noexcept {
+        // assert() picks a message box or stderr by the error mode. The default follows the app type, which the
+        // wWinMain entry point sets to "GUI" even in our console-subsystem builds. (_CrtSetReportMode does not
+        // apply: it configures _ASSERT/_ASSERTE, not assert().)
+        _set_error_mode(_OUT_TO_STDERR);
+        // assert() then calls abort(): no "abort() has been called" dialog, no Windows Error Reporting
+        _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+    }
 
     void LogValidationSummary(const rhi::ValidationStats &validation) {
         if (!validation.active) {

@@ -24,8 +24,10 @@ namespace engine::rhi {
         ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&m_heap)));
         ThrowIfFailed(m_heap->SetName(std::wstring(name).c_str()));
 
-        // Views are written through CPU handles; shaders only need the index
+        // Views are written through CPU handles; shaders only need the index. GPU handles are what descriptor
+        // tables (non-bindless binding, used by the ImGui backend) point at.
         m_cpuStart = m_heap->GetCPUDescriptorHandleForHeapStart();
+        m_gpuStart = m_heap->GetGPUDescriptorHandleForHeapStart();
         m_descriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
         // Push in reverse so that the first allocations get slots 0, 1, 2, ... 
@@ -91,6 +93,19 @@ namespace engine::rhi {
 
     D3D12_CPU_DESCRIPTOR_HANDLE BindlessHeap::CpuHandle(uint32_t index) const noexcept {
         // The size of one descriptor differs between GPUs, so slot i is at start + i * size
+        ENGINE_ASSERT_MSG(index < m_capacity, "Bindless index {} out of range ({} slots)", index, m_capacity);
         return {m_cpuStart.ptr + static_cast<SIZE_T>(index) * m_descriptorSize};
+    }
+
+    D3D12_GPU_DESCRIPTOR_HANDLE BindlessHeap::GpuHandle(uint32_t index) const noexcept {
+        ENGINE_ASSERT_MSG(index < m_capacity, "Bindless index {} out of range ({} slots)", index, m_capacity);
+        return {m_gpuStart.ptr + static_cast<UINT64>(index) * m_descriptorSize};
+    }
+
+    uint32_t BindlessHeap::IndexOf(D3D12_CPU_DESCRIPTOR_HANDLE handle) const noexcept {
+        ENGINE_ASSERT_MSG(handle.ptr >= m_cpuStart.ptr && (handle.ptr - m_cpuStart.ptr) % m_descriptorSize == 0 &&
+                              (handle.ptr - m_cpuStart.ptr) / m_descriptorSize < m_capacity,
+                          "CPU descriptor handle is not a slot of this heap");
+        return static_cast<uint32_t>((handle.ptr - m_cpuStart.ptr) / m_descriptorSize);
     }
 } // namespace engine::rhi

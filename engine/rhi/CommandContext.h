@@ -50,6 +50,8 @@ namespace engine::rhi {
 
         // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
         void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
+        // Without a depth buffer (the UI); the PSO's DSVFormat must be DXGI_FORMAT_UNKNOWN
+        void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv);
         // Viewport and scissor covering the whole width x height target
         void SetViewportAndScissor(uint32_t width, uint32_t height);
         // Binds the shader-visible descriptor heap (BindlessHeap).

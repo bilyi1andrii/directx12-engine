@@ -10,6 +10,8 @@
     "d3d12-memory-allocator",
     "gtest",
     { "name": "directxtex", "default-features": false },
-    "assimp"
+    "assimp",
+    { "name": "imgui", "features": ["dx12-binding", "win32-binding"] },
+    "imguizmo"
   ]
 }

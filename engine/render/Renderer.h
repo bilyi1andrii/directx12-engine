@@ -4,6 +4,8 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -35,7 +37,12 @@
 #include "renderdata/RendererSettings.h"
 #include "renderdata/TextureData.h"
 
+// ImGui's per-frame draw data (ui::DebugUI::Render); opaque here
+struct ImDrawData;
+
 namespace engine::render {
+    class UiRenderer;
+
     struct FrameView {
         DirectX::XMFLOAT4X4 view;
         DirectX::XMFLOAT4X4 projection;
@@ -44,8 +51,8 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> EndFrame(vsync).
-    // Any of the three can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
+    // -> EndFrame(). Any of them can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
     // LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
@@ -88,12 +95,25 @@ namespace engine::render {
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) override;
 
+        // A 1x1 texture of one colour (sRGB values, as in an image file), with the lifetime of CreateTexture's.
+        // Callers above the renderer cannot name DXGI formats, so they use this for plain colours.
+        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
+                                                            std::wstring_view name);
+
         // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
-        // Submits the frame, presents it and remembers the fence value that marks its end
-        void EndFrame(bool vsync);
+        // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
+        // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
+        void EnableUi();
+
+        // Draws the UI on top of the frame: after Render, before EndFrame, at most once per frame. Needs EnableUi.
+        void RenderUi(ImDrawData *drawData);
+
+        // Submits the frame, presents it (with this frame's RendererSettings::vsync) and remembers the fence value
+        // that marks its end
+        void EndFrame();
 
         // If the device was removed, logs the reason (and DRED info in Debug builds)
         void LogDeviceRemovedInfo() const { m_device.LogDeviceRemovedInfo(); }
@@ -172,10 +192,6 @@ namespace engine::render {
         // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
 
-        // A 1x1 sRGB texture of one colour
-        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
-                                                            std::wstring_view name);
-
         // Shutdown only: waits for the GPU, then destroys every texture, mesh buffer and static list
         void DestroyResources() noexcept;
 
@@ -228,6 +244,11 @@ namespace engine::render {
 
         // Released after the destructor's flush, before the allocator
         std::vector<GpuStaticList> m_staticLists;
+
+        // The UI's renderer; null until EnableUi. Released after the destructor's flush, before the frames and the
+        // bindless heap: its shutdown hands the font texture's descriptor to a frame's deferred frees.
+        std::unique_ptr<UiRenderer> m_ui;
+        uint64_t m_uiFrameNumber = std::numeric_limits<uint64_t>::max(); // the frame RenderUi last drew
 
         // Rebuilt for every list; members, so their memory is reused
         std::vector<InstanceRange> m_instanceRanges;

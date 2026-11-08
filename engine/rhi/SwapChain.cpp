@@ -98,10 +98,23 @@ namespace engine::rhi {
         return m_rtvs[index].Cpu();
     }
 
+    D3D12_CPU_DESCRIPTOR_HANDLE SwapChain::CurrentUiRtv() const {
+        const UINT index = m_swapChain->GetCurrentBackBufferIndex();
+        ENGINE_ASSERT_MSG(index < kBackBufferCount, "back buffer index {} out of range", index);
+        return m_uiRtvs[index].Cpu();
+    }
+
     void SwapChain::CreateBackBufferViews() {
         // An RTV describes how the pipeline writes to the texture. This one views the UNORM buffer as sRGB.
         const D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{
             .Format = kRtvFormat,
+            .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D,
+            .Texture2D = {.MipSlice = 0, .PlaneSlice = 0},
+        };
+        // A second view of the same buffer in its own format (no conversion), for the UI. A resource can have
+        // any number of views; the bound view's format must match the PSO's RTVFormats.
+        const D3D12_RENDER_TARGET_VIEW_DESC uiRtvDesc{
+            .Format = kFormat,
             .ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D,
             .Texture2D = {.MipSlice = 0, .PlaneSlice = 0},
         };
@@ -111,12 +124,15 @@ namespace engine::rhi {
 
             m_rtvs[i] = m_rtvAllocator.Allocate();
             m_device->CreateRenderTargetView(m_backBuffers[i].Get(), &rtvDesc, m_rtvs[i].Cpu());
+            m_uiRtvs[i] = m_rtvAllocator.Allocate();
+            m_device->CreateRenderTargetView(m_backBuffers[i].Get(), &uiRtvDesc, m_uiRtvs[i].Cpu());
         }
     }
 
     void SwapChain::ReleaseBackBuffers() noexcept {
         for (UINT i = 0; i < kBackBufferCount; ++i) {
             m_rtvs[i].Reset();
+            m_uiRtvs[i].Reset();
             m_backBuffers[i].Reset();
         }
     }

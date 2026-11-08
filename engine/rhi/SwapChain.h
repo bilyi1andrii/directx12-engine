@@ -49,7 +49,11 @@ namespace engine::rhi {
 
         // The back buffer this frame renders into. Changes after every Present()
         [[nodiscard]] ID3D12Resource *CurrentBackBuffer() const;
+        // Its view in kRtvFormat (sRGB), for the scene
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CurrentRtv() const;
+        // Its view in kFormat (UNORM), for the UI: ImGui's colours are already sRGB-encoded, so they must be
+        // written unchanged, without the linear -> sRGB conversion of the sRGB view (they would look washed out)
+        [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CurrentUiRtv() const;
 
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
         [[nodiscard]] uint32_t Height() const noexcept { return m_height; }
@@ -63,7 +67,8 @@ namespace engine::rhi {
         DescriptorAllocator &m_rtvAllocator;
         ComPtr<IDXGISwapChain4> m_swapChain;
         std::array<ComPtr<ID3D12Resource>, kBackBufferCount> m_backBuffers;
-        std::array<Descriptor, kBackBufferCount> m_rtvs;
+        std::array<Descriptor, kBackBufferCount> m_rtvs;   // kRtvFormat
+        std::array<Descriptor, kBackBufferCount> m_uiRtvs; // kFormat
         uint32_t m_width = 0;
         uint32_t m_height = 0;
         bool m_tearingSupported = false;
