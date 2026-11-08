@@ -50,11 +50,10 @@ namespace engine::rhi {
         }
     };
 
-    // Per-frame upload memory pool for frequently updated data (constants, instances).
-    // Pages are recycled via Reset() 
-    // only after the frame's fence completes. Implements a fixed-size page pool 
-    // to eliminate runtime memory allocations after startup.
-    // 
+    // Per-frame upload memory for data that changes often (constants, instances).
+    // Reset() reuses the pages once the frame's fence has completed. A new page is created only when all pages are
+    // full, so a steady workload stops allocating after its first frames.
+    //
     // Move-only. The resource allocator must outlive it.
     class UploadRing {
     public:

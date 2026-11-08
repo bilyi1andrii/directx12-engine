@@ -4,9 +4,8 @@
 #include <DirectXMath.h>
 
 namespace engine::scene {
-    // A perspective camera as plain data.
-    // left-handed, +Z forward,
-    // +Y up, rotation applied as XMMatrixRotationRollPitchYaw(pitch, yaw, roll).
+    // A perspective camera as plain data: left-handed, +Z forward, +Y up, rotation applied as
+    // XMMatrixRotationRollPitchYaw(pitch, yaw, roll).
     struct Camera {
         DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
         // Radians: x = pitch (positive looks down), y = yaw (positive turns right), z = roll
@@ -16,9 +15,9 @@ namespace engine::scene {
         float farZ = 1000.0f;
     };
 
-    // World -> view (DX11 Camera::UpdateViewMatrix)
+    // World -> view
     [[nodiscard]] DirectX::XMMATRIX ViewMatrix(const Camera &camera);
-    // View -> clip, depth in [0, 1] (DX11 Camera::SetProjectionValues)
+    // View -> clip, depth in [0, 1]
     [[nodiscard]] DirectX::XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio);
 
     // Movement directions from pitch and yaw, ignoring roll.

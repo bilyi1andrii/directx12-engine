@@ -6,7 +6,6 @@ namespace engine::scene {
     using namespace DirectX;
 
     namespace {
-        // DX11 MotionObj.h DEFAULT_FORWARD_VECTOR / DEFAULT_UP_VECTOR / DEFAULT_RIGHT_VECTOR
         const XMVECTOR kDefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
         const XMVECTOR kDefaultUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
         const XMVECTOR kDefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);

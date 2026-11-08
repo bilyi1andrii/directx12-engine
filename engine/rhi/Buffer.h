@@ -20,8 +20,8 @@ namespace engine::rhi {
     // A GPU buffer in the default heap (GPU-local memory), e.g. a static vertex or index buffer.
     // Created through rhi::Allocator.
     //
-    // Release it with Destroy(), GPU may still be using it, so the release has to
-    // wait for a frame. The destructor checks that Destroy() was called.
+    // Release it with Destroy(): the GPU may still be using it, so the release has to wait for a frame.
+    // The destructor checks that Destroy() was called.
     class Buffer {
     public:
         Buffer() = default;

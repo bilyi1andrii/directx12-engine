@@ -41,11 +41,10 @@ namespace engine::assets {
         using render::TextureSource;
         using render::Vertex;
 
-        // Flags: Triangulate, Left-Handed space, smooth normals, and tangent space generation.
         constexpr unsigned kImportFlags = aiProcess_Triangulate | aiProcess_ConvertToLeftHanded |
                                           aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
 
-        // Appends mesh data to model's vertex/index buffers.
+        // Appends `mesh` to the vertices and indices of `geometry` as one submesh. Points and lines are left out.
         void AddSubmesh(const aiMesh &mesh, std::string_view source, MeshData &geometry) {
             SubmeshData submesh{
                 .firstIndex = static_cast<uint32_t>(geometry.indices.size()),
@@ -88,7 +87,7 @@ namespace engine::assets {
             geometry.submeshes.push_back(submesh);
         }
 
-        // Recursively builds node hierarchy and bakes transforms.
+        // Adds one MeshNode per mesh of `node` and of its children. Each transform already includes the parents'.
         void AddNodes(const aiNode &node, DirectX::FXMMATRIX parent, std::vector<MeshNode> &nodes) {
             // Transpose Assimp column-major matrix to engine's row-major space.
             const DirectX::XMMATRIX transform = DirectX::XMMatrixMultiply(
@@ -117,7 +116,7 @@ namespace engine::assets {
             return !std::holds_alternative<std::monostate>(texture);
         }
 
-        // Helper to read and parse materials and textures.
+        // Reads materials, and collects the embedded images they use into `model`
         struct MaterialReader {
             const aiScene &scene;
             std::filesystem::path directory;
@@ -200,7 +199,8 @@ namespace engine::assets {
                 }
             }
 
-            // Fallback rules for non-PBR formats (OBJ, older FBX).
+            // For formats without PBR textures (OBJ, older FBX): the diffuse map is the albedo, and the other maps are
+            // found by name, as <material><suffix>.png or .jpg next to the model.
             void ApplyNonPbrRules(const aiMaterial &material, MaterialDesc &desc) {
                 desc.albedo = FirstTexture(material, aiTextureType_DIFFUSE);
                 if (IsSet(desc.albedo)) {
@@ -232,7 +232,7 @@ namespace engine::assets {
                 return Resolve(path);
             }
 
-            // Resolves embedded or external texture paths.
+            // What a material's texture path points to: an image inside the file, or a file relative to the model
             [[nodiscard]] TextureSource Resolve(const aiString &path) {
                 const std::string_view text(path.C_Str(), path.length);
                 if (text.empty()) {

@@ -4,9 +4,9 @@
 #include <cstdint>
 
 namespace engine::render {
-    // Handles name GPU objects across layers instead of pointers (plan §2.3): code above the renderer
+    // Handles name GPU objects across layers instead of pointers: code above the renderer
     // stores and compares them but never sees a D3D12 resource.
-    // For now a plain index into the renderer's table; AssetCache adds a generation later in step 2.
+    // For now a plain index into the renderer's table, with no generation to detect a stale handle.
 
     // A mesh (vertex + index buffer) owned by the renderer
     struct MeshHandle {
@@ -15,8 +15,8 @@ namespace engine::render {
         bool operator==(const MeshHandle &) const = default;
     };
 
-    // A material. For now a material is just its albedo texture, so index = TextureHandle::index
-    // (a material buffer comes in step 6). The default, 0, is the grey fallback texture.
+    // A material. Until materials get their own GPU data, a material is just its albedo texture, so
+    // index = TextureHandle::index. The default, 0, is the grey fallback texture.
     struct MaterialHandle {
         uint32_t index = 0;
 
@@ -31,8 +31,8 @@ namespace engine::render {
         bool operator==(const TextureHandle &) const = default;
     };
 
-    // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList (DX11's static
-    // buckets). The index points into the renderer's table.
+    // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList.
+    // The index points into the renderer's table.
     struct StaticListHandle {
         uint32_t index = 0;
 

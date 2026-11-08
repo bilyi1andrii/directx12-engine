@@ -67,8 +67,7 @@ namespace engine::core {
         [[nodiscard]] bool IsMinimized() const noexcept { return m_minimized; }
         [[nodiscard]] bool IsFullscreen() const noexcept { return m_fullscreen; }
 
-        // The code passed to PostQuitMessage.
-        // Valid after PumpMessage() returned false
+        // The code passed to PostQuitMessage. Valid after PumpMessages() returned false.
         [[nodiscard]] int ExitCode() const noexcept { return m_exitCode; }
 
     private:

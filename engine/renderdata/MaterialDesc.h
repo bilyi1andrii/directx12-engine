@@ -25,7 +25,7 @@ namespace engine::render {
     // Where a texture comes from: nowhere, a file (absolute, normalized path), or an image inside the model file
     using TextureSource = std::variant<std::monostate, std::filesystem::path, EmbeddedTexture>;
 
-    // A material read from a model file: colours, factors and textures. Until PBR (step 6) only albedo is used.
+    // A material read from a model file: colours, factors and textures. Until PBR exists, only albedo is used.
     struct MaterialDesc {
         std::string name;
 

@@ -38,21 +38,23 @@ namespace sandbox {
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
     inline constexpr std::wstring_view kSpinningCubeTexture = L"data/textures/diamante.jpg";
 
-    // Loads kSpinningCubeTexture; grey with a warning on failure.
+    // kSpinningCubeTexture, or grey with a warning if it cannot be loaded
     [[nodiscard]] engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer);
 
-    // Finds all model files in assets/ sorted by path.
+    // Every model file in the gitignored assets/ folder, sorted by path
     [[nodiscard]] std::vector<std::filesystem::path> FindAssetModels();
 
-    // Places a model centered at (x, z) on the grid top, scaled to kModelSize.
+    // Adds the model at `path`, standing on the grid's top at (x, z), with its largest side scaled to kModelSize.
+    // If it cannot be loaded: a warning, and false.
     bool AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets, const std::filesystem::path &path,
                   float x, float z);
 
-    // Places multiple models in a row along X. Returns loaded count.
+    // Adds the models in a row along X, centred on the origin. Returns how many could be loaded.
     size_t AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                      std::span<const std::filesystem::path> paths);
 
-    // Handles dropped files (spawns models at ray-grid intersection or row, or updates grid texture).
+    // A dropped model stands at `dropPoint`, or at `nextModelX` at the end of the row if there is no drop point.
+    // Any other file is tried as the grid's texture (dynamic grid only).
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
                          engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid);

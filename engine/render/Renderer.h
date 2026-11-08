@@ -83,7 +83,7 @@ namespace engine::render {
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
         void Render(const FrameView &view, const RenderList &list, std::span<const StaticListHandle> staticLists = {});
 
-        // Uploads the objects of `list` once into GPU memory (DX11's static buckets). Pass the handle to Render
+        // Uploads the objects of `list` once into GPU memory. Pass the handle to Render
         // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.
         [[nodiscard]] StaticListHandle CreateStaticList(const RenderList &list, std::wstring_view name);
 
@@ -100,7 +100,7 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // 1x1 fallback textures (DX11 Color.h): grey for a texture that failed to load, red for an unhandled type
+        // 1x1 fallback textures: grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
         [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
@@ -222,9 +222,9 @@ namespace engine::render {
         rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
-        // Back buffers plus the render targets of later steps; 64 slots cost a few KB of CPU memory
+        // Back buffers and other render targets; 64 slots cost a few KB of CPU memory
         rhi::DescriptorAllocator m_rtvAllocator;
-        // The main depth buffer plus the shadow maps of step 4
+        // The main depth buffer, with room for shadow maps
         rhi::DescriptorAllocator m_dsvAllocator;
         // After the queue and the allocator: its destructor flushes the queue and returns its RTVs
         rhi::SwapChain m_swapChain;
