@@ -16,6 +16,7 @@
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
+#include "assets/Primitives.h"
 #include "common/AppChecks.h"
 #include "common/StressScene.h"
 #include "core/CommandLine.h"
@@ -70,7 +71,7 @@ namespace {
         float nearestDistance = std::numeric_limits<float>::max();
         for (size_t i = 0; i < objects.size(); ++i) {
             const std::optional<float> distance =
-                engine::scene::IntersectRayBox(ray, WorldMatrix(objects[i], spinAngle));
+                engine::scene::IntersectRayBox(ray, WorldMatrix(objects[i], spinAngle), engine::assets::kCubeBounds);
             if (distance && *distance < nearestDistance) {
                 nearest = i;
                 nearestDistance = *distance;
