@@ -23,9 +23,10 @@ namespace engine::render {
                                       0.0f, 1.0f, 0.0f, 0.0f, //
                                       0.0f, 0.0f, 1.0f, 0.0f, //
                                       0.0f, 0.0f, 0.0f, 1.0f};
+        Aabb bounds; // of the submesh, in its own space (before `transform`)
     };
 
-    // A model on the GPU: parts and bounds. AssetCache makes it from ModelData; Scene::Instantiate places it.
+    // A model on the GPU: parts and bounds. AssetCache makes it from ModelData; Scene::AddObject places it.
     struct Model {
         std::vector<ModelPart> parts;
         Aabb bounds; // of all parts, in model space

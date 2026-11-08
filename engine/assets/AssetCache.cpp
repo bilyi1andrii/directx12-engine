@@ -52,6 +52,23 @@ namespace engine::assets {
             }
             return bounds;
         }
+
+        // The box around one submesh, in its own space
+        [[nodiscard]] render::Aabb SubmeshBounds(const render::MeshData &mesh, const render::SubmeshData &submesh) {
+            using namespace DirectX;
+
+            XMVECTOR low = XMVectorReplicate(FLT_MAX);
+            XMVECTOR high = XMVectorReplicate(-FLT_MAX);
+            for (uint32_t i = submesh.firstIndex; i < submesh.firstIndex + submesh.indexCount; ++i) {
+                const XMVECTOR position = XMLoadFloat3(&mesh.vertices[submesh.baseVertex + mesh.indices[i]].position);
+                low = XMVectorMin(low, position);
+                high = XMVectorMax(high, position);
+            }
+            render::Aabb bounds;
+            XMStoreFloat3(&bounds.min, low);
+            XMStoreFloat3(&bounds.max, high);
+            return bounds;
+        }
     } // namespace
 
     std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const std::filesystem::path &path) {
@@ -88,8 +105,10 @@ namespace engine::assets {
             if (!material) {
                 material = Material(*data, data->materials[submesh.materialIndex], embedded, name);
             }
-            model.parts.push_back(
-                render::ModelPart{.mesh = meshes[node.submesh], .material = *material, .transform = node.transform});
+            model.parts.push_back(render::ModelPart{.mesh = meshes[node.submesh],
+                                                    .material = *material,
+                                                    .transform = node.transform,
+                                                    .bounds = SubmeshBounds(data->mesh, submesh)});
         }
 
         core::LogInfo("AssetCache: {} in {:.0f} ms: {} parts, {} new textures", core::ToUtf8(name), timer.ElapsedMs(),

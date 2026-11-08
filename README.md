@@ -10,14 +10,14 @@ D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer i
 logging, error handling), asset loading in `engine/assets` (models through Assimp; textures through DirectXTex, mips
 generated on the CPU), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames
 in flight, descriptors, swap chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless
-descriptor heap, a pipeline cache), one global root signature defined in HLSL, a scene of entities and a fly camera
+descriptor heap, a pipeline cache), one global root signature defined in HLSL, a scene of objects and a fly camera
 in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the
 `RenderList` of objects batched by mesh and material, plus the texture, mesh, material and model types), per-frame
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
 grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Models from
 files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
-vsync settings, and the spinning cube and three coloured cubes can be selected with the mouse and moved with a gizmo.
-Next: clicking models and grid cubes, and drawing Sponza.
+vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved with a gizmo (with
+`--grid static` the grid's cubes can only be selected). Next: drawing Sponza.
 
 ## Requirements
 
@@ -87,8 +87,8 @@ PowerShell. Debug the exe with the Visual Studio debugger, or another debugger t
 | V | Toggle vsync (the FPS is shown in the Renderer window) |
 | I | Toggle the draw path: instanced or one draw per object (shown in the Renderer window; the image stays the same) |
 | F11 or Alt+Enter | Toggle borderless fullscreen |
-| Left mouse button | Select the cube under the cursor; a click on empty space clears the selection |
-| Drag a gizmo arrow | Move the selected cube along that axis (or edit its position in the Selection window) |
+| Left mouse button | Select the cube or model under the cursor; a click on empty space clears the selection |
+| Drag a gizmo arrow | Move the selected object along that axis, or edit its position in the Selection window (with `--grid static`, the grid's cubes can only be selected) |
 | Right mouse button + mouse | Look around |
 | W / A / S / D | Fly forward / left / back / right |
 | Space / Left Shift | Fly up / down |
@@ -110,7 +110,8 @@ test fails if the D3D12 or DXGI debug layer reported an error, if objects are st
 120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
 the last lines say why. Run it after every change, before committing.
 
-A second smoke test, `bench_smoke`, runs a very short [benchmark](#benchmark) with the same checks.
+Two more smoke tests use the same checks: `sandbox_smoke_static` runs the sandbox with `--grid static`, and
+`bench_smoke` runs a very short [benchmark](#benchmark).
 
 The exe can also be started directly with `--smoke-test N`. Exit codes:
 
@@ -162,10 +163,10 @@ build/x64-debug/bin/
 ## Repository layout
 
 ```
-apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture, --model; models and
+apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture, --model; the grid, models and
                dropped files in SandboxScene)
 apps/bench     benchmark: renders a fixed scene and writes per-frame times to CSV
-apps/common    code both apps share (the cube-grid scene, option parsing, end-of-run checks)
+apps/common    code both apps share (the grid's layout, the bench's StressGrid, option parsing, end-of-run checks)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 data/          small runtime files committed to git (textures/Endstone.jpg, the grid's texture); copied to bin/data/
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
@@ -179,9 +180,9 @@ engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandCo
                UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
                resources by index), PipelineCache (PSOs built from a description and cached; the global
                root signature)
-engine/scene   Scene (entities with a transform and a mesh + material; Instantiate places a model, Extract fills
-               the RenderList), Camera, fly-camera controls, scripted camera paths and Picking (the ray under a
-               screen point) (no D3D12)
+engine/scene   Scene (objects made of parts, each with a transform and a mesh + material; AddObject places a model
+               or a cube, Extract fills the RenderList), Camera, fly-camera controls, scripted camera paths and
+               Picking (the ray under a screen point, Pick finds the object it selects) (no D3D12)
 engine/renderdata
                plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
                and material), InstanceChunks (how instance data is split into upload pages), RendererSettings

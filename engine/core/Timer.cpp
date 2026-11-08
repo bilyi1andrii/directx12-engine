@@ -37,13 +37,11 @@ namespace engine::core {
         ++m_frameCount;
 
         // Average over 1s windows
-        m_fpsUpdated = false;
         m_fpsWindowSeconds += m_deltaSeconds;
         ++m_fpsWindowFrames;
 
         if (m_fpsWindowSeconds >= 1.0) {
             m_fps = m_fpsWindowFrames / m_fpsWindowSeconds;
-            m_fpsUpdated = true;
             m_fpsWindowSeconds = 0.0;
             m_fpsWindowFrames = 0;
         }

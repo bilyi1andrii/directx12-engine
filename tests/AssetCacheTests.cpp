@@ -150,6 +150,25 @@ TEST(AssetCache, ModelHasAPartPerSubmeshAndItsBounds) {
     EXPECT_NEAR(model.bounds.min.x, 0.0f, 1e-5f);
     EXPECT_NEAR(model.bounds.max.x, 1.0f, 1e-5f);
     EXPECT_NEAR(model.bounds.max.y, 2.0f, 1e-5f);
+    // Each part's box covers its own triangle only
+    EXPECT_NEAR(model.parts[0].bounds.max.y, 1.0f, 1e-5f);
+    EXPECT_NEAR(model.parts[1].bounds.max.y, 2.0f, 1e-5f);
+}
+
+// A part's box must not include the node transform: picking applies that separately
+TEST(AssetCache, PartBoundsAreInTheSubmeshsOwnSpace) {
+    std::string text(kEmbeddedTextureGltf);
+    const std::string_view node = R"({"mesh": 0})";
+    text.replace(text.find(node), node.size(), R"({"mesh": 0, "translation": [5, 0, 0]})");
+    const TempFile gltf(L"engine_test_cache_node.gltf", Bytes(text));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &model = Load(cache, gltf.Path());
+
+    ASSERT_EQ(model.parts.size(), 1u);
+    EXPECT_NEAR(model.parts[0].bounds.max.x, 1.0f, 1e-5f);
+    EXPECT_NEAR(model.bounds.max.x, 6.0f, 1e-5f);
 }
 
 // Untextured materials: colour as is (no sRGB conversion), one shared texture per colour. Assimp's unused

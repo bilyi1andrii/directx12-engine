@@ -5,7 +5,9 @@
 
 #include <DirectXMath.h>
 
+#include "renderdata/Model.h"
 #include "scene/Camera.h"
+#include "scene/Scene.h"
 
 // Selecting objects with the mouse: a ray from the camera through a pixel, tested against the objects' boxes.
 // CPU only (no picking pass on the GPU).
@@ -22,10 +24,14 @@ namespace engine::scene {
     // `viewportPx`: the client size, which also gives the aspect ratio (as for the renderer's projection).
     [[nodiscard]] Ray MakePickRay(const Camera &camera, DirectX::XMFLOAT2 pointPx, DirectX::XMFLOAT2 viewportPx);
 
-    // Where `ray` first enters the box [-1, 1]^3 (assets::MakeCube) placed by `world`: the distance along the ray,
-    // 0 if the ray starts inside it, nullopt if it misses (or `world` cannot be inverted, e.g. scale 0).
-    // Any affine `world` works, rotated and scaled boxes included.
-    [[nodiscard]] std::optional<float> IntersectRayBox(const Ray &ray, const DirectX::XMFLOAT4X4 &world);
+    // How far along `ray` it enters `box` placed by `world`: 0 if it starts inside, nullopt if it misses or `world`
+    // has scale 0. `world` may rotate and scale the box, and the box may be flat.
+    [[nodiscard]] std::optional<float> IntersectRayBox(const Ray &ray, const DirectX::XMFLOAT4X4 &world,
+                                                       const render::Aabb &box);
+
+    // The object `ray` selects: the one whose part's box it enters first, static objects included. A box the ray
+    // starts inside is ignored, so a click on empty space selects nothing. Checks every part: call it on clicks only.
+    [[nodiscard]] std::optional<ObjectId> Pick(const Scene &scene, const Ray &ray);
 
     // Where `ray` meets the horizontal plane y = `planeY`.
     [[nodiscard]] std::optional<DirectX::XMFLOAT3> IntersectHorizontalPlane(const Ray &ray, float planeY);

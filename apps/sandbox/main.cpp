@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -16,6 +15,7 @@
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
+#include "assets/Primitives.h"
 #include "common/AppChecks.h"
 #include "common/StressScene.h"
 #include "core/CommandLine.h"
@@ -41,42 +41,18 @@ using engine::core::LogInfo;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
-    // An object the user can select (left click) and move (the gizmo, or the Selection window). The grid's cubes
-    // cannot be picked or moved yet: their positions are not stored anywhere.
-    struct MovableObject {
-        std::string_view name;
-        engine::render::BatchKey key;
-        DirectX::XMFLOAT3 position{};
-        bool spins = false; // 90 degrees per second around the (0, 1, 1) axis, like the step-1 cube
-    };
-
-    // Where `object` is drawn this frame; `spinAngle` in radians
-    DirectX::XMFLOAT4X4 WorldMatrix(const MovableObject &object, float spinAngle) {
-        using namespace DirectX;
-        XMMATRIX world = XMMatrixTranslation(object.position.x, object.position.y, object.position.z);
-        if (object.spins) {
-            // Row vectors: spin first, then move, so it spins around its own (moved) centre
-            world = XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), spinAngle) * world;
-        }
-        XMFLOAT4X4 result{};
-        XMStoreFloat4x4(&result, world);
-        return result;
+    // The object's position in the world
+    DirectX::XMFLOAT3 ObjectPosition(const engine::scene::SceneObject &object) {
+        return {object.world._41, object.world._42, object.world._43};
     }
 
-    // The object `ray` hits first (all are cubes with corners at +-1), or nullopt
-    std::optional<size_t> PickObject(std::span<const MovableObject> objects, const engine::scene::Ray &ray,
-                                     float spinAngle) {
-        std::optional<size_t> nearest;
-        float nearestDistance = std::numeric_limits<float>::max();
-        for (size_t i = 0; i < objects.size(); ++i) {
-            const std::optional<float> distance =
-                engine::scene::IntersectRayBox(ray, WorldMatrix(objects[i], spinAngle));
-            if (distance && *distance < nearestDistance) {
-                nearest = i;
-                nearestDistance = *distance;
-            }
-        }
-        return nearest;
+    // Moves an object to `position`, keeping its rotation and scale
+    void MoveObject(engine::scene::Scene &scene, engine::scene::ObjectId id, const DirectX::XMFLOAT3 &position) {
+        DirectX::XMFLOAT4X4 world = scene.Object(id).world;
+        world._41 = position.x;
+        world._42 = position.y;
+        world._43 = position.z;
+        scene.SetObjectWorld(id, world);
     }
 
     // Logs what the renderer window or a shortcut changed this frame
@@ -152,20 +128,29 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // The textured grid (--count, --grid) and the scene's entities (the models). The scene is uploaded every
-        // frame, the grid only in dynamic mode.
-        engine::render::RenderList renderList; // this frame's dynamic objects
-        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
-        const std::filesystem::path gridTexturePath =
-            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
-        // Not const: a dropped image replaces the grid texture
-        engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
-                                      options.gridCount.value_or(engine::apps::kDefaultGridCount),
-                                      engine::apps::CreateGridTexture(renderer, gridTexturePath));
+        engine::render::RenderList renderList; // this frame's movable objects
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
+
+        // The textured grid (--count, --grid)
+        const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
+        // Without --texture, the grid uses the sandbox's texture from data/
+        const std::filesystem::path gridTexturePath =
+            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        const sandbox::GridObjects grid =
+            sandbox::AddGrid(scene, cubeMesh, engine::apps::CreateGridTexture(renderer, gridTexturePath),
+                             options.gridMode.value_or(engine::apps::GridMode::Dynamic),
+                             options.gridCount.value_or(engine::apps::kDefaultGridCount));
+        // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
+        std::vector<engine::render::StaticListHandle> staticLists;
+        if (grid.mode == engine::apps::GridMode::Static) {
+            engine::render::RenderList staticObjects;
+            engine::scene::Extract(scene, staticObjects, engine::scene::Mobility::Static);
+            staticLists.push_back(renderer.CreateStaticList(staticObjects, L"Grid/Instances"));
+        }
+
         // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git)
         std::vector<std::filesystem::path> modelPaths;
         if (options.modelPath) {
@@ -179,31 +164,28 @@ namespace {
                                ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
                                : sandbox::kModelSpacing;
 
-        // Objects the user can select and move, uploaded every frame: a textured cube spinning at the origin (only
-        // without models, which stand there) and three plain-coloured cubes around it. A material is its albedo
-        // texture for now (Handles.h).
-        const auto colouredCube = [&renderer, &grid](uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
-            const engine::render::TextureHandle texture = renderer.CreateSolidColorTexture(red, green, blue, name);
-            return engine::render::BatchKey{.mesh = grid.CubeMesh(), .material = {.index = texture.index}};
+        // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
+        const auto addCube = [&scene, cubeMesh](std::string name, engine::render::TextureHandle texture, float x,
+                                                float z) {
+            const engine::render::ModelPart part = sandbox::CubePart(cubeMesh, texture);
+            DirectX::XMFLOAT4X4 world{};
+            DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
+            return scene.AddObject(std::move(name), {&part, 1}, world, engine::scene::Mobility::Movable);
         };
-        std::vector<MovableObject> objects;
+        std::optional<engine::scene::ObjectId> spinningCube;
         if (modelsShown == 0) {
-            const engine::render::TextureHandle cubeTexture = sandbox::CreateSpinningCubeTexture(renderer);
-            objects.push_back(MovableObject{.name = "Spinning cube",
-                                            .key = {.mesh = grid.CubeMesh(), .material = {.index = cubeTexture.index}},
-                                            .position = {0.0f, 0.0f, 0.0f},
-                                            .spins = true});
+            spinningCube = addCube("Spinning cube", sandbox::CreateSpinningCubeTexture(renderer), 0.0f, 0.0f);
         }
-        objects.push_back(MovableObject{
-            .name = "Orange cube", .key = colouredCube(230, 120, 30, L"Orange"), .position = {-5.0f, 0.0f, 0.0f}});
-        objects.push_back(MovableObject{
-            .name = "Green cube", .key = colouredCube(60, 170, 70, L"Green"), .position = {5.0f, 0.0f, 0.0f}});
-        objects.push_back(MovableObject{
-            .name = "Blue cube", .key = colouredCube(50, 110, 220, L"Blue"), .position = {0.0f, 0.0f, 5.0f}});
-        // Index into `objects`. The smoke test selects the first one, so that the gizmo runs in every frame.
-        std::optional<size_t> selected;
+        // With models loaded, the cubes stand behind the row so that they do not end up inside a model
+        const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
+        const engine::scene::ObjectId orangeCube =
+            addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, cubesZ);
+        addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, cubesZ);
+        addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, cubesZ + 5.0f);
+        // The smoke test selects a cube so that the gizmo runs every frame
+        std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
-            selected = 0;
+            selected = orangeCube;
         }
 
         // Edited by the renderer window and the shortcuts I and V; the renderer takes a copy in BeginFrame
@@ -211,7 +193,7 @@ namespace {
 
         // For the renderer window; the grid does not change while the sandbox runs
         const std::string sceneInfo =
-            std::format("grid {} x {}, {}", grid.Side(), grid.Side(), engine::apps::ToString(grid.Mode()));
+            std::format("grid {} x {}, {}", grid.side, grid.side, engine::apps::ToString(grid.mode));
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
@@ -255,45 +237,64 @@ namespace {
             }
 
             cameraController.Update(camera, input, frameTimer.DeltaSeconds(),
-                                    {.mouse = appMouse, .keyboard = appKeyboard});
+                                    {.mouse = !ui.WantsMouseForCamera(), .keyboard = appKeyboard});
 
             // One view for the gizmo, picking and rendering. BeginFrame gives the swap chain the window's size, so
             // the window's aspect ratio is also the rendered one.
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
             const engine::render::FrameView frameView =
                 engine::apps::MakeFrameView(camera, viewportPx.x / viewportPx.y);
-            // 90 degrees per second. fmod in double keeps the angle precise however long the program runs.
-            const float spinAngle =
-                DirectX::XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
+            // The camera ray through the centre of a pixel
+            const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
+                return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
+                                                  viewportPx);
+            };
+            if (spinningCube) {
+                using namespace DirectX;
+                // 90 degrees per second. fmod in double keeps the angle precise in long runs.
+                const float angle =
+                    XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
+                const XMFLOAT3 position = ObjectPosition(scene.Object(*spinningCube));
+                XMFLOAT4X4 world{};
+                // Spin first, then move, so it spins around its own centre
+                XMStoreFloat4x4(&world, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle) *
+                                            XMMatrixTranslation(position.x, position.y, position.z));
+                scene.SetObjectWorld(*spinningCube, world);
+            }
 
-            // The gizmo on the selected object; it moves the object while one of its handles is dragged
-            if (selected) {
-                MovableObject &object = objects[*selected];
-                // The position only: the gizmo's axes are the world's (ImGuizmo::WORLD), however the object spins
+            // Show the gizmo on the selected object, unless it is static
+            if (selected && scene.Object(*selected).mobility == engine::scene::Mobility::Movable) {
+                const DirectX::XMFLOAT3 position = ObjectPosition(scene.Object(*selected));
+                // Position only, so the arrows follow the world axes however the object is turned
                 DirectX::XMFLOAT4X4 gizmoWorld{};
-                DirectX::XMStoreFloat4x4(
-                    &gizmoWorld, DirectX::XMMatrixTranslation(object.position.x, object.position.y, object.position.z));
+                DirectX::XMStoreFloat4x4(&gizmoWorld, DirectX::XMMatrixTranslation(position.x, position.y, position.z));
                 if (ui.TranslateGizmo(frameView.view, frameView.projection, gizmoWorld)) {
-                    object.position = {gizmoWorld._41, gizmoWorld._42, gizmoWorld._43}; // the translation row
+                    MoveObject(scene, *selected, {gizmoWorld._41, gizmoWorld._42, gizmoWorld._43});
                 }
             }
             // A left click on the scene selects the object under the cursor, or clears the selection. After the
             // gizmo, so that a click on one of its handles stays the gizmo's.
             if (appMouse && !ui.GizmoWantsMouse() && input.WasKeyPressed(VK_LBUTTON)) {
                 const engine::core::Int2 mouse = input.MousePosition();
-                const engine::scene::Ray ray = engine::scene::MakePickRay(
-                    camera, {static_cast<float>(mouse.x) + 0.5f, static_cast<float>(mouse.y) + 0.5f}, viewportPx);
-                selected = PickObject(objects, ray, spinAngle);
-                LogInfo("Selected: {}", selected ? objects[*selected].name : "nothing");
+                selected = engine::scene::Pick(scene, pickRayAt(mouse.x, mouse.y));
+                LogInfo("Selected: {}", selected ? std::string_view(scene.Object(*selected).name) : "nothing");
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
-                                   .objectCount = grid.ObjectCount() + objects.size() + scene.EntityCount(),
-                                   .scene = sceneInfo,
+                                   .objectCount = scene.Objects().size(),
+                                   .sceneInfo = sceneInfo,
                                    .cameraPosition = camera.position},
                                   settings);
-            ui.ShowSelectionWindow(selected ? objects[*selected].name : std::string_view{},
-                                   selected ? &objects[*selected].position : nullptr);
+            if (selected) {
+                const engine::scene::SceneObject &object = scene.Object(*selected);
+                DirectX::XMFLOAT3 position = ObjectPosition(object);
+                if (ui.ShowSelectionWindow(object.name, position,
+                                           object.mobility == engine::scene::Mobility::Movable)) {
+                    MoveObject(scene, *selected, position);
+                }
+            } else {
+                ui.ShowEmptySelectionWindow();
+            }
             ImDrawData *const uiDrawData = ui.Render();
             LogSettingsChanges(previousSettings, settings);
 
@@ -303,23 +304,18 @@ namespace {
 
             // Between frames: EndFrame submits their uploads before the frame
             for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
-                const engine::scene::Ray ray = engine::scene::MakePickRay(
-                    camera, {static_cast<float>(drop.x) + 0.5f, static_cast<float>(drop.y) + 0.5f}, viewportPx);
+                const engine::scene::Ray ray = pickRayAt(drop.x, drop.y);
                 sandbox::LoadDroppedFile(drop.path,
                                          engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
                                          assets, scene, nextModelX, grid);
             }
 
             renderList.Clear();
-            grid.Submit(renderList); // dynamic mode only
-            engine::scene::Extract(scene, renderList);
-            for (const MovableObject &object : objects) {
-                renderList.Add(object.key, WorldMatrix(object, spinAngle));
-            }
+            engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
-                renderer.Render(frameView, renderList, grid.StaticLists());
+                renderer.Render(frameView, renderList, staticLists);
                 renderer.RenderUi(uiDrawData); // on top of the scene
                 renderer.EndFrame();
             } catch (const engine::core::HResultError &) {

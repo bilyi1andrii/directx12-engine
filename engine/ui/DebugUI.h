@@ -18,7 +18,7 @@ namespace engine::ui {
     struct FrameStats {
         double fps = 0.0; // 0 until the first measurement
         size_t objectCount = 0;
-        std::string_view scene; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
+        std::string_view sceneInfo; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
         DirectX::XMFLOAT3 cameraPosition{};
     };
 
@@ -60,6 +60,9 @@ namespace engine::ui {
         [[nodiscard]] bool WantsMouse() const;
         [[nodiscard]] bool WantsKeyboard() const;
 
+        // Like WantsMouse, for turning the camera: hovering a gizmo handle does not count
+        [[nodiscard]] bool WantsMouseForCamera() const;
+
         // The translate gizmo (ImGuizmo) on the object placed by `world`: arrows along the world X/Y/Z axes, plus
         // plane handles and a centre handle that moves in the screen plane. `view` and `projection` are the
         // camera's DirectXMath matrices as they are (not transposed). While the user drags a handle it changes
@@ -74,16 +77,21 @@ namespace engine::ui {
         // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
-        // The "Selection" window: the selected object's name and its position, edited in place. Without a
-        // selection (`position` null) it says how to select one.
-        void ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 *position);
+        // The "Selection" window for a selected object. Returns true if the user edited `position` (movable only).
+        [[nodiscard]] bool ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable);
+
+        // The "Selection" window when nothing is selected
+        void ShowEmptySelectionWindow();
 
         // Ends the UI frame and returns what to draw, valid until the next NewFrame
         [[nodiscard]] ImDrawData *Render();
 
     private:
         ImGuiContext *m_context = nullptr;
-        bool m_gizmoDrawn = false; // TranslateGizmo was called this frame
+        float m_dpiScale = 1.0f;
+        bool m_gizmoDrawn = false;            // the gizmo is on screen this frame
+        bool m_gizmoHovered = false;          // the cursor is over a handle, not dragging it
+        bool m_gizmoHoveredLastFrame = false; // last frame's value: ImGuizmo's claim on the mouse lags one frame
     };
 } // namespace engine::ui
 

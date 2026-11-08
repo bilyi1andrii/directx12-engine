@@ -93,14 +93,6 @@ namespace engine::apps {
         }
     }
 
-    bool StressGrid::SetTexture(render::TextureHandle texture) noexcept {
-        if (m_mode != GridMode::Dynamic) {
-            return false;
-        }
-        m_key.material = {.index = texture.index};
-        return true;
-    }
-
     float StressGrid::Extent() const noexcept {
         constexpr float kCubeSize = 2.0f;
         return m_side == 0 ? 0.0f : static_cast<float>(m_side - 1) * kGridSpacing + kCubeSize;
