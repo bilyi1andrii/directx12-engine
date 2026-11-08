@@ -14,8 +14,10 @@
 
 #include "BenchOptions.h"
 #include "BenchOutput.h"
+#include "StressGrid.h"
+#include "assets/AssetCache.h"
 #include "common/AppChecks.h"
-#include "common/StressScene.h"
+#include "common/GridSetup.h"
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
 #include "core/Input.h"
@@ -96,11 +98,13 @@ namespace {
             LogWarning("Tearing not supported: Present without vsync may still wait for the display");
         }
 
+        // Destroyed before the renderer, which owns what the cache created
+        engine::assets::AssetCache assets(renderer);
+
         // Only the grid, no spinning cube
         engine::render::RenderList renderList; // empty for a static grid
-        const engine::apps::StressGrid grid(
-            renderer, options.gridMode, options.count,
-            engine::apps::MakeCubeModel(renderer, engine::apps::CreateGridTexture(renderer, std::nullopt)));
+        const engine::bench::StressGrid grid(renderer, options.gridMode, options.count,
+                                             assets.CubeModel(engine::apps::CreateGridTexture(renderer, std::nullopt)));
         const std::array path = grid.CameraPath();
         engine::scene::Camera camera;
         camera.fovDegrees = 60.0f; // as in the sandbox

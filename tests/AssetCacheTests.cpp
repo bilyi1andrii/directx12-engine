@@ -110,6 +110,25 @@ namespace {
     }
 } // namespace
 
+TEST(AssetCache, CubeModelsShareOneMeshAndUseTheirTexture) {
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &first = cache.CubeModel(TextureHandle{.index = 7});
+    const Model &second = cache.CubeModel(TextureHandle{.index = 8});
+    const Model &firstAgain = cache.CubeModel(TextureHandle{.index = 7});
+
+    EXPECT_EQ(&first, &firstAgain);
+    EXPECT_EQ(gpu.meshUploads, 1);
+    ASSERT_EQ(first.parts.size(), 1u);
+    ASSERT_EQ(second.parts.size(), 1u);
+    EXPECT_EQ(first.parts[0].mesh, second.parts[0].mesh);
+    EXPECT_EQ(first.parts[0].material, MaterialHandle{.index = 7});
+    EXPECT_EQ(second.parts[0].material, MaterialHandle{.index = 8});
+    EXPECT_EQ(first.bounds.min.x, -1.0f);
+    EXPECT_EQ(first.bounds.max.y, 1.0f);
+}
+
 // Also a second spelling of the same file: "." and another letter case
 TEST(AssetCache, ImportsAModelOnce) {
     const TempFile obj(L"engine_test_cache_once.obj", Bytes("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n"));

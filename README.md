@@ -167,7 +167,7 @@ build/x64-debug/bin/
 apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture, --model; the grid, models and
                dropped files in SandboxScene)
 apps/bench     benchmark: renders a fixed scene and writes per-frame times to CSV
-apps/common    code both apps share (the grid's layout, the bench's StressGrid, option parsing, end-of-run checks)
+apps/common    code both apps share (the grid's layout and texture, option parsing, end-of-run checks)
 cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
 data/          small runtime files committed to git (textures/Endstone.jpg, the grid's texture); copied to bin/data/
 engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,

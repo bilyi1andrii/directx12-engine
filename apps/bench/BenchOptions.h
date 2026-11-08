@@ -8,7 +8,7 @@
 #include <string>
 #include <string_view>
 
-#include "common/StressScene.h"
+#include "common/GridSetup.h"
 #include "renderdata/RendererSettings.h"
 
 // Sponza and the material grid come later

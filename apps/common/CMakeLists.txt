@@ -1,17 +1,17 @@
-# Code shared by the sandbox and the bench: the cube-grid scene, option helpers and the end-of-run checks.
+# Code shared by the sandbox and the bench: the cube grid's settings, option helpers and the end-of-run checks.
 # It sits above the engine, so it may link every engine module.
 
 add_library(app_common STATIC
         AppChecks.cpp
         AppChecks.h
+        GridSetup.cpp
+        GridSetup.h
         OptionValues.cpp
-        OptionValues.h
-        StressScene.cpp
-        StressScene.h)
+        OptionValues.h)
 
 engine_target_defaults(app_common)
 
-# Included as "common/StressScene.h"
+# Included as "common/GridSetup.h"
 target_include_directories(app_common PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
 # PUBLIC: the headers use render, scene and rhi types
