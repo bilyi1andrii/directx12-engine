@@ -1,4 +1,4 @@
-// Unlit pixel shader, ported from DX11 ps_nolight.hlsl: the texture's colour, no lighting.
+// Unlit pixel shader: the texture's colour, no lighting.
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"

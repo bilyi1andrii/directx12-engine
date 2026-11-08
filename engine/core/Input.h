@@ -26,8 +26,7 @@ namespace engine::core {
 
         [[nodiscard]] bool IsKeyDown(uint8_t key) const;
 
-        [[nodiscard]] bool WasKeyPressed(uint8_t key) const;
-        // went down during this frame
+        [[nodiscard]] bool WasKeyPressed(uint8_t key) const; // went down during this frame
 
         [[nodiscard]] bool WasKeyReleased(uint8_t key) const; // went up during this frame
 

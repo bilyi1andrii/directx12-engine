@@ -45,8 +45,7 @@ namespace engine::rhi {
         std::wstring_view name;
     };
 
-    // An index wrapper instead of a raw pointer. Allows the cache to perform shader 
-    // hot-reload (updating the object internally) without changing code that holds the handle.
+    // A pipeline in the cache, as an index. Resolve it with PipelineCache::Native when recording.
     struct PipelineHandle {
         uint32_t index = std::numeric_limits<uint32_t>::max(); // default: invalid
 

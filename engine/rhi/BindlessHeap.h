@@ -8,14 +8,14 @@
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
-    // Single global GPU heap for all engine textures/buffers (Bindless / SM 6.6).
-    // Resources stay in fixed slots; shaders access them by index via ResourceDescriptorHeap[index].
+    // The one shader-visible heap for all textures and buffers (bindless, SM 6.6). There is only one because switching
+    // heaps on a command list can stall the GPU. Resources stay in fixed slots, and shaders read them by index through
+    // ResourceDescriptorHeap[index].
     //
-    // Rules & Threading:
-    // - Slots are written once upon Allocate() and must not be overwritten while in use by GPU.
-    // - Freed slots must be deferred (FrameContext::DeferFree) until the GPU finishes reading the frame.
-    // - Single heap is shared globally because switching heaps on command lists causes GPU stalls.
-    // - Stack-based allocation, not thread-safe, non-copyable, non-movable.
+    // Write a view into a slot right after Allocate(), and never overwrite a slot the GPU may still read. Free slots
+    // through FrameContext::DeferFree, so they stay taken until the GPU has finished the frame.
+    //
+    // Not thread-safe. Not copyable or movable.
     class BindlessHeap {
     public:
         // About 100k descriptors (~3 MB of GPU memory)

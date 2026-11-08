@@ -1,10 +1,9 @@
-// Structs shared between C++ and HLSL ("common/shared_types.hlsli").
+// Structs shared between C++ and HLSL.
 //
-// Packing Rules (HLSL constant buffers):
-//   - Members pack into 16-byte rows and must not straddle a row boundary (float3 needs a float/pad).
-//   - Struct sizes must be a multiple of 16 bytes with explicit padding.
+// In HLSL constant buffers, members pack into 16-byte rows and must not cross a row boundary, so a float3 needs a
+// float or a padding field after it. Struct sizes must be a multiple of 16 bytes, with explicit padding fields.
 //
-// Matrices: CPU (DirectXMath, row vectors) transposes before writing; HLSL uses mul(v, M).
+// The CPU (DirectXMath, row vectors) transposes matrices before writing them; HLSL uses mul(v, M).
 
 #ifndef SHARED_TYPES_HLSLI
 #define SHARED_TYPES_HLSLI
@@ -40,7 +39,8 @@ struct FrameConstants
     uint     pad0;
 };
 
-// Per-object data: one element of a StructuredBuffer<InstanceData>, written into the UploadRing each frame.
+// Per-object data: one element of a StructuredBuffer<InstanceData>. Objects that move are written into the UploadRing
+// every frame, and static lists once into a GPU buffer.
 // A draw reads element instanceOffset + SV_InstanceID of buffer instanceBufferIndex (both root constants b0).
 struct InstanceData
 {

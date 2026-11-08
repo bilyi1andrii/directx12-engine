@@ -1,19 +1,19 @@
-// Global root signature shared by all PSOs. 
-// Defined in HLSL to prevent shader/layout drift (compiled to .cso, validated via [RootSignature]).
-// C++ includes this file for root parameter indices.
+// The global root signature, shared by all PSOs. It is defined in HLSL so that shaders and layout cannot drift apart:
+// DXC compiles it to a .cso and checks every shader against it through [RootSignature]. C++ includes this file for the
+// parameter indices.
 //
-// Root Parameters:
-//   [0] b0: RootConstants (4x32-bit: instanceOffset, materialIndex, instanceBufferIndex, 1 spare) - direct per-draw data.
-//   [1] b1: Root CBV (FrameConstants) -> UploadRing
-//   [2] b2: Root CBV (PassConstants)  -> UploadRing (DATA_STATIC_WHILE_SET_AT_EXECUTE optimization)
+// Its parameters:
+//   [0] b0: 4 root constants, set per draw (instanceOffset, materialIndex, instanceBufferIndex, 1 spare)
+//   [1] b1: root CBV with FrameConstants, from the UploadRing
+//   [2] b2: root CBV with PassConstants, from the UploadRing
 //
-// Flags: ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT + stage denials, and CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED (SM 6.6
-// bindless: shaders read ResourceDescriptorHeap[i] from BindlessHeap, which must be bound before the root signature).
+// CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED lets shaders read ResourceDescriptorHeap[i] (bindless). BindlessHeap must be bound
+// before this root signature is set.
 //
-// Static Samplers:
-//   s0: linear-wrap (textures)
-//   s1: point-clamp (post-processing)
-//   s2: shadow compare (LESS_EQUAL, white border)
+// Its static samplers:
+//   s0: linear, wrap (textures)
+//   s1: point, clamp (post-processing)
+//   s2: shadow comparison (LESS_EQUAL, white border)
 
 #ifndef ROOT_SIGNATURE_HLSLI
 #define ROOT_SIGNATURE_HLSLI

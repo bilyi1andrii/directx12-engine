@@ -173,7 +173,7 @@ namespace engine::assets {
         } else {
             albedo = SolidColor(material);
         }
-        // A material is its albedo texture until materials get their own GPU data (step 6)
+        // A material is its albedo texture until materials get their own GPU data
         return MaterialHandle{.index = albedo.index};
     }
 

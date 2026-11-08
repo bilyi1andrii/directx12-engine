@@ -15,7 +15,6 @@
 
 namespace engine::render {
     // Objects with the same key can be drawn together: same mesh, same material
-    // (DX11 GeometrySystem BatchKey, with handles instead of pointers)
     struct BatchKey {
         MeshHandle mesh;
         MaterialHandle material;
@@ -30,7 +29,7 @@ namespace engine::render {
         }
     };
 
-    // Every object drawn with one key this frame (DX11 BatchBucket)
+    // Every object drawn with one key this frame
     struct BatchBucket {
         BatchKey key;
         // Object -> world, one per object. Not transposed (DirectXMath convention, like FrameView):
@@ -39,8 +38,8 @@ namespace engine::render {
     };
 
     // The frame's draws as plain CPU data, without D3D12 types: objects grouped into buckets by BatchKey,
-    // buckets in the order their key was first added. Port of the DX11 GeometrySystem bucket logic. Rebuilt
-    // every frame for moving objects; objects that never move go into Renderer::CreateStaticList once.
+    // buckets in the order their key was first added. Rebuilt every frame for moving objects; objects that never
+    // move go into Renderer::CreateStaticList once.
     // Transparency comes later.
     //
     // The same list serves both draw paths: the renderer draws a bucket either as one instanced draw or
@@ -50,7 +49,7 @@ namespace engine::render {
         // Adds one object
         void Add(const BatchKey &key, const DirectX::XMFLOAT4X4 &world);
 
-        // Removes every object and bucket (DX11 clearDynamic), but keeps their memory for the next frame
+        // Removes every object and bucket. The buckets' memory is kept for the next frame; the key map's nodes are not.
         void Clear() noexcept;
 
         [[nodiscard]] std::span<const BatchBucket> Buckets() const noexcept { return m_buckets; }
@@ -59,7 +58,7 @@ namespace engine::render {
         [[nodiscard]] size_t InstanceCount() const noexcept { return m_instanceCount; }
 
     private:
-        // The bucket for `key`, appended if there is none yet (DX11 getOrCreate)
+        // The bucket for `key`, appended if there is none yet
         [[nodiscard]] BatchBucket &GetOrCreate(const BatchKey &key);
 
         std::vector<BatchBucket> m_buckets; // in first-added order
@@ -75,7 +74,6 @@ namespace engine::render {
     // Adds rows x cols copies of a model on the XZ plane, centred on `base`. Each part of copy (row, col) gets
     // world = part.transform * base * translation(x, 0, z), where
     // x = (col - (cols - 1) / 2) * spacingX and z = (row - (rows - 1) / 2) * spacingZ.
-    // DX11 GeometrySystem::submitGrid.
     void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ);
 

@@ -1,204 +1,134 @@
 # DirectX 12 Engine
 
-A real-time renderer in C++23 on Direct3D 12, the successor of
-[DX11 engine](https://github.com/bilyi1andrii/graphics_hw_bilyi).
+A real-time renderer in C++23 on Direct3D 12, and a sandbox for rendering experiments. It is the successor of our
+[Andrii's](https://github.com/bilyi1andrii/graphics_hw_bilyi), [Ira's](https://github.com/hhafiya/graphics-hw-kyrylova) engines, which it must match in features and beat in speed
+and scaling.
 
-**Status:** step 2 of the plan (camera, textures, models, instancing) is in progress. The sandbox shows a grid of
-400 textured cubes and one spinning cube that you can fly around with a camera, drawn either instanced (one draw call
-per mesh and material) or with one draw call per object. In place are the build system (CMake presets, vcpkg, the
-D3D12 Agility SDK, and HLSL compiled by DXC at build time), the platform layer in `engine/core` (window, input, timing,
-logging, error handling), asset loading in `engine/assets` (models through Assimp; textures through DirectXTex, mips
-generated on the CPU), the D3D12 wrapper in `engine/rhi` (device with debug layer and feature checks, queues, frames
-in flight, descriptors, swap chain, memory through D3D12MA, per-frame and static uploads, textures, a bindless
-descriptor heap, a pipeline cache), one global root signature defined in HLSL, a scene of objects and a fly camera
-in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draws from in `engine/renderdata` (the
-`RenderList` of objects batched by mesh and material, plus the texture, mesh, material and model types), per-frame
-instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
-grid), a benchmark app that draws a grid of copies of any model and writes per-frame CPU times to CSV, unit tests and
-automated smoke tests. Models from
-files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
-vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved, rotated and scaled
-with a gizmo (with `--grid static` the grid's cubes can only be selected). Next: lighting.
+## Authors
 
-## Requirements
+- Andrii ([bilyi1andrii](https://github.com/bilyi1andrii))
+- Ira Kyrylova ([hhafiya](https://github.com/hhafiya))
 
-- Windows 10/11, x64
+## Structure
+
+```
+engine/core        window, input, timing, logging, error handling
+engine/rhi         thin Direct3D 12 layer: device, queues, frames in flight, descriptors, memory, uploads, pipelines
+engine/render      the renderer and the ImGui backend
+engine/renderdata  plain CPU data the renderer draws from: render lists, handles, settings, mesh and texture data
+engine/scene       objects, camera, camera paths, picking
+engine/assets      model and texture loading, asset cache
+engine/ui          debug UI: panels and gizmo
+shaders/           HLSL, compiled by DXC during the build
+apps/sandbox       interactive test application
+apps/bench         benchmark
+apps/common        code shared by both apps
+data/              small runtime files the apps always need
+tests/             unit tests of the CPU code
+```
+
+Only `engine/rhi` and `engine/render` work with Direct3D 12 directly. Everything above them passes handles and plain
+data.
+
+## Features
+
+- Direct3D 12 with the Agility SDK, Shader Model 6.6 bindless resources and one global root signature defined in HLSL
+- Two frames in flight, GPU memory through D3D12MA, and deferred release of everything the GPU may still be using
+- Automatic batching by mesh and material, drawn either instanced or with one draw call per object
+- Moving objects uploaded every frame, static objects uploaded once to GPU memory
+- Models from glTF, OBJ and FBX files (Assimp), textures with generated mips (DirectXTex)
+- Fly camera, mouse selection, a move/rotate/scale gizmo and an ImGui overlay with statistics and settings
+- Loading models and images by dropping them on the window
+- A benchmark with a scripted camera that writes per-frame timings to CSV
+- Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
+
+Rendering is textured and unlit for now.
+
+## How to run
+
+You need:
+
+- Windows 10 or 11, x64, and a GPU with resource binding tier 3 and Shader Model 6.6
 - Visual Studio 2022 or 2026 with the **Desktop development with C++** workload (MSVC, Windows SDK, CMake, Ninja)
-- vcpkg (the copy bundled with Visual Studio works: `<VS install>\VC\vcpkg`)
-- Any editor or IDE that supports CMake presets, or just a terminal
-- Optional: PIX for GPU debugging
+- vcpkg, with the `VCPKG_ROOT` environment variable pointing to it (Visual Studio's copy is in `<VS install>\VC\vcpkg`)
 
-## One-time setup
-
-Point the `VCPKG_ROOT` environment variable at your vcpkg folder, for example:
+Run these from a **Developer PowerShell for VS**, or any shell where `vcvars64.bat` has been run. Dependencies are
+installed on the first configure, which takes several minutes.
 
 ```powershell
-[Environment]::SetEnvironmentVariable("VCPKG_ROOT", "C:\Program Files\Microsoft Visual Studio\18\Community\VC\vcpkg", "User")
+cmake --preset x64-release
+cmake --build --preset x64-release
+.\build\x64-release\bin\sandbox.exe
 ```
 
-Restart your IDE or terminal afterwards so it picks up the variable.
+Any editor or IDE that reads `CMakePresets.json` works too, as long as it runs inside the MSVC environment.
 
-The dependencies (`vcpkg.json`) are installed automatically on the first configure, into
-`build/<preset>/vcpkg_installed/`.
+| Preset | Use |
+|---|---|
+| `x64-debug` | Development: debug layer on, log in the terminal |
+| `x64-release` | Normal use and benchmark numbers; no console |
+| `x64-relwithdebinfo` | Profiling: optimized, with symbols and a console |
+| `x64-asan`, `x64-analyze` | Checks: AddressSanitizer, MSVC static analysis |
 
-## Build and run
+To run the unit and smoke tests, use `ctest --preset x64-debug` after a build. The screen flashes briefly while the
+smoke tests toggle fullscreen.
 
-Presets: `x64-debug`, `x64-release` (also for benchmarks), `x64-relwithdebinfo` (for profiling), and two for extra
-checks: `x64-asan` (Debug with AddressSanitizer) and `x64-analyze` (Debug with the compiler's static analysis,
-`/analyze`).
+### Sandbox
 
-The build uses MSVC with the Ninja generator, so CMake must run inside the MSVC environment, where `cl.exe`,
-CMake and Ninja are on `PATH`. From a terminal, use a **Developer PowerShell for VS** (or run `vcvars64.bat` first):
-
-```powershell
-cmake --preset x64-debug              # configure (first run also installs vcpkg packages)
-cmake --build --preset x64-debug      # build
-.\build\x64-debug\bin\sandbox.exe     # run
-ctest --preset x64-debug              # smoke tests and unit tests
-```
-
-Command-line options of `sandbox.exe`:
+The sandbox shows a grid of textured cubes, a few cubes you can select and move, and the models from the `assets/` folder in a row (one folder per model, for example `assets/fantasy_town/scene.gltf`). Without any models, there is a
+spinning cube in the middle. While it runs, you can drop a model or an image on the window: a model stands where
+you drop it, and an image becomes the grid's texture (dynamic grid only).
 
 | Option | Effect |
 |---|---|
-| `--texture PATH` | Show an image file (`.png`, `.jpg`, `.dds`, `.tga`, ...) on the cube grid instead of `data/textures/Endstone.jpg` |
-| `--count N` | Number of cubes in the grid, rounded up to a square (default 400, a 20×20 grid); e.g. `--count 50000` gives 224×224 = 50,176 cubes for a stress test |
-| `--grid static\|dynamic` | Upload the grid every frame, like moving objects (`dynamic`, the default), or once (`static`) |
-| `--model PATH` | Show this model file (`.gltf`, `.glb`, `.obj`, `.fbx`, ...) on the grid. Without it, every model in the repo's `assets/` folder is shown in a row (except in a smoke test); without any model, a spinning cube |
-| `--smoke-test N` | Render N frames and exit (see [Smoke test and unit tests](#smoke-test-and-unit-tests)) |
+| `--model PATH` | Show this model instead of everything in `assets/` |
+| `--texture PATH` | Use this image on the grid |
+| `--count N` | Cubes in the grid, rounded up to a square (default 400) |
+| `--grid static\|dynamic` | Upload the grid once, or every frame (default `dynamic`) |
+| `--smoke-test N` | Render N frames, then exit with the test result |
 
-Models are not committed: put them in `assets/` at the repository root (gitignored), each in its own folder with its
-textures, e.g. `assets/fantasy_town/scene.gltf`. Credit the authors as their licenses require. Small files the apps
-always need (the grid's texture) are committed in `data/`; the build copies them to `build/<preset>/bin/data/`.
-
-While the sandbox runs, drag files from Explorer onto its window: a model (`.gltf`, `.glb`, `.obj`, `.fbx`) stands
-where you drop it, on the height of the grid's top (dropped on the sky, it joins the row of models); any other file is
-tried as an image for the grid. The window waits while a file loads (a large model takes seconds). Windows does not
-allow dropping from Explorer onto a program that runs as administrator.
-
-An IDE that understands `CMakePresets.json` can open the repo folder directly. Select a configure preset, build, and
-run the `sandbox` target. The IDE must either set up the MSVC environment itself or be started from a Developer
-PowerShell. Debug the exe with the Visual Studio debugger, or another debugger that reads MSVC PDB files.
-
-### Controls
-
-| Key | Action |
+| Control | Action |
 |---|---|
-| Esc | Quit |
-| V | Toggle vsync (the FPS is shown in the Renderer window) |
-| I | Toggle the draw path: instanced or one draw per object (shown in the Renderer window; the image stays the same) |
-| F11 or Alt+Enter | Toggle borderless fullscreen |
-| Left mouse button | Select the cube or model under the cursor; a click on empty space clears the selection |
-| W / E / R (right mouse button up) | Gizmo mode for the selected object: move / rotate / scale (also buttons in the Selection window) |
-| Drag a gizmo handle | Move (arrows), rotate (rings) or scale (along the object's own axes; the centre handle scales evenly) the selected object around its pivot; the Selection window also edits its position (with `--grid static`, the grid's cubes can only be selected) |
 | Right mouse button + mouse | Look around |
-| Right mouse button + W / A / S / D | Fly forward / left / back / right (the camera moves only while the right button is held) |
+| Right mouse button + W / A / S / D | Fly forward / left / back / right |
 | Right mouse button + Space / Left Shift | Fly up / down |
-
-### Log output
-
-The app logs to stderr and to the debugger output. Debug and RelWithDebInfo builds are console programs, so the log
-appears in the terminal (or the IDE's terminal) that started them. A Debug build started from Explorer therefore opens a
-console window next to the game window. Release builds have no console; capture their log with `sandbox.exe 2> log.txt`.
-
-### Smoke test and unit tests
-
-`ctest --preset x64-debug` runs the smoke test and the unit tests. The unit tests (`tests/`, GoogleTest) check CPU
-code such as file reading and texture loading; run them all at once with `build\x64-debug\bin\engine_tests.exe`.
-
-The smoke test runs `sandbox.exe --smoke-test 120`: it renders 120 frames, toggles fullscreen twice
-(the screen flashes for about a second), switches to the non-instanced draw path halfway, and exits on its own. The
-test fails if the D3D12 or DXGI debug layer reported an error, if objects are still alive at shutdown, if fewer than
-120 frames were rendered, or if the app crashes or hangs (ctest stops it after 30 s). On failure ctest prints the log;
-the last lines say why. Run it after every change, before committing.
-
-Two more smoke tests use the same checks: `sandbox_smoke_static` runs the sandbox with `--grid static`, and
-`bench_smoke` runs a very short [benchmark](#benchmark).
-
-The exe can also be started directly with `--smoke-test N`. Exit codes:
-
-| Code | Meaning |
-|---|---|
-| 0 | Passed |
-| 1 | Failed (the log says why) |
-| 2 | Bad command line |
-| 3 | Failed assert |
-| -1 | Exception |
-
-Only Debug builds have the debug layer. In Release the test only checks that the app renders and shuts down.
+| Left mouse button | Select an object; a click on empty space clears the selection |
+| W / E / R | Gizmo mode for the selected object: move / rotate / scale |
+| I | Switch between the instanced and the non-instanced draw path |
+| V | Toggle vsync |
+| F11 or Alt+Enter | Toggle borderless fullscreen |
+| Esc | Quit |
 
 ### Benchmark
 
-`bench.exe` measures how the engine scales with the number of objects, so changes (and later the DX11 engine) can be
-compared on the same workload. It draws a square grid of copies of one model, flies a camera around it for a few
-seconds in fullscreen and closes by itself. The model is a cube, or any model file with `--model FILE --count COPIES`;
-every copy is scaled to the size of a cube. The CPU time of every frame goes to
-`results/dx12/<name>/<date-time>/frames.csv`, where `<name>` is `cube` or the model's folder and file name. The
-settings, the size of the run (parts, instances, triangles), GPU and driver go to `run.txt` next to it.
+`bench.exe` measures how the engine scales with the number of objects. It draws a square grid of copies of one model
+while a scripted camera flies around it, in borderless fullscreen with vsync off, and closes by itself. Use the
+`x64-release` build: the others are too slow for their numbers to mean anything.
 
-Run it from the `x64-release` build: the other builds are slower, so their numbers can't be compared.
-
-### Output layout
-
-```
-build/x64-debug/bin/
-  sandbox.exe
-  bench.exe     benchmark
-  engine_tests.exe  unit tests
-  D3D12MAd.dll  D3D12 Memory Allocator (D3D12MA.dll in Release), copied by vcpkg
-  DirectXTex.dll, gtest.dll  texture loading and GoogleTest, copied by vcpkg
-  clang_rt.asan_dynamic-x86_64.dll  AddressSanitizer runtime (x64-asan only)
-  D3D12/        D3D12Core.dll (+ d3d12SDKLayers.dll in Debug): Agility SDK runtime
-  shaders/      *.cso compiled by DXC: shaders (vs_/ps_/cs_) and the root signature (rs_global.cso)
+```powershell
+.\build\x64-release\bin\bench.exe --grid static --count 50000
+.\build\x64-release\bin\bench.exe --model assets\fantasy_town\scene.gltf --count 100
 ```
 
-## Troubleshooting
+| Option | Effect |
+|---|---|
+| `--model FILE` | Draw copies of this model, needs `--count` (default: a cube) |
+| `--count N` | Copies in the grid, rounded up to a square (default 50000 for the cube) |
+| `--grid static\|dynamic` | Upload the grid once, or every frame (default `dynamic`) |
+| `--instanced 1\|0` | One draw per batch (default), or one draw per object |
+| `--frames N`, `--warmup N` | Measured frames (default 1000) and frames before measuring (default 200) |
+| `--out DIR` | Results folder (default `results`) |
 
-- **`cl.exe is not a full path and was not found in the PATH`:** CMake ran without the MSVC environment.
-  Configure from a Developer PowerShell, or start your IDE from one.
-- **`.../scripts/buildsystems/vcpkg.cmake` not found:** `VCPKG_ROOT` is not set, or the IDE was started before you set
-  it.
-- **A new header, source file or vcpkg package is not found after pulling changes:** `CMakeLists.txt` or `vcpkg.json`
-  changed; configure again (`cmake --preset x64-debug`, or the IDE's configure command). Code completion in the IDE
-  may also need that before it finds new include paths.
-- **Wrong `cmake`/`ninja` picked up** (another toolchain earlier on `PATH`): `where cmake ninja` should list Visual
-  Studio's `Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin` and `...\CMake\Ninja` first.
+Each run writes to `<out>/dx12/<name>/<date-time>/`, where `<name>` is `cube` or the model's folder and file name.
+`frames.csv` holds the CPU times of every frame (GPU times are coming), and `run.txt` holds the settings, the size of
+the scene, the GPU and the driver. Pressing Esc stops the run and writes nothing.
 
-## Repository layout
+## Next Steps
 
-```
-apps/sandbox   test application (entry point, --smoke-test, --count, --grid, --texture, --model; the grid, models and
-               dropped files in SandboxScene)
-apps/bench     benchmark: renders a grid of copies of a model and writes per-frame times to CSV
-apps/common    code both apps share (the grid's layout and texture, option parsing, end-of-run checks)
-cmake/         CMake helper modules (warnings, Agility SDK and ASan runtime copy)
-data/          small runtime files committed to git (textures/Endstone.jpg, the grid's texture); copied to bin/data/
-engine/core    platform layer: Window, Input, Timer, Log, ThrowIfFailed, Assert, Error, File, CommandLine,
-               ComScope (no D3D12)
-engine/assets  ModelImporter: reads model files with Assimp into geometry, node placements and materials;
-               TextureLoader: loads images (files or bytes inside a model) with DirectXTex and generates mips;
-               AssetCache: loads each model and texture once and uploads it through the renderer's GpuUploader
-               interface; Primitives: meshes made in code (the cube) (no D3D12)
-engine/rhi     thin D3D12 wrapper: Device, CommandQueue, FrameContext, CommandContext, SwapChain, descriptors,
-               Allocator (D3D12MA), Buffer, DepthBuffer, Texture, UploadRing (per-frame upload memory),
-               UploadContext (static uploads), BindlessHeap (the shader-visible descriptor heap; shaders read
-               resources by index), PipelineCache (PSOs built from a description and cached; the global
-               root signature)
-engine/scene   Scene (objects made of parts, each with a transform and a mesh + material; AddObject places a model
-               or a cube, Extract fills the RenderList), Camera, fly-camera controls, scripted camera paths and
-               Picking (the ray under a screen point, Pick finds the object it selects) (no D3D12)
-engine/renderdata
-               plain CPU data the renderer draws from (no D3D12): RenderList (the frame's objects batched by mesh
-               and material), InstanceChunks (how instance data is split into upload pages), RendererSettings
-               (e.g. the draw path), Handles (MeshHandle, MaterialHandle, TextureHandle, StaticListHandle),
-               TextureData, Vertex, MeshData, MaterialDesc, ModelData for model loading, Model (a loaded model's
-               parts) and GpuUploader (the interface asset loading creates GPU data through)
-engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
-               once) and the frame's RenderList (uploaded every frame); CreateMesh uploads a model's geometry
-               into one vertex and one index buffer and returns a MeshHandle per submesh; UiRenderer draws ImGui
-engine/ui      DebugUI: the ImGui windows and the move/rotate/scale gizmo; writes RendererSettings (no D3D12)
-shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
-shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
-               per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)
-tests/         unit tests of the CPU code (GoogleTest; no GPU needed)
-```
+- Lighting (Blinn-Phong), GPU timings and more UI panels
+- Frame graph, shadows and transparency
+- HDR and tonemapping
+- PBR materials
+- Performance comparison with the DX11 engine
+- Extensions: skybox, normal mapping, deferred rendering, stylized post-processing
+

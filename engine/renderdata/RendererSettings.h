@@ -7,7 +7,7 @@ namespace engine::render {
     // How the renderer draws the buckets of a RenderList. Both paths read the same instance data.
     enum class DrawPath : uint8_t {
         Instanced,    // one DrawIndexedInstanced per bucket
-        NonInstanced, // one draw per object (DX11 RenderMode::NonInstanced); measures per-draw cost
+        NonInstanced, // one draw per object; measures per-draw cost
     };
 
     // Options changed at runtime by the app and the debug UI (ui::DebugUI). The renderer copies them once per

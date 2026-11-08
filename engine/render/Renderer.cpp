@@ -303,7 +303,7 @@ namespace engine::render {
 
         UploadDynamicInstances(list);
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        // Static lists first, then the dynamic objects (DX11 GeometrySystem::Render does the same)
+        // Static lists first, then the dynamic objects
         for (const StaticListHandle handle : staticLists) {
             RecordDraws(StaticList(handle).draws);
         }
@@ -439,8 +439,8 @@ namespace engine::render {
                 m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                 m_context.DrawIndexedInstanced(mesh.indexCount, draw.count, mesh.firstIndex, mesh.baseVertex);
             } else {
-                // One draw per object, each with its own element in the root constants (plan §2.6: keeps
-                // the per-draw cost measurable)
+                // One draw per object, each with its own element in the root constants: this keeps the
+                // per-draw cost measurable
                 for (uint32_t i = 0; i < draw.count; ++i) {
                     constants.instanceOffset = draw.firstElement + i;
                     m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
