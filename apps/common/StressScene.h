@@ -13,6 +13,7 @@
 
 #include "render/Renderer.h"
 #include "renderdata/Handles.h"
+#include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
@@ -71,7 +72,7 @@ namespace engine::apps {
     private:
         GridMode m_mode;
         uint32_t m_side;
-        render::BatchKey m_key;
+        render::ModelPart m_part;
         DirectX::XMFLOAT4X4 m_base{};
         std::optional<render::StaticListHandle> m_staticList; // static mode only
     };

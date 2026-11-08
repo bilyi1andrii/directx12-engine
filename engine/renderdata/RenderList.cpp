@@ -50,7 +50,7 @@ namespace engine::render {
         return bucket;
     }
 
-    void SubmitGrid(RenderList &list, const BatchKey &key, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
+    void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ) {
         using namespace DirectX;
 
@@ -60,13 +60,18 @@ namespace engine::render {
         const float centreZ = (static_cast<float>(rows) - 1.0f) * 0.5f;
 
         XMFLOAT4X4 world{};
-        for (uint32_t row = 0; row < rows; ++row) {
-            for (uint32_t col = 0; col < cols; ++col) {
-                const float x = (static_cast<float>(col) - centreX) * spacingX;
-                const float z = (static_cast<float>(row) - centreZ) * spacingZ;
-                // Row vectors: the offset is applied after `base`, i.e. in world space
-                XMStoreFloat4x4(&world, baseMatrix * XMMatrixTranslation(x, 0.0f, z));
-                list.Add(key, world);
+        // One part at a time: its copies share a key, so RenderList::Add does not have to look up the bucket
+        for (const ModelPart &part : parts) {
+            const BatchKey key{.mesh = part.mesh, .material = part.material};
+            const XMMATRIX partBase = XMLoadFloat4x4(&part.transform) * baseMatrix;
+            for (uint32_t row = 0; row < rows; ++row) {
+                for (uint32_t col = 0; col < cols; ++col) {
+                    const float x = (static_cast<float>(col) - centreX) * spacingX;
+                    const float z = (static_cast<float>(row) - centreZ) * spacingZ;
+                    // Row vectors: the offset is applied after `base`, i.e. in world space
+                    XMStoreFloat4x4(&world, partBase * XMMatrixTranslation(x, 0.0f, z));
+                    list.Add(key, world);
+                }
             }
         }
     }

@@ -75,13 +75,15 @@ namespace engine::apps {
     }
 
     StressGrid::StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture)
-        : m_mode(mode), m_side(GridSide(count)), m_key{.mesh = renderer.CreateMesh(assets::MakeCube(), L"Cube").front(),
-                                                       .material = {.index = texture.index}} {
+        : m_mode(mode), m_side(GridSide(count)),
+          m_part{.mesh = renderer.CreateMesh(assets::MakeCube(), L"Cube").front(),
+                 .material = {.index = texture.index},
+                 .bounds = assets::kCubeBounds} {
         DirectX::XMStoreFloat4x4(&m_base, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
         core::LogInfo("Grid: {} x {} = {} cubes, {}", m_side, m_side, ObjectCount(), ToString(m_mode));
         if (m_mode == GridMode::Static) {
             render::RenderList gridList;
-            render::SubmitGrid(gridList, m_key, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
+            render::SubmitGrid(gridList, {&m_part, 1}, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
             // gridList can go: the matrices are in GPU memory now
             m_staticList = renderer.CreateStaticList(gridList, L"Grid/Instances");
         }
@@ -89,7 +91,7 @@ namespace engine::apps {
 
     void StressGrid::Submit(render::RenderList &list) const {
         if (m_mode == GridMode::Dynamic) {
-            render::SubmitGrid(list, m_key, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
+            render::SubmitGrid(list, {&m_part, 1}, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
         }
     }
 

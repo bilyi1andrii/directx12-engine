@@ -64,8 +64,8 @@ namespace sandbox {
 
         // SubmitGrid computes the positions, so the layout matches the bench's
         engine::render::RenderList placed;
-        engine::render::SubmitGrid(placed, {.mesh = part.mesh, .material = part.material}, base, grid.side, grid.side,
-                                   engine::apps::kGridSpacing, engine::apps::kGridSpacing);
+        engine::render::SubmitGrid(placed, {&part, 1}, base, grid.side, grid.side, engine::apps::kGridSpacing,
+                                   engine::apps::kGridSpacing);
         const engine::scene::Mobility mobility =
             mode == engine::apps::GridMode::Static ? engine::scene::Mobility::Static : engine::scene::Mobility::Movable;
         for (const engine::render::BatchBucket &bucket : placed.Buckets()) {

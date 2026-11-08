@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <numbers>
 
@@ -9,6 +10,7 @@
 using engine::render::BatchKey;
 using engine::render::MaterialHandle;
 using engine::render::MeshHandle;
+using engine::render::ModelPart;
 using engine::render::RenderList;
 using engine::render::SubmitGrid;
 
@@ -73,9 +75,10 @@ TEST(SubmitGrid, CentresTheGridOnTheBaseWithOffsetsInWorldSpace) {
     DirectX::XMFLOAT4X4 base{};
     DirectX::XMStoreFloat4x4(&base, DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) *
                                         DirectX::XMMatrixTranslation(10, -4, 0));
+    const ModelPart part{.mesh = kKeyA.mesh, .material = kKeyA.material};
     RenderList list;
 
-    SubmitGrid(list, kKeyA, base, 3, 3, 3.0f, 2.0f);
+    SubmitGrid(list, {&part, 1}, base, 3, 3, 3.0f, 2.0f);
 
     ASSERT_EQ(list.Buckets().size(), 1u);
     const auto &worlds = list.Buckets()[0].worlds;
@@ -87,4 +90,28 @@ TEST(SubmitGrid, CentresTheGridOnTheBaseWithOffsetsInWorldSpace) {
     // Every copy keeps the base's rotation: the first row is (cos 90, 0, -sin 90)
     EXPECT_NEAR(worlds[0]._11, 0.0f, 1e-5f);
     EXPECT_NEAR(worlds[0]._13, -1.0f, 1e-5f);
+}
+
+TEST(SubmitGrid, GivesEachPartABucketAndAppliesItsTransformBeforeTheBase) {
+    const std::array parts{
+        ModelPart{.mesh = kKeyA.mesh, .material = kKeyA.material, .transform = Translation(1, 0, 0)},
+        ModelPart{.mesh = kKeyB.mesh, .material = kKeyB.material, .transform = Translation(0, 0, 5)},
+    };
+    // The base doubles the size: a part's own offset doubles too, the grid's offsets do not
+    DirectX::XMFLOAT4X4 base{};
+    DirectX::XMStoreFloat4x4(&base, DirectX::XMMatrixScaling(2, 2, 2) * DirectX::XMMatrixTranslation(10, -4, 0));
+    RenderList list;
+
+    SubmitGrid(list, parts, base, 1, 2, 3.0f, 3.0f);
+
+    ASSERT_EQ(list.Buckets().size(), 2u);
+    EXPECT_EQ(list.InstanceCount(), 4u);
+    EXPECT_EQ(list.Buckets()[0].key, kKeyA);
+    EXPECT_EQ(list.Buckets()[1].key, kKeyB);
+    ASSERT_EQ(list.Buckets()[0].worlds.size(), 2u);
+    ASSERT_EQ(list.Buckets()[1].worlds.size(), 2u);
+    ExpectTranslation(list.Buckets()[0].worlds[0], 10 + 2 - 1.5f, -4, 0);
+    ExpectTranslation(list.Buckets()[0].worlds[1], 10 + 2 + 1.5f, -4, 0);
+    ExpectTranslation(list.Buckets()[1].worlds[0], 10 - 1.5f, -4, 10);
+    ExpectTranslation(list.Buckets()[1].worlds[1], 10 + 1.5f, -4, 10);
 }

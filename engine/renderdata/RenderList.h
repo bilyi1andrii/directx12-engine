@@ -11,6 +11,7 @@
 #include <DirectXMath.h>
 
 #include "renderdata/Handles.h"
+#include "renderdata/Model.h"
 
 namespace engine::render {
     // Objects with the same key can be drawn together: same mesh, same material
@@ -71,11 +72,11 @@ namespace engine::render {
         size_t m_instanceCount = 0;
     };
 
-    // Adds rows x cols copies of `key` on the XZ plane, centred on `base`: copy (row, col) gets
-    // world = base * translation((col - (cols - 1) / 2) * spacingX, 0, (row - (rows - 1) / 2) * spacingZ).
-    // DX11 GeometrySystem::submitGrid with one mesh; the per-mesh node transform it also applies
-    // (mesh->transformMatrix) comes with model loading.
-    void SubmitGrid(RenderList &list, const BatchKey &key, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
+    // Adds rows x cols copies of a model on the XZ plane, centred on `base`. Each part of copy (row, col) gets
+    // world = part.transform * base * translation(x, 0, z), where
+    // x = (col - (cols - 1) / 2) * spacingX and z = (row - (rows - 1) / 2) * spacingZ.
+    // DX11 GeometrySystem::submitGrid.
+    void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ);
 } // namespace engine::render
 
