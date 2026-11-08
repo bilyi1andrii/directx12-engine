@@ -98,8 +98,9 @@ namespace {
 
         // Only the grid, no spinning cube
         engine::render::RenderList renderList; // empty for a static grid
-        const engine::apps::StressGrid grid(renderer, options.gridMode, options.count,
-                                            engine::apps::CreateGridTexture(renderer, std::nullopt));
+        const engine::apps::StressGrid grid(
+            renderer, options.gridMode, options.count,
+            engine::apps::MakeCubeModel(renderer, engine::apps::CreateGridTexture(renderer, std::nullopt)));
         const std::array path = grid.CameraPath();
         engine::scene::Camera camera;
         camera.fovDegrees = 60.0f; // as in the sandbox

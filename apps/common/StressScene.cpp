@@ -11,6 +11,9 @@
 
 namespace engine::apps {
     namespace {
+        // The largest side of a copy in the grid: the width of a cube
+        constexpr float kGridObjectSize = 2.0f;
+
         // A 256x256 light and dark grey checkerboard. Without mips, distant cubes would shimmer.
         std::expected<render::TextureData, core::Error> MakeCheckerboard() {
             constexpr uint32_t kSize = 256;
@@ -74,16 +77,23 @@ namespace engine::apps {
         return renderer.CreateTexture(*texture, name);
     }
 
-    StressGrid::StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture)
-        : m_mode(mode), m_side(GridSide(count)),
-          m_part{.mesh = renderer.CreateMesh(assets::MakeCube(), L"Cube").front(),
-                 .material = {.index = texture.index},
-                 .bounds = assets::kCubeBounds} {
-        DirectX::XMStoreFloat4x4(&m_base, DirectX::XMMatrixTranslation(0.0f, kGridHeight, 0.0f));
-        core::LogInfo("Grid: {} x {} = {} cubes, {}", m_side, m_side, ObjectCount(), ToString(m_mode));
+    render::Model MakeCubeModel(render::Renderer &renderer, render::TextureHandle texture) {
+        render::Model model;
+        model.parts.push_back({.mesh = renderer.CreateMesh(assets::MakeCube(), L"Cube").front(),
+                               .material = {.index = texture.index},
+                               .bounds = assets::kCubeBounds});
+        model.bounds = assets::kCubeBounds;
+        return model;
+    }
+
+    StressGrid::StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, const render::Model &model)
+        : m_mode(mode), m_side(GridSide(count)), m_parts(model.parts),
+          m_base(render::FitToCell(model.bounds, kGridObjectSize, {0.0f, kGridHeight, 0.0f})) {
+        core::LogInfo("Grid: {} x {} = {} copies of {} parts, {}", m_side, m_side, ObjectCount(), m_parts.size(),
+                      ToString(m_mode));
         if (m_mode == GridMode::Static) {
             render::RenderList gridList;
-            render::SubmitGrid(gridList, {&m_part, 1}, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
+            render::SubmitGrid(gridList, m_parts, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
             // gridList can go: the matrices are in GPU memory now
             m_staticList = renderer.CreateStaticList(gridList, L"Grid/Instances");
         }
@@ -91,13 +101,12 @@ namespace engine::apps {
 
     void StressGrid::Submit(render::RenderList &list) const {
         if (m_mode == GridMode::Dynamic) {
-            render::SubmitGrid(list, {&m_part, 1}, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
+            render::SubmitGrid(list, m_parts, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
         }
     }
 
     float StressGrid::Extent() const noexcept {
-        constexpr float kCubeSize = 2.0f;
-        return m_side == 0 ? 0.0f : static_cast<float>(m_side - 1) * kGridSpacing + kCubeSize;
+        return m_side == 0 ? 0.0f : static_cast<float>(m_side - 1) * kGridSpacing + kGridObjectSize;
     }
 
     std::array<scene::CameraKeyframe, 5> StressGrid::CameraPath() const noexcept {

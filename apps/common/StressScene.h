@@ -8,6 +8,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <vector>
 
 #include <DirectXMath.h>
 
@@ -49,11 +50,14 @@ namespace engine::apps {
     [[nodiscard]] render::TextureHandle CreateGridTexture(render::Renderer &renderer,
                                                           const std::optional<std::filesystem::path> &path);
 
-    // A square grid of textured cubes 4 units below the origin
+    // A model made of one textured cube, for a StressGrid
+    [[nodiscard]] render::Model MakeCubeModel(render::Renderer &renderer, render::TextureHandle texture);
+
+    // A square grid of copies of a model, 4 units below the origin. Every copy is scaled to the size of a grid cube.
     class StressGrid {
     public:
-        // `count` is rounded up to a square. Uploads the cube mesh, and a static grid.
-        StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, render::TextureHandle texture);
+        // `count` is copies of the whole model, rounded up to a square. Uploads a static grid.
+        StressGrid(render::Renderer &renderer, GridMode mode, uint32_t count, const render::Model &model);
 
         // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;
@@ -72,8 +76,8 @@ namespace engine::apps {
     private:
         GridMode m_mode;
         uint32_t m_side;
-        render::ModelPart m_part;
-        DirectX::XMFLOAT4X4 m_base{};
+        std::vector<render::ModelPart> m_parts;
+        DirectX::XMFLOAT4X4 m_base;
         std::optional<render::StaticListHandle> m_staticList; // static mode only
     };
 } // namespace engine::apps
