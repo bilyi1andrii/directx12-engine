@@ -16,8 +16,8 @@ in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draw
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
 grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Models from
 files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
-vsync settings, and models and the cubes beside them can be selected with the mouse and moved with a gizmo.
-Next: clicking grid cubes, and drawing Sponza.
+vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved with a gizmo (with
+`--grid static` the grid's cubes can only be selected). Next: drawing Sponza.
 
 ## Requirements
 

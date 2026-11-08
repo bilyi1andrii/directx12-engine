@@ -14,6 +14,7 @@
 #include <DirectXMath.h>
 
 #include "assets/ModelImporter.h"
+#include "assets/Primitives.h"
 #include "assets/TextureLoader.h"
 #include "core/Error.h"
 #include "core/File.h"
@@ -44,6 +45,34 @@ namespace sandbox {
         // The build copies data/ next to the exe
         const std::filesystem::path path = engine::core::ExecutableDirectory() / kSpinningCubeTexture;
         return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
+    }
+
+    GridObjects AddGrid(engine::scene::Scene &scene, engine::render::MeshHandle cube,
+                        engine::render::TextureHandle texture, engine::apps::GridMode mode, uint32_t count) {
+        using namespace DirectX;
+
+        const engine::render::ModelPart part{
+            .mesh = cube, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
+        const GridObjects grid{.mode = mode,
+                               .side = engine::apps::GridSide(count),
+                               .firstObject = static_cast<uint32_t>(scene.Objects().size())};
+        XMFLOAT4X4 base{};
+        XMStoreFloat4x4(&base, XMMatrixTranslation(0.0f, engine::apps::kGridHeight, 0.0f));
+
+        // SubmitGrid knows where each cube goes, so the layout stays the same as the bench's
+        engine::render::RenderList placed;
+        engine::render::SubmitGrid(placed, {.mesh = part.mesh, .material = part.material}, base, grid.side, grid.side,
+                                   engine::apps::kGridSpacing, engine::apps::kGridSpacing);
+        const engine::scene::Mobility mobility =
+            mode == engine::apps::GridMode::Static ? engine::scene::Mobility::Static : engine::scene::Mobility::Movable;
+        for (const engine::render::BatchBucket &bucket : placed.Buckets()) {
+            for (const XMFLOAT4X4 &world : bucket.worlds) {
+                scene.AddObject("Grid cube", {&part, 1}, world, mobility);
+            }
+        }
+        LogInfo("Grid: {} x {} = {} cubes, {}", grid.side, grid.side, placed.InstanceCount(),
+                engine::apps::ToString(mode));
+        return grid;
     }
 
     std::vector<std::filesystem::path> FindAssetModels() {
@@ -99,7 +128,7 @@ namespace sandbox {
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
-                         engine::scene::Scene &scene, float &nextModelX, engine::apps::StressGrid &grid) {
+                         engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid) {
         engine::core::Timer timer;
         timer.Start();
         const std::string name = engine::core::ToUtf8(path.filename().wstring());
@@ -116,7 +145,7 @@ namespace sandbox {
             }
             return;
         }
-        if (grid.Mode() != engine::apps::GridMode::Dynamic) {
+        if (grid.mode != engine::apps::GridMode::Dynamic) {
             LogWarning("Dropped {}: a static grid keeps its texture (start with --grid dynamic)", name);
             return;
         }
@@ -126,7 +155,10 @@ namespace sandbox {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        grid.SetTexture(texture);
+        // A material is its albedo texture for now (Handles.h)
+        for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
+            scene.SetObjectMaterial({.index = grid.firstObject + i}, {.index = texture.index});
+        }
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
 } // namespace sandbox

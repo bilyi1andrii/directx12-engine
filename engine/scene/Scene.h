@@ -66,6 +66,9 @@ namespace engine::scene {
         // Moves a Movable object and all its parts
         void SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world);
 
+        // Draws every part of a Movable object with `material` (a static object's draws are already in GPU memory)
+        void SetObjectMaterial(ObjectId id, render::MaterialHandle material);
+
         [[nodiscard]] const SceneObject &Object(ObjectId id) const;
         [[nodiscard]] std::span<const SceneObject> Objects() const noexcept { return m_objects; }
 

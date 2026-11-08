@@ -131,3 +131,18 @@ TEST(Scene, SetObjectWorldMovesEveryPartForTheNextExtract) {
     ExpectTranslation(list.Buckets()[0].worlds[1], 0, 7, 0);
     ExpectTranslation(scene.Object(id).world, 0, 7, 0);
 }
+
+// Every part of that object changes, and no other object's
+TEST(Scene, SetObjectMaterialChangesOnlyThatObject) {
+    const std::vector<ModelPart> parts{ModelPart{.material = MaterialHandle{1}},
+                                       ModelPart{.material = MaterialHandle{2}}};
+    Scene scene;
+    const ObjectId id = scene.AddObject("model", parts, Store(DirectX::XMMatrixIdentity()), Mobility::Movable);
+    AddCube(scene, ModelPart{.material = MaterialHandle{3}}, 0);
+
+    scene.SetObjectMaterial(id, MaterialHandle{9});
+
+    EXPECT_EQ(scene.Renderers()[0].material, MaterialHandle{9});
+    EXPECT_EQ(scene.Renderers()[1].material, MaterialHandle{9});
+    EXPECT_EQ(scene.Renderers()[2].material, MaterialHandle{3});
+}

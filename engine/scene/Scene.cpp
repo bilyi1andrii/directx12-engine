@@ -48,6 +48,17 @@ namespace engine::scene {
         }
     }
 
+    void Scene::SetObjectMaterial(ObjectId id, render::MaterialHandle material) {
+        ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
+                          m_objects.size());
+        const SceneObject &object = m_objects[id.index];
+        ENGINE_ASSERT_MSG(object.mobility == Mobility::Movable, "Object {} is static", object.name);
+
+        for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
+            m_renderers[i].material = material;
+        }
+    }
+
     const SceneObject &Scene::Object(ObjectId id) const {
         ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
                           m_objects.size());

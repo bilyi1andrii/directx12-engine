@@ -128,20 +128,30 @@ namespace {
         camera.fovDegrees = 60.0f;
         const engine::scene::CameraController cameraController;
 
-        // The textured grid (--count, --grid) and the scene's objects (models and cubes). The scene is uploaded every
-        // frame, the grid only in dynamic mode.
-        engine::render::RenderList renderList; // this frame's dynamic objects
-        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
-        const std::filesystem::path gridTexturePath =
-            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
-        // Not const: a dropped image replaces the grid texture
-        engine::apps::StressGrid grid(renderer, options.gridMode.value_or(engine::apps::GridMode::Dynamic),
-                                      options.gridCount.value_or(engine::apps::kDefaultGridCount),
-                                      engine::apps::CreateGridTexture(renderer, gridTexturePath));
+        engine::render::RenderList renderList; // this frame's movable objects
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
         engine::scene::Scene scene;
+
+        // The textured grid (--count, --grid), as scene objects like everything else
+        const engine::render::MeshHandle cubeMesh = renderer.CreateMesh(engine::assets::MakeCube(), L"Cube").front();
+        // Without --texture, the sandbox's grid texture from data/ (the bench keeps the checkerboard)
+        const std::filesystem::path gridTexturePath =
+            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        const sandbox::GridObjects grid =
+            sandbox::AddGrid(scene, cubeMesh, engine::apps::CreateGridTexture(renderer, gridTexturePath),
+                             options.gridMode.value_or(engine::apps::GridMode::Dynamic),
+                             options.gridCount.value_or(engine::apps::kDefaultGridCount));
+        // Static objects go into GPU memory once, so none may be added after this. Everything else is uploaded every
+        // frame.
+        std::vector<engine::render::StaticListHandle> staticLists;
+        if (grid.mode == engine::apps::GridMode::Static) {
+            engine::render::RenderList staticObjects;
+            engine::scene::Extract(scene, staticObjects, engine::scene::Mobility::Static);
+            staticLists.push_back(renderer.CreateStaticList(staticObjects, L"Grid/Instances"));
+        }
+
         // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git)
         std::vector<std::filesystem::path> modelPaths;
         if (options.modelPath) {
@@ -158,10 +168,10 @@ namespace {
         // Cubes the user can select and move, next to the models: a textured cube spinning at the origin (only
         // without models, which stand there) and three plain-coloured cubes around it. A material is its albedo
         // texture for now (Handles.h).
-        const auto addCube = [&scene, &grid](std::string name, engine::render::TextureHandle texture, float x,
-                                             float z) {
+        const auto addCube = [&scene, cubeMesh](std::string name, engine::render::TextureHandle texture, float x,
+                                                float z) {
             const engine::render::ModelPart part{
-                .mesh = grid.CubeMesh(), .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
+                .mesh = cubeMesh, .material = {.index = texture.index}, .bounds = engine::assets::kCubeBounds};
             DirectX::XMFLOAT4X4 world{};
             DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
             return scene.AddObject(std::move(name), {&part, 1}, world, engine::scene::Mobility::Movable);
@@ -185,7 +195,7 @@ namespace {
 
         // For the renderer window; the grid does not change while the sandbox runs
         const std::string sceneInfo =
-            std::format("grid {} x {}, {}", grid.Side(), grid.Side(), engine::apps::ToString(grid.Mode()));
+            std::format("grid {} x {}, {}", grid.side, grid.side, engine::apps::ToString(grid.mode));
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
@@ -272,7 +282,7 @@ namespace {
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
-                                   .objectCount = grid.ObjectCount() + scene.EntityCount(),
+                                   .objectCount = scene.EntityCount(),
                                    .scene = sceneInfo,
                                    .cameraPosition = camera.position},
                                   settings);
@@ -303,12 +313,11 @@ namespace {
             }
 
             renderList.Clear();
-            grid.Submit(renderList); // dynamic mode only
             engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
 
             try {
                 renderer.BeginFrame(window.Width(), window.Height(), settings);
-                renderer.Render(frameView, renderList, grid.StaticLists());
+                renderer.Render(frameView, renderList, staticLists);
                 renderer.RenderUi(uiDrawData); // on top of the scene
                 renderer.EndFrame();
             } catch (const engine::core::HResultError &) {
