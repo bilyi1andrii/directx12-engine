@@ -113,20 +113,37 @@ namespace engine::ui {
         ImGui::End();
     }
 
-    void DebugUI::ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 *position) {
-        const float scale = ImGui::GetStyle().FontScaleDpi;
-        // Top-right corner (pivot (1, 0): the position is the window's top-right corner), away from the objects in
-        // the middle of the view. It widens when something is selected.
-        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 10.0f * scale, 10.0f * scale),
-                                ImGuiCond_FirstUseEver, ImVec2(1.0f, 0.0f));
-        if (ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            if (position == nullptr) {
-                ImGui::TextDisabled("Left-click a coloured cube to select it");
-            } else {
-                ImGui::TextUnformatted(name.data(), name.data() + name.size());
-                ImGui::DragFloat3("Position", &position->x, 0.05f, 0.0f, 0.0f, "%.2f");
+    namespace {
+        // Must be followed by ImGui::End(), whatever it returns
+        bool BeginSelectionWindow() {
+            const float scale = ImGui::GetStyle().FontScaleDpi;
+            // Top-right corner (pivot (1, 0): the position is the window's top-right corner), away from the objects
+            // in the middle of the view. It widens when something is selected.
+            ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 10.0f * scale, 10.0f * scale),
+                                    ImGuiCond_FirstUseEver, ImVec2(1.0f, 0.0f));
+            return ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        }
+    } // namespace
+
+    bool DebugUI::ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable) {
+        bool edited = false;
+        if (BeginSelectionWindow()) {
+            ImGui::TextUnformatted(name.data(), name.data() + name.size());
+            if (movable) {
+                edited = ImGui::DragFloat3("Position", &position.x, 0.05f, 0.0f, 0.0f, "%.2f");
                 ImGui::TextDisabled("Drag the arrows to move it; click elsewhere to deselect");
+            } else {
+                ImGui::Text("Position %.2f, %.2f, %.2f", position.x, position.y, position.z);
+                ImGui::TextDisabled("Static: it cannot be moved. Click elsewhere to deselect");
             }
+        }
+        ImGui::End();
+        return edited;
+    }
+
+    void DebugUI::ShowEmptySelectionWindow() {
+        if (BeginSelectionWindow()) {
+            ImGui::TextDisabled("Left-click a cube or a model to select it");
         }
         ImGui::End();
     }

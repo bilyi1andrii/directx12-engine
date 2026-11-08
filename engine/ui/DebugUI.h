@@ -74,9 +74,12 @@ namespace engine::ui {
         // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
-        // The "Selection" window: the selected object's name and its position, edited in place. Without a
-        // selection (`position` null) it says how to select one.
-        void ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 *position);
+        // The "Selection" window for a selected object: its name and position. A movable object's position can be
+        // edited in place, and then this returns true. A static object's is only shown.
+        [[nodiscard]] bool ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable);
+
+        // The "Selection" window while nothing is selected: says how to select something
+        void ShowEmptySelectionWindow();
 
         // Ends the UI frame and returns what to draw, valid until the next NewFrame
         [[nodiscard]] ImDrawData *Render();
