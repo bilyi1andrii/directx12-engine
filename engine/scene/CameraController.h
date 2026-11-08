@@ -12,8 +12,8 @@ namespace engine::scene {
         bool keyboard = true; // moving
     };
 
-    // Fly camera controls:
-    //   right mouse button + mouse   look around
+    // Fly camera controls, all while the right mouse button is held:
+    //   mouse                        look around
     //   W / S                        forward / back (along the view direction, pitch included)
     //   A / D                        left / right
     //   Space / Left Shift           up / down (world Y)

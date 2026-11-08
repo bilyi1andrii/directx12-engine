@@ -2,6 +2,7 @@
 #define D3D12_ENGINE_DEBUGUI_H
 
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 #include <DirectXMath.h>
@@ -26,9 +27,9 @@ namespace engine::ui {
     // shapes, display size) and builds the windows every frame. Drawing them is the renderer's job: pass Render()'s
     // result to Renderer::RenderUi.
     //
-    // Per frame: NewFrame() -> [TranslateGizmo()] -> Show*() -> Render().
+    // Per frame: NewFrame() -> [TransformGizmo()] -> Show*() -> Render().
     //
-    // The UI only edits data (RendererSettings, an object's position); the app passes it on to the renderer, which
+    // The UI only edits data (RendererSettings, an object's placement); the app passes it on to the renderer, which
     // reads it once per frame. It never calls the renderer itself.
     //
     // ImGui keeps its current context in a global, so there is one DebugUI per process. Create it after the window
@@ -63,21 +64,21 @@ namespace engine::ui {
         // Like WantsMouse, for turning the camera: hovering a gizmo handle does not count
         [[nodiscard]] bool WantsMouseForCamera() const;
 
-        // The translate gizmo (ImGuizmo) on the object placed by `world`: arrows along the world X/Y/Z axes, plus
-        // plane handles and a centre handle that moves in the screen plane. `view` and `projection` are the
-        // camera's DirectXMath matrices as they are (not transposed). While the user drags a handle it changes
-        // `world`'s translation and returns true. At most once per frame, after NewFrame.
-        bool TranslateGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
+        // ImGuizmo on the object placed by `world`: moves, rotates or scales it (W/E/R) around its pivot, `world`'s
+        // translation. `view`, `projection`: the camera's matrices, not transposed. Returns true while a handle is
+        // dragged. At most once per frame, after NewFrame.
+        bool TransformGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
                             DirectX::XMFLOAT4X4 &world);
 
-        // After this frame's TranslateGizmo: the cursor is over one of its handles, or one is being dragged, so a
+        // After this frame's TransformGizmo: the cursor is over one of its handles, or one is being dragged, so a
         // click belongs to the gizmo (not to selecting). False in a frame without a gizmo.
         [[nodiscard]] bool GizmoWantsMouse() const;
 
         // The "Renderer" window: frame stats, and the settings (draw path, vsync), edited in place
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
-        // The "Selection" window for a selected object. Returns true if the user edited `position` (movable only).
+        // The "Selection" window for a selected object; for a movable one also the gizmo mode (buttons or W/E/R).
+        // Returns true if the user edited `position` (movable only).
         [[nodiscard]] bool ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable);
 
         // The "Selection" window when nothing is selected
@@ -89,8 +90,10 @@ namespace engine::ui {
     private:
         ImGuiContext *m_context = nullptr;
         float m_dpiScale = 1.0f;
-        bool m_gizmoDrawn = false;            // the gizmo is on screen this frame
-        bool m_gizmoHovered = false;          // the cursor is over a handle, not dragging it
+        enum class GizmoMode : uint8_t { Translate, Rotate, Scale };
+        GizmoMode m_gizmoMode = GizmoMode::Translate; // W/E/R or the Selection window
+        bool m_gizmoDrawn = false;                    // the gizmo is on screen this frame
+        bool m_gizmoHovered = false;                  // the cursor is over a handle, not dragging it
         bool m_gizmoHoveredLastFrame = false; // last frame's value: ImGuizmo's claim on the mouse lags one frame
     };
 } // namespace engine::ui

@@ -16,8 +16,8 @@ in `engine/scene`, the `Renderer` in `engine/render`, the plain CPU data it draw
 instance data in page-sized chunks plus static lists uploaded once to GPU memory (`--count 50000` draws a 50k-cube
 grid), a benchmark app that writes per-frame CPU times to CSV, unit tests and automated smoke tests. Models from
 files (glTF, OBJ, FBX, ...) are shown on the cube grid. An ImGui overlay shows frame statistics and the draw-path and
-vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved with a gizmo (with
-`--grid static` the grid's cubes can only be selected). Next: drawing Sponza.
+vsync settings. Models and cubes, grid cubes included, can be selected with the mouse and moved, rotated and scaled
+with a gizmo (with `--grid static` the grid's cubes can only be selected). Next: drawing Sponza.
 
 ## Requirements
 
@@ -88,10 +88,11 @@ PowerShell. Debug the exe with the Visual Studio debugger, or another debugger t
 | I | Toggle the draw path: instanced or one draw per object (shown in the Renderer window; the image stays the same) |
 | F11 or Alt+Enter | Toggle borderless fullscreen |
 | Left mouse button | Select the cube or model under the cursor; a click on empty space clears the selection |
-| Drag a gizmo arrow | Move the selected object along that axis, or edit its position in the Selection window (with `--grid static`, the grid's cubes can only be selected) |
+| W / E / R (right mouse button up) | Gizmo mode for the selected object: move / rotate / scale (also buttons in the Selection window) |
+| Drag a gizmo handle | Move (arrows), rotate (rings) or scale (along the object's own axes; the centre handle scales evenly) the selected object around its pivot; the Selection window also edits its position (with `--grid static`, the grid's cubes can only be selected) |
 | Right mouse button + mouse | Look around |
-| W / A / S / D | Fly forward / left / back / right |
-| Space / Left Shift | Fly up / down |
+| Right mouse button + W / A / S / D | Fly forward / left / back / right (the camera moves only while the right button is held) |
+| Right mouse button + Space / Left Shift | Fly up / down |
 
 ### Log output
 
@@ -192,7 +193,7 @@ engine/renderdata
 engine/render  Renderer: owns the frame loop's GPU objects and records each frame; draws static lists (uploaded
                once) and the frame's RenderList (uploaded every frame); CreateMesh uploads a model's geometry
                into one vertex and one index buffer and returns a MeshHandle per submesh; UiRenderer draws ImGui
-engine/ui      DebugUI: the ImGui windows and the translate gizmo; writes RendererSettings (no D3D12)
+engine/ui      DebugUI: the ImGui windows and the move/rotate/scale gizmo; writes RendererSettings (no D3D12)
 shaders/       HLSL sources; vs_/ps_/cs_ prefix selects the stage (SM 6.6), rs_ compiles a root signature
 shaders/common shared with C++: root_signature.hlsli (the global root signature), shared_types.hlsli (constants,
                per-draw root constants, instance data); vs_output.hlsli (vertex to pixel shader data)

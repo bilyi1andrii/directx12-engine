@@ -96,7 +96,7 @@ namespace engine::ui {
         return ImGui::GetIO().WantCaptureKeyboard;
     }
 
-    bool DebugUI::TranslateGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
+    bool DebugUI::TransformGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
                                  DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
@@ -111,8 +111,11 @@ namespace engine::ui {
         ImGuizmo::AllowAxisFlip(false);
         // XMFLOAT4X4 stores 16 floats row by row, for row vectors (v * M): the layout ImGuizmo reads, so no
         // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection and [0, 1] depth.
-        const bool moved = ImGuizmo::Manipulate(&view.m[0][0], &projection.m[0][0], ImGuizmo::TRANSLATE,
-                                                ImGuizmo::WORLD, &world.m[0][0]);
+        const ImGuizmo::OPERATION operation = m_gizmoMode == GizmoMode::Rotate  ? ImGuizmo::ROTATE
+                                              : m_gizmoMode == GizmoMode::Scale ? ImGuizmo::SCALE
+                                                                                : ImGuizmo::TRANSLATE;
+        const ImGuizmo::MODE space = m_gizmoMode == GizmoMode::Scale ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+        const bool moved = ImGuizmo::Manipulate(&view.m[0][0], &projection.m[0][0], operation, space, &world.m[0][0]);
         // For an object behind the camera ImGuizmo draws nothing, but IsOver() can still be true. Manipulate uses this
         // same check.
         constexpr float kBehindCamera = 0.001f;
@@ -161,8 +164,24 @@ namespace engine::ui {
         if (BeginSelectionWindow()) {
             ImGui::TextUnformatted(name.data(), name.data() + name.size());
             if (movable) {
+                int mode = static_cast<int>(m_gizmoMode);
+                ImGui::RadioButton("Move (W)", &mode, static_cast<int>(GizmoMode::Translate));
+                ImGui::SameLine();
+                ImGui::RadioButton("Rotate (E)", &mode, static_cast<int>(GizmoMode::Rotate));
+                ImGui::SameLine();
+                ImGui::RadioButton("Scale (R)", &mode, static_cast<int>(GizmoMode::Scale));
+                if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+                    if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
+                        mode = static_cast<int>(GizmoMode::Translate);
+                    } else if (ImGui::IsKeyPressed(ImGuiKey_E, false)) {
+                        mode = static_cast<int>(GizmoMode::Rotate);
+                    } else if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+                        mode = static_cast<int>(GizmoMode::Scale);
+                    }
+                }
+                m_gizmoMode = static_cast<GizmoMode>(mode);
                 edited = ImGui::DragFloat3("Position", &position.x, 0.05f, 0.0f, 0.0f, "%.2f");
-                ImGui::TextDisabled("Drag the arrows to move it; click elsewhere to deselect");
+                ImGui::TextDisabled("Drag the gizmo's handles; click elsewhere to deselect");
             } else {
                 ImGui::Text("Position %.2f, %.2f, %.2f", position.x, position.y, position.z);
                 ImGui::TextDisabled("Static: it cannot be moved. Click elsewhere to deselect");
