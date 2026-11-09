@@ -39,6 +39,7 @@ data.
 - Models from glTF, OBJ and FBX files (Assimp), textures with generated mips (DirectXTex)
 - Fly camera, mouse selection, a move/rotate/scale gizmo and an ImGui overlay with statistics and settings
 - Loading models and images by dropping them on the window
+- The sandbox's scene saved to JSON on exit and restored at the next start
 - A benchmark with a scripted camera that writes per-frame timings to CSV
 - Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
 
@@ -79,13 +80,15 @@ The sandbox shows a grid of textured cubes, a few cubes you can select and move,
 spinning cube in the middle. While it runs, you can drop a model or an image on the window: a model stands where
 you drop it, and an image becomes the grid's texture (dynamic grid only).
 
+The scene is saved to `saves/sandbox.json` when the window closes and restored at the next start.
+
 | Option | Effect |
 |---|---|
-| `--model PATH` | Show this model instead of everything in `assets/` |
+| `--model PATH` | Show this model instead of everything in `assets/`; the scene is neither loaded nor saved |
 | `--texture PATH` | Use this image on the grid |
-| `--count N` | Cubes in the grid, rounded up to a square (default 400) |
-| `--grid static\|dynamic` | Upload the grid once, or every frame (default `dynamic`) |
-| `--smoke-test N` | Render N frames, then exit with the test result |
+| `--count N` | Cubes in the grid, rounded up to a square (default: the saved scene's, else 400) |
+| `--grid static\|dynamic` | Upload the grid once, or every frame (default: the saved scene's, else `dynamic`) |
+| `--smoke-test N` | Render N frames, then exit with the test result; the scene is neither loaded nor saved |
 
 | Control | Action |
 |---|---|
