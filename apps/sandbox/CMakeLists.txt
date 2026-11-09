@@ -1,3 +1,17 @@
+add_library(sandbox_save STATIC
+        SceneSave.cpp
+        SceneSave.h)
+
+engine_target_defaults(sandbox_save)
+
+target_include_directories(sandbox_save PUBLIC "${PROJECT_SOURCE_DIR}/apps")
+
+target_link_libraries(sandbox_save
+        PUBLIC
+        engine_core
+        PRIVATE
+        nlohmann_json::nlohmann_json)
+
 add_executable(sandbox
         main.cpp
         SandboxOptions.cpp
@@ -16,6 +30,7 @@ engine_target_defaults(sandbox)
 
 target_link_libraries(sandbox PRIVATE
         app_common
+        sandbox_save
         # AssetCache, model and texture loading for the models and dropped files
         engine_assets
         engine_core
