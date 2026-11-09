@@ -38,9 +38,6 @@ namespace sandbox {
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
     inline constexpr std::wstring_view kSpinningCubeTexture = L"data/textures/diamante.jpg";
 
-    // kSpinningCubeTexture, or grey with a warning if it cannot be loaded
-    [[nodiscard]] engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer);
-
     // Every model file in the gitignored assets/ folder, sorted by path
     [[nodiscard]] std::vector<std::filesystem::path> FindAssetModels();
 

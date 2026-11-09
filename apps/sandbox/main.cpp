@@ -138,7 +138,7 @@ namespace {
         const std::filesystem::path gridTexturePath =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
         const sandbox::GridObjects grid =
-            sandbox::AddGrid(scene, assets, engine::apps::CreateGridTexture(renderer, gridTexturePath),
+            sandbox::AddGrid(scene, assets, assets.LoadTexture(gridTexturePath, engine::assets::TextureUsage::Diffuse),
                              options.gridMode.value_or(engine::apps::GridMode::Dynamic),
                              options.gridCount.value_or(engine::apps::kDefaultGridCount));
         // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
@@ -172,14 +172,18 @@ namespace {
         };
         std::optional<engine::scene::ObjectId> spinningCube;
         if (modelsShown == 0) {
-            spinningCube = addCube("Spinning cube", sandbox::CreateSpinningCubeTexture(renderer), 0.0f, 0.0f);
+            spinningCube =
+                addCube("Spinning cube",
+                        assets.LoadTexture(engine::core::ExecutableDirectory() / sandbox::kSpinningCubeTexture,
+                                           engine::assets::TextureUsage::Diffuse),
+                        0.0f, 0.0f);
         }
         // With models loaded, the cubes stand behind the row so that they do not end up inside a model
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
         const engine::scene::ObjectId orangeCube =
-            addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, cubesZ);
-        addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, cubesZ);
-        addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, cubesZ + 5.0f);
+            addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
+        addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ);
+        addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f);
         // The smoke test selects a cube so that the gizmo runs every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {

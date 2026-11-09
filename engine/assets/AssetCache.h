@@ -42,6 +42,12 @@ namespace engine::assets {
         // Loads `path` as `usage` on the first call. A failure gives the grey texture and is cached too.
         [[nodiscard]] render::TextureHandle LoadTexture(const std::filesystem::path &path, TextureUsage usage);
 
+        // A 1x1 sRGB texture of one colour (values as in an image file), made once per colour
+        [[nodiscard]] render::TextureHandle SolidColor(uint8_t red, uint8_t green, uint8_t blue);
+
+        // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
+        [[nodiscard]] render::TextureHandle CheckerboardTexture();
+
         [[nodiscard]] size_t ModelCount() const noexcept { return m_models.size(); }
         // Textures the cache created: files, embedded images and solid colours
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
@@ -69,6 +75,7 @@ namespace engine::assets {
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
+        std::optional<render::TextureHandle> m_checkerboard;
         size_t m_createdTextures = 0;
     };
 } // namespace engine::assets

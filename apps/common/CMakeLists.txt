@@ -19,6 +19,4 @@ target_link_libraries(app_common
         PUBLIC
         engine_core
         engine_render
-        engine_scene
-        PRIVATE
-        engine_assets)
+        engine_scene)

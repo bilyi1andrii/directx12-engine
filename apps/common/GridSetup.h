@@ -2,12 +2,10 @@
 #define D3D12_ENGINE_GRIDSETUP_H
 
 #include <cstdint>
-#include <filesystem>
 #include <optional>
 #include <string_view>
 
 #include "render/Renderer.h"
-#include "renderdata/Handles.h"
 #include "scene/Camera.h"
 
 // Cube-grid settings shared by the sandbox and the bench
@@ -33,10 +31,6 @@ namespace engine::apps {
 
     // What the renderer needs from the camera (render does not know scene)
     [[nodiscard]] render::FrameView MakeFrameView(const scene::Camera &camera, float aspectRatio);
-
-    // The image at `path`, or a grey checkerboard. A file that fails to load gives a warning and plain grey.
-    [[nodiscard]] render::TextureHandle CreateGridTexture(render::Renderer &renderer,
-                                                          const std::optional<std::filesystem::path> &path);
 } // namespace engine::apps
 
 #endif // D3D12_ENGINE_GRIDSETUP_H

@@ -186,7 +186,10 @@ namespace engine::assets {
         if (red == 0 && green == 0 && blue == 0) {
             return m_gpu->UnloadedTexture();
         }
+        return SolidColor(red, green, blue);
+    }
 
+    TextureHandle AssetCache::SolidColor(uint8_t red, uint8_t green, uint8_t blue) {
         const uint32_t key = red | (green << 8) | (blue << 16);
         if (const auto it = m_solidColors.find(key); it != m_solidColors.end()) {
             return it->second;
@@ -198,6 +201,18 @@ namespace engine::assets {
         }
         m_solidColors.emplace(key, handle);
         return handle;
+    }
+
+    TextureHandle AssetCache::CheckerboardTexture() {
+        if (!m_checkerboard) {
+            if (const std::expected<render::TextureData, core::Error> data = MakeCheckerboard()) {
+                m_checkerboard = CreateTexture(*data, L"Checkerboard");
+            } else {
+                core::LogWarning("AssetCache: {}. Using the grey texture.", data.error().message);
+                m_checkerboard = m_gpu->UnloadedTexture();
+            }
+        }
+        return *m_checkerboard;
     }
 
     TextureHandle AssetCache::CreateTexture(const render::TextureData &data, std::wstring_view name) {
