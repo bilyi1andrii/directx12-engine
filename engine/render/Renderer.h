@@ -11,8 +11,6 @@
 #include <string_view>
 #include <vector>
 
-#include <DirectXMath.h>
-
 #include "rhi/Allocator.h"
 #include "rhi/BindlessHeap.h"
 #include "rhi/Buffer.h"
@@ -29,6 +27,7 @@
 #include "rhi/UploadRing.h"
 #include "rhi/ValidationStats.h"
 
+#include "renderdata/FrameView.h"
 #include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
@@ -42,12 +41,6 @@ struct ImDrawData;
 
 namespace engine::render {
     class UiRenderer;
-
-    struct FrameView {
-        DirectX::XMFLOAT4X4 view;
-        DirectX::XMFLOAT4X4 projection;
-        DirectX::XMFLOAT3 cameraPosition; // world space
-    };
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //

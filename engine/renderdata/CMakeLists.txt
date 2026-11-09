@@ -3,6 +3,7 @@
 # Must never link engine_rhi, d3d12 or dxgi.
 
 add_library(engine_renderdata STATIC
+        FrameView.h
         GpuUploader.h
         Handles.h
         InstanceChunks.cpp

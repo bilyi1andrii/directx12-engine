@@ -179,7 +179,7 @@ namespace {
                 const Clock::time_point recordStart = Clock::now();
                 renderList.Clear();
                 grid.Submit(renderList); // dynamic mode only
-                renderer.Render(engine::apps::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+                renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
                                 grid.StaticLists());
                 const Clock::time_point recordEnd = Clock::now();
                 if (frame >= options.warmupFrames) {

@@ -245,7 +245,7 @@ namespace {
             // the window's aspect ratio is also the rendered one.
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
             const engine::render::FrameView frameView =
-                engine::apps::MakeFrameView(camera, viewportPx.x / viewportPx.y);
+                engine::scene::MakeFrameView(camera, viewportPx.x / viewportPx.y);
             // The camera ray through the centre of a pixel
             const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
                 return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},

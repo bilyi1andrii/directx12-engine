@@ -14,9 +14,8 @@ engine_target_defaults(app_common)
 # Included as "common/GridSetup.h"
 target_include_directories(app_common PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
-# PUBLIC: the headers use render, scene and rhi types
+# PUBLIC: AppChecks.h uses rhi::ValidationStats
 target_link_libraries(app_common
         PUBLIC
         engine_core
-        engine_render
-        engine_scene)
+        engine_rhi)

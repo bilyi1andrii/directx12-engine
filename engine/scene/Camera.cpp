@@ -24,6 +24,14 @@ namespace engine::scene {
         return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.nearZ, camera.farZ);
     }
 
+    render::FrameView MakeFrameView(const Camera &camera, float aspectRatio) {
+        render::FrameView view{};
+        XMStoreFloat4x4(&view.view, ViewMatrix(camera));
+        XMStoreFloat4x4(&view.projection, ProjectionMatrix(camera, aspectRatio));
+        view.cameraPosition = camera.position;
+        return view;
+    }
+
     XMVECTOR Forward(const Camera &camera) {
         const XMMATRIX rotation = XMMatrixRotationRollPitchYaw(camera.rotation.x, camera.rotation.y, 0.0f);
         return XMVector3TransformCoord(kDefaultForward, rotation);

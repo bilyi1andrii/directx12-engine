@@ -23,12 +23,4 @@ namespace engine::apps {
         }
         return side;
     }
-
-    render::FrameView MakeFrameView(const scene::Camera &camera, float aspectRatio) {
-        render::FrameView view{};
-        DirectX::XMStoreFloat4x4(&view.view, scene::ViewMatrix(camera));
-        DirectX::XMStoreFloat4x4(&view.projection, scene::ProjectionMatrix(camera, aspectRatio));
-        view.cameraPosition = camera.position;
-        return view;
-    }
 } // namespace engine::apps

@@ -3,6 +3,8 @@
 
 #include <DirectXMath.h>
 
+#include "renderdata/FrameView.h"
+
 namespace engine::scene {
     // A perspective camera as plain data: left-handed, +Z forward, +Y up, rotation applied as
     // XMMatrixRotationRollPitchYaw(pitch, yaw, roll).
@@ -19,6 +21,9 @@ namespace engine::scene {
     [[nodiscard]] DirectX::XMMATRIX ViewMatrix(const Camera &camera);
     // View -> clip, depth in [0, 1]
     [[nodiscard]] DirectX::XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio);
+
+    // What the renderer needs from the camera
+    [[nodiscard]] render::FrameView MakeFrameView(const Camera &camera, float aspectRatio);
 
     // Movement directions from pitch and yaw, ignoring roll.
     // Forward follows the pitch, so moving forward while looking down also moves down.
