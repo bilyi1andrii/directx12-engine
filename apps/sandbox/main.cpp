@@ -1,10 +1,14 @@
 #include <format>
 
+#include <algorithm>
+#include <array>
+#include <cfloat>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <iterator>
 #include <optional>
 #include <span>
 #include <string>
@@ -23,6 +27,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
+#include "core/Utf8.h"
 #include "core/Window.h"
 #include "core/Input.h"
 #include "rhi/AgilitySdk.h"
@@ -120,6 +125,9 @@ namespace {
             LogInfo("Smoke test: rendering {} frames", *smokeTestFrames);
         }
 
+        const bool keepScene = !smokeTestFrames && !options.modelPath;
+        const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::LoadSave() : std::nullopt;
+
         // Looks at the cube from above and to the side, so three faces are visible
         engine::scene::Camera camera;
         camera.position = {3.0f, 4.0f, -8.0f};
@@ -137,10 +145,26 @@ namespace {
         // Without --texture, the grid uses the sandbox's texture from data/
         const std::filesystem::path gridTexturePath =
             options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        const uint32_t gridCount = options.gridCount.value_or(
+            saved && saved->gridCount > 0 ? saved->gridCount : engine::apps::kDefaultGridCount);
+        const engine::apps::GridMode gridMode = options.gridMode.value_or(
+            saved ? engine::apps::ParseGridMode(saved->gridMode).value_or(engine::apps::GridMode::Dynamic)
+                  : engine::apps::GridMode::Dynamic);
         const sandbox::GridObjects grid =
             sandbox::AddGrid(scene, assets, assets.LoadTexture(gridTexturePath, engine::assets::TextureUsage::Diffuse),
-                             options.gridMode.value_or(engine::apps::GridMode::Dynamic),
-                             options.gridCount.value_or(engine::apps::kDefaultGridCount));
+                             gridMode, gridCount);
+        if (saved && !saved->gridCubes.empty()) {
+            if (grid.mode == engine::apps::GridMode::Dynamic && saved->gridCount == gridCount) {
+                for (const sandbox::SavedGridCube &cube : saved->gridCubes) {
+                    if (cube.index < grid.side * grid.side) {
+                        scene.SetObjectWorld({.index = grid.firstObject + cube.index}, cube.world);
+                    }
+                }
+            } else {
+                LogInfo("Scene: {} saved grid cubes left out (they belong to a dynamic grid of {} cubes)",
+                        saved->gridCubes.size(), saved->gridCount);
+            }
+        }
         // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
         std::vector<engine::render::StaticListHandle> staticLists;
         if (grid.mode == engine::apps::GridMode::Static) {
@@ -149,18 +173,33 @@ namespace {
             staticLists.push_back(renderer.CreateStaticList(staticObjects, L"Grid/Instances"));
         }
 
-        // Models in a row: --model, else all of assets/ (skipped in a smoke test: not in git)
-        std::vector<std::filesystem::path> modelPaths;
+        std::vector<sandbox::PlacedModel> models;
         if (options.modelPath) {
-            modelPaths.push_back(*options.modelPath);
+            models = sandbox::AddModels(scene, assets, {&*options.modelPath, 1});
         } else if (!smokeTestFrames) {
-            modelPaths = sandbox::FindAssetModels();
+            std::vector<std::filesystem::path> newModels = sandbox::FindAssetModels();
+            if (saved) {
+                for (const sandbox::SavedModel &model : saved->models) {
+                    std::erase_if(newModels, [&model](const std::filesystem::path &path) {
+                        return path.lexically_normal() == model.path;
+                    });
+                    if (std::optional<sandbox::PlacedModel> placed =
+                            sandbox::AddModel(scene, assets, model.path, 0.0f, 0.0f, model.world)) {
+                        models.push_back(std::move(*placed));
+                    }
+                }
+            }
+            std::optional<float> firstX;
+            for (const sandbox::PlacedModel &model : models) {
+                firstX = std::max(firstX.value_or(-FLT_MAX), scene.Object(model.id).world._41 + sandbox::kModelSpacing);
+            }
+            std::ranges::move(sandbox::AddModels(scene, assets, newModels, firstX), std::back_inserter(models));
         }
-        const size_t modelsShown = sandbox::AddModels(scene, assets, modelPaths);
-        // Where a model dropped on the sky goes: the end of the row
-        float nextModelX = modelsShown > 0
-                               ? (static_cast<float>(modelPaths.size() - 1) / 2 + 1) * sandbox::kModelSpacing
-                               : sandbox::kModelSpacing;
+        const size_t modelsShown = models.size();
+        float nextModelX = sandbox::kModelSpacing;
+        for (const sandbox::PlacedModel &model : models) {
+            nextModelX = std::max(nextModelX, scene.Object(model.id).world._41 + sandbox::kModelSpacing);
+        }
 
         // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
         const auto addCube = [&scene, &assets](std::string name, engine::render::TextureHandle texture, float x,
@@ -182,8 +221,21 @@ namespace {
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
         const engine::scene::ObjectId orangeCube =
             addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
-        addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ);
-        addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f);
+
+        const std::array namedCubes{
+            orangeCube,
+            addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ),
+            addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f),
+        };
+        if (saved) {
+            for (const sandbox::SavedCube &savedCube : saved->cubes) {
+                for (const engine::scene::ObjectId id : namedCubes) {
+                    if (scene.Object(id).name == savedCube.name) {
+                        scene.SetObjectWorld(id, savedCube.world);
+                    }
+                }
+            }
+        }
         // The smoke test selects a cube so that the gizmo runs every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
@@ -307,7 +359,7 @@ namespace {
                 const engine::scene::Ray ray = pickRayAt(drop.x, drop.y);
                 sandbox::LoadDroppedFile(drop.path,
                                          engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
-                                         assets, scene, nextModelX, grid);
+                                         assets, scene, nextModelX, grid, models);
             }
 
             renderList.Clear();
@@ -341,6 +393,16 @@ namespace {
                 if (framesRendered == frames) {
                     window.Close();
                 }
+            }
+        }
+
+        if (keepScene) {
+            const std::filesystem::path file = sandbox::SavePath();
+            if (const auto written = sandbox::WriteSandboxSave(
+                    file, sandbox::MakeSave(scene, grid, gridCount, namedCubes, models), sandbox::RepositoryRoot())) {
+                LogInfo("Scene saved: {}", engine::core::ToUtf8(file.native()));
+            } else {
+                engine::core::LogWarning("Scene not saved: {}", written.error());
             }
         }
 
