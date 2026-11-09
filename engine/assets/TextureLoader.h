@@ -12,7 +12,7 @@
 #include "renderdata/TextureData.h"
 
 namespace engine::assets {
-    // What a texture holds, which decides how its bytes are read. 
+    // What a texture holds, which decides how its bytes are read.
     enum class TextureUsage {
         Unknown,
         // Colour: sRGB
