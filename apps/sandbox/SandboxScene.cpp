@@ -101,7 +101,7 @@ namespace sandbox {
     }
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
+                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
                          engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid) {
         engine::core::Timer timer;
         timer.Start();
@@ -125,7 +125,7 @@ namespace sandbox {
         }
 
         const engine::render::TextureHandle texture = assets.LoadTexture(path, engine::assets::TextureUsage::Diffuse);
-        if (texture == renderer.UnloadedTexture()) {
+        if (texture == gpu.UnloadedTexture()) {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }

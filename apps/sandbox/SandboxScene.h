@@ -13,7 +13,7 @@
 
 #include "assets/AssetCache.h"
 #include "common/GridSetup.h"
-#include "render/Renderer.h"
+#include "renderdata/GpuUploader.h"
 #include "scene/Scene.h"
 
 // The sandbox's scene objects: a cube grid laid out like the bench's, models in a row, or a spinning cube if there are
@@ -53,7 +53,7 @@ namespace sandbox {
     // A dropped model stands at `dropPoint`, or at `nextModelX` at the end of the row if there is no drop point.
     // Any other file is tried as the grid's texture (dynamic grid only).
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
+                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
                          engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid);
 } // namespace sandbox
 
