@@ -5,6 +5,8 @@
 add_library(engine_renderdata STATIC
         FrameView.h
         GpuUploader.h
+        GridLayout.cpp
+        GridLayout.h
         Handles.h
         InstanceChunks.cpp
         InstanceChunks.h

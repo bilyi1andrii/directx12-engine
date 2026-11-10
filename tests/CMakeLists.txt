@@ -9,6 +9,7 @@ add_executable(engine_tests
         CameraPathTests.cpp
         CameraTests.cpp
         FileTests.cpp
+        GridLayoutTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
         ModelImporterTests.cpp

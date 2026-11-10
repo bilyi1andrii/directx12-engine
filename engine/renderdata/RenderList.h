@@ -72,14 +72,9 @@ namespace engine::render {
     };
 
     // Adds rows x cols copies of a model on the XZ plane, centred on `base`. Each part of copy (row, col) gets
-    // world = part.transform * base * translation(x, 0, z), where
-    // x = (col - (cols - 1) / 2) * spacingX and z = (row - (rows - 1) / 2) * spacingZ.
+    // world = part.transform * base * translation(GridCellOffset(row, col, ...)).
     void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ);
-
-    // Model -> world for a model with these bounds: scales it so its largest side is `size` and puts the centre
-    // of its box at `centre`. A model with no size keeps its scale.
-    [[nodiscard]] DirectX::XMFLOAT4X4 FitToCell(const Aabb &bounds, float size, const DirectX::XMFLOAT3 &centre);
 } // namespace engine::render
 
 #endif // D3D12_ENGINE_RENDERLIST_H
