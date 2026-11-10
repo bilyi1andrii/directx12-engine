@@ -314,7 +314,7 @@ namespace engine::render {
         // already records the next frame into the other slot's ring
         const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
         const rhi::UploadAllocation frameCb =
-            CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
+            CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         UploadDynamicInstances(list);
@@ -408,7 +408,7 @@ namespace engine::render {
         const auto beginChunk = [&](uint32_t elementCount) {
             // Aligned to the element size, so the view can start at a whole element
             InstanceChunk chunk{.memory =
-                                    frame.Upload().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
+                                    frame.Ring().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
             // A fresh bindless slot every frame: the previous frame may still read the old one. It is freed after
             // this frame's fence.
             chunk.instanceBufferIndex = m_bindlessHeap.Allocate();
@@ -420,7 +420,7 @@ namespace engine::render {
         };
         // A shader view (SRV) covers one buffer, and every ring page is its own buffer: chunks of at most a page
         m_dynamicDraws.clear();
-        WriteInstances(list, static_cast<uint32_t>(frame.Upload().PageSize() / kInstanceStride), beginChunk,
+        WriteInstances(list, static_cast<uint32_t>(frame.Ring().PageSize() / kInstanceStride), beginChunk,
                        m_dynamicDraws);
     }
 

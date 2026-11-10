@@ -56,22 +56,22 @@ namespace engine::rhi {
 
         [[nodiscard]] ID3D12CommandAllocator *CommandAllocator() const noexcept { return m_commandAllocator.Get(); }
         // Per-frame upload memory: allocations are valid until this slot's next WaitAndReset()
-        [[nodiscard]] UploadRing &Upload() noexcept { return m_uploadRing; }
+        [[nodiscard]] UploadRing &Ring() noexcept { return m_uploadRing; }
         [[nodiscard]] uint64_t FenceValue() const noexcept { return m_fenceValue; }
 
     private:
-        ComPtr<ID3D12CommandAllocator> m_commandAllocator;
-        UploadRing m_uploadRing;
-        uint64_t m_fenceValue = 0; // 0: nothing submitted yet, always complete
-        std::vector<Allocation> m_deferredReleases;
-
         struct DeferredIndex {
             BindlessHeap *heap;
             uint32_t index;
         };
-        std::vector<DeferredIndex> m_deferredIndices;
 
         void FreeDeferredIndices() noexcept;
+
+        ComPtr<ID3D12CommandAllocator> m_commandAllocator;
+        UploadRing m_uploadRing;
+        uint64_t m_fenceValue = 0; // 0: nothing submitted yet, always complete
+        std::vector<Allocation> m_deferredReleases;
+        std::vector<DeferredIndex> m_deferredIndices;
     };
 
 } // namespace engine::rhi
