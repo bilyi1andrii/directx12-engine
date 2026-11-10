@@ -79,8 +79,6 @@ namespace {
         // the context, also while the renderer is destroyed)
         engine::ui::DebugUI ui(window);
 
-        // No onResize: one fullscreen toggle sends several WM_SIZE messages, so the swap chain
-        // follows Window::Width()/Height() once per frame instead
         window.SetCallbacks({
             .onMessage =
                 [&input](const engine::core::WindowMessage &message) {

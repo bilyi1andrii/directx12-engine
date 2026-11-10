@@ -20,6 +20,7 @@
 #include "core/Log.h"
 #include "core/Timer.h"
 #include "core/Utf8.h"
+#include "renderdata/GridLayout.h"
 
 using engine::core::LogInfo;
 using engine::core::LogWarning;
@@ -46,17 +47,14 @@ namespace sandbox {
     std::vector<DirectX::XMFLOAT4X4> GridPlacement(uint32_t side) {
         using namespace DirectX;
 
-        XMFLOAT4X4 base{};
-        XMStoreFloat4x4(&base, XMMatrixTranslation(0.0f, engine::apps::kGridHeight, 0.0f));
-        // SubmitGrid computes the positions, so the layout matches the bench's.
-        const engine::render::ModelPart part{};
-        engine::render::RenderList placed;
-        engine::render::SubmitGrid(placed, {&part, 1}, base, side, side, engine::apps::kGridSpacing,
-                                   engine::apps::kGridSpacing);
-        std::vector<XMFLOAT4X4> worlds;
-        worlds.reserve(placed.InstanceCount());
-        for (const engine::render::BatchBucket &bucket : placed.Buckets()) {
-            worlds.insert(worlds.end(), bucket.worlds.begin(), bucket.worlds.end());
+        std::vector<XMFLOAT4X4> worlds(size_t{side} * side);
+        for (uint32_t row = 0; row < side; ++row) {
+            for (uint32_t col = 0; col < side; ++col) {
+                const XMFLOAT3 offset = engine::render::GridCellOffset(row, col, side, side, engine::apps::kGridSpacing,
+                                                                       engine::apps::kGridSpacing);
+                XMStoreFloat4x4(&worlds[size_t{row} * side + col],
+                                XMMatrixTranslation(offset.x, engine::apps::kGridHeight, offset.z));
+            }
         }
         return worlds;
     }

@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "common/OptionValues.h"
+#include "core/Utf8.h"
 
 using engine::apps::ParseUint32;
 
@@ -38,7 +39,7 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             if (value.empty()) {
                 return std::unexpected("--model needs a file");
             }
-            options.modelPath = engine::apps::PathFromUtf8(value);
+            options.modelPath = engine::core::PathFromUtf8(value);
         } else if (arg == "--grid") {
             const std::optional<engine::apps::GridMode> mode = engine::apps::ParseGridMode(value);
             if (!mode) {
@@ -73,7 +74,7 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             if (value.empty()) {
                 return std::unexpected("--out needs a folder");
             }
-            options.outDir = engine::apps::PathFromUtf8(value);
+            options.outDir = engine::core::PathFromUtf8(value);
         }
     }
     // The default suits a cube: 50,000 copies of a detailed model are billions of triangles per frame

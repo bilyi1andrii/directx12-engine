@@ -29,9 +29,6 @@ namespace engine::core {
         // Return true to skip the window's own handling
         std::function<bool(const WindowMessage &)> onMessage;
 
-        // The client area changed size. Not called when minimized
-        std::function<void(uint32_t width, uint32_t height)> onResize;
-
         // Files dropped from Explorer at (x, y): client pixels, (0, 0) top-left. Called from PumpMessages.
         std::function<void(std::span<const std::filesystem::path> paths, int32_t x, int32_t y)> onFilesDropped;
     };
@@ -62,6 +59,8 @@ namespace engine::core {
         void ToggleFullscreen() { SetFullscreen(!m_fullscreen); }
 
         [[nodiscard]] HWND Handle() const noexcept { return m_hwnd; }
+        // Client-area size, kept while minimized. Read it once per frame: one fullscreen toggle sends several
+        // WM_SIZE messages, so following each of them would resize the swap chain several times.
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
         [[nodiscard]] uint32_t Height() const noexcept { return m_height; }
         [[nodiscard]] bool IsMinimized() const noexcept { return m_minimized; }

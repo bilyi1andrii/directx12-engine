@@ -6,9 +6,9 @@ namespace engine::scene {
     using namespace DirectX;
 
     namespace {
-        const XMVECTOR kDefaultForward = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-        const XMVECTOR kDefaultUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-        const XMVECTOR kDefaultRight = XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f);
+        constexpr XMVECTORF32 kDefaultForward{{{0.0f, 0.0f, 1.0f, 0.0f}}};
+        constexpr XMVECTORF32 kDefaultUp{{{0.0f, 1.0f, 0.0f, 0.0f}}};
+        constexpr XMVECTORF32 kDefaultRight{{{1.0f, 0.0f, 0.0f, 0.0f}}};
     } // namespace
 
     XMMATRIX ViewMatrix(const Camera &camera) {

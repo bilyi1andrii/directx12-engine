@@ -41,8 +41,7 @@ namespace engine::assets {
         using render::TextureSource;
         using render::Vertex;
 
-        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices. It runs first, because
-        // the other steps and the code below trust those indices.
+        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices.
         constexpr unsigned kImportFlags = aiProcess_ValidateDataStructure | aiProcess_Triangulate |
                                           aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals |
                                           aiProcess_CalcTangentSpace;
@@ -106,10 +105,10 @@ namespace engine::assets {
             }
         }
 
-        [[nodiscard]] std::optional<std::filesystem::path> PathFromUtf8(std::string_view text) {
+        // A damaged file may hold any bytes: nullopt instead of an exception
+        [[nodiscard]] std::optional<std::filesystem::path> TryPathFromUtf8(std::string_view text) {
             try {
-                return std::filesystem::path(
-                    std::u8string_view(reinterpret_cast<const char8_t *>(text.data()), text.size()));
+                return core::PathFromUtf8(text);
             } catch (const std::system_error &) {
                 return std::nullopt;
             }
@@ -258,7 +257,7 @@ namespace engine::assets {
                     return EmbeddedTexture{it->second};
                 }
 
-                const std::optional<std::filesystem::path> file = PathFromUtf8(text);
+                const std::optional<std::filesystem::path> file = TryPathFromUtf8(text);
                 if (!file) {
                     LogWarning("{}: texture path \"{}\" is not valid UTF-8", source, text);
                     return {};
@@ -269,7 +268,7 @@ namespace engine::assets {
             [[nodiscard]] TextureSource FindBySuffix(std::string_view materialName, std::string_view suffix) const {
                 for (const std::string_view extension : {".png", ".jpg", ".jpeg"}) {
                     const std::optional<std::filesystem::path> file =
-                        PathFromUtf8(std::format("{}{}{}", materialName, suffix, extension));
+                        TryPathFromUtf8(std::format("{}{}{}", materialName, suffix, extension));
                     std::error_code ec;
                     if (file && std::filesystem::is_regular_file(directory / *file, ec)) {
                         return NormalizedPath(directory / *file);

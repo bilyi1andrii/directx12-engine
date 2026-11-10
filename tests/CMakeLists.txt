@@ -9,6 +9,7 @@ add_executable(engine_tests
         CameraPathTests.cpp
         CameraTests.cpp
         FileTests.cpp
+        GridLayoutTests.cpp
         InstanceChunksTests.cpp
         ModelDataTests.cpp
         ModelImporterTests.cpp
@@ -18,7 +19,8 @@ add_executable(engine_tests
         SceneSaveTests.cpp
         SceneTests.cpp
         TestFiles.h
-        TextureLoaderTests.cpp)
+        TextureLoaderTests.cpp
+        Utf8Tests.cpp)
 
 engine_target_defaults(engine_tests)
 

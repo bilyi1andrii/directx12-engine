@@ -1,6 +1,7 @@
 #include "StressGrid.h"
 
 #include "core/Log.h"
+#include "renderdata/GridLayout.h"
 
 using engine::apps::kGridHeight;
 using engine::apps::kGridSpacing;
@@ -39,14 +40,14 @@ namespace engine::bench {
         // The keyframes are the corners of a diamond, so the camera comes closer between them.
         const float radius = 0.75f * Extent() + 10.0f;
         const float height = kGridHeight + 0.4f * Extent() + 10.0f;
-        const DirectX::XMFLOAT3 centre{0.0f, kGridHeight, 0.0f};
+        const DirectX::XMFLOAT3 center{0.0f, kGridHeight, 0.0f};
         constexpr uint32_t kQuarter = kStressPathFrames / 4;
         return {{
-            {.frame = 0 * kQuarter, .position = {radius, height, 0.0f}, .target = centre},
-            {.frame = 1 * kQuarter, .position = {0.0f, height, radius}, .target = centre},
-            {.frame = 2 * kQuarter, .position = {-radius, height, 0.0f}, .target = centre},
-            {.frame = 3 * kQuarter, .position = {0.0f, height, -radius}, .target = centre},
-            {.frame = kStressPathFrames, .position = {radius, height, 0.0f}, .target = centre},
+            {.frame = 0 * kQuarter, .position = {radius, height, 0.0f}, .target = center},
+            {.frame = 1 * kQuarter, .position = {0.0f, height, radius}, .target = center},
+            {.frame = 2 * kQuarter, .position = {-radius, height, 0.0f}, .target = center},
+            {.frame = 3 * kQuarter, .position = {0.0f, height, -radius}, .target = center},
+            {.frame = kStressPathFrames, .position = {radius, height, 0.0f}, .target = center},
         }};
     }
 

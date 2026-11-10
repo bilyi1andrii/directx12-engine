@@ -33,6 +33,8 @@ namespace engine::render {
     namespace {
         static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
                       "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
+        // Position of DrawConstants::instanceOffset in b0, in 32-bit values
+        constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
 
         // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
         constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
@@ -115,7 +117,7 @@ namespace engine::render {
         // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
         try {
-            CreateFallbackTextures();
+            CreateFallbackTexture();
             m_upload.Submit(m_queue);
         } catch (...) {
             // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
@@ -207,12 +209,11 @@ namespace engine::render {
         return handle;
     }
 
-    void Renderer::CreateFallbackTextures() {
-        // Grey first, so it gets bindless index 0: a default handle then points to a texture
+    void Renderer::CreateFallbackTexture() {
+        // Before any other texture, so it gets bindless index 0: a default handle then points to a texture
         m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
         ENGINE_ASSERT_MSG(m_unloadedTexture.index == 0, "The grey fallback texture got bindless index {}, not 0",
                           m_unloadedTexture.index);
-        m_unhandledTexture = CreateSolidColorTexture(250, 0, 0, L"Fallback/Unhandled (red)");
     }
 
     TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
@@ -312,7 +313,7 @@ namespace engine::render {
         // already records the next frame into the other slot's ring
         const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
         const rhi::UploadAllocation frameCb =
-            CurrentFrame().Upload().Write(frameConstants, rhi::kConstantBufferAlignment);
+            CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         UploadDynamicInstances(list);
@@ -406,7 +407,7 @@ namespace engine::render {
         const auto beginChunk = [&](uint32_t elementCount) {
             // Aligned to the element size, so the view can start at a whole element
             InstanceChunk chunk{.memory =
-                                    frame.Upload().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
+                                    frame.Ring().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
             // A fresh bindless slot every frame: the previous frame may still read the old one. It is freed after
             // this frame's fence.
             chunk.instanceBufferIndex = m_bindlessHeap.Allocate();
@@ -418,7 +419,7 @@ namespace engine::render {
         };
         // A shader view (SRV) covers one buffer, and every ring page is its own buffer: chunks of at most a page
         m_dynamicDraws.clear();
-        WriteInstances(list, static_cast<uint32_t>(frame.Upload().PageSize() / kInstanceStride), beginChunk,
+        WriteInstances(list, static_cast<uint32_t>(frame.Ring().PageSize() / kInstanceStride), beginChunk,
                        m_dynamicDraws);
     }
 
@@ -454,10 +455,12 @@ namespace engine::render {
                 m_context.DrawIndexedInstanced(mesh.indexCount, draw.count, mesh.firstIndex, mesh.baseVertex);
             } else {
                 // One draw per object, each with its own element in the root constants: this keeps the
-                // per-draw cost measurable
+                // per-draw cost measurable. The material and buffer are the same for all of them, so only
+                // instanceOffset is sent per draw.
+                m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                 for (uint32_t i = 0; i < draw.count; ++i) {
-                    constants.instanceOffset = draw.firstElement + i;
-                    m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
+                    m_context.SetGraphicsRootConstant(gpu::kRootDrawConstants, draw.firstElement + i,
+                                                      kInstanceOffsetConstant);
                     m_context.DrawIndexed(mesh.indexCount, mesh.firstIndex, mesh.baseVertex);
                 }
             }

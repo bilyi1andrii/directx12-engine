@@ -2,7 +2,6 @@
 #define D3D12_ENGINE_OPTIONVALUES_H
 
 #include <cstdint>
-#include <filesystem>
 #include <optional>
 #include <string_view>
 
@@ -10,9 +9,6 @@
 namespace engine::apps {
     // A whole number that fits uint32_t; nullopt for signs, spaces or extra characters
     [[nodiscard]] std::optional<uint32_t> ParseUint32(std::string_view text) noexcept;
-
-    // Arguments arrive as UTF-8; this keeps non-ASCII file names intact
-    [[nodiscard]] std::filesystem::path PathFromUtf8(std::string_view text);
 } // namespace engine::apps
 
 #endif // D3D12_ENGINE_OPTIONVALUES_H

@@ -18,4 +18,9 @@ namespace engine::core {
             ::WideCharToMultiByte(CP_UTF8, 0, text.data(), length, result.data(), size, nullptr, nullptr) == size);
         return result;
     }
+
+    std::filesystem::path PathFromUtf8(std::string_view text) {
+        // Copied into a u8string: reading the chars through a char8_t pointer would break the aliasing rules
+        return std::filesystem::path(std::u8string(text.begin(), text.end()));
+    }
 } // namespace engine::core
