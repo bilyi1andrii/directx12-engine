@@ -7,6 +7,7 @@
 #include <span>
 #include <string_view>
 
+#include "core/Assert.h"
 #include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
@@ -63,6 +64,12 @@ namespace engine::rhi {
         template <GpuCopyable T> void SetGraphicsRootConstants(uint32_t rootIndex, const T &constants) {
             static_assert(sizeof(T) % 4 == 0, "root constants are 32-bit values");
             SetGraphicsRootConstantBytes(rootIndex, std::as_bytes(std::span(&constants, 1)));
+        }
+        // Writes one 32-bit value at 32-bit `offset` into the root constants of parameter `rootIndex`; the
+        // others keep their values. Defined here so the per-draw loop of the non-instanced path can inline it.
+        void SetGraphicsRootConstant(uint32_t rootIndex, uint32_t value, uint32_t offset) {
+            ENGINE_ASSERT(m_recording);
+            m_list->SetGraphicsRoot32BitConstant(rootIndex, value, offset);
         }
         // Points root CBV parameter `rootIndex` at a constant buffer (256-byte aligned, from an
         // UploadRing). Only the address is recorded: the data must stay valid until the GPU has read it.

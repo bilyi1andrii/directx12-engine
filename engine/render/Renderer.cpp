@@ -33,6 +33,8 @@ namespace engine::render {
     namespace {
         static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
                       "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
+        // Position of DrawConstants::instanceOffset in b0, in 32-bit values
+        constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
 
         // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
         constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
@@ -454,10 +456,12 @@ namespace engine::render {
                 m_context.DrawIndexedInstanced(mesh.indexCount, draw.count, mesh.firstIndex, mesh.baseVertex);
             } else {
                 // One draw per object, each with its own element in the root constants: this keeps the
-                // per-draw cost measurable
+                // per-draw cost measurable. The material and buffer are the same for all of them, so only
+                // instanceOffset is sent per draw.
+                m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
                 for (uint32_t i = 0; i < draw.count; ++i) {
-                    constants.instanceOffset = draw.firstElement + i;
-                    m_context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
+                    m_context.SetGraphicsRootConstant(gpu::kRootDrawConstants, draw.firstElement + i,
+                                                      kInstanceOffsetConstant);
                     m_context.DrawIndexed(mesh.indexCount, mesh.firstIndex, mesh.baseVertex);
                 }
             }
