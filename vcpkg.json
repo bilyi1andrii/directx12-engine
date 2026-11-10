@@ -12,6 +12,7 @@
     { "name": "directxtex", "default-features": false },
     "assimp",
     { "name": "imgui", "features": ["dx12-binding", "win32-binding"] },
-    "imguizmo"
+    "imguizmo",
+    "nlohmann-json"
   ]
 }

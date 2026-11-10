@@ -27,6 +27,7 @@ find_package(assimp CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 # Static library, built by vcpkg against the imgui port above. Its target does not link imgui: users link both.
 find_package(imguizmo CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 include(GoogleTest)
 

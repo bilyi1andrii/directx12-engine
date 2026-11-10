@@ -15,6 +15,7 @@ add_executable(engine_tests
         PickingTests.cpp
         PrimitivesTests.cpp
         RenderListTests.cpp
+        SceneSaveTests.cpp
         SceneTests.cpp
         TestFiles.h
         TextureLoaderTests.cpp)
@@ -23,6 +24,7 @@ engine_target_defaults(engine_tests)
 
 target_link_libraries(engine_tests PRIVATE
         bench_output
+        sandbox_save
         engine_core
         engine_assets
         engine_renderdata
