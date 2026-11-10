@@ -116,7 +116,7 @@ namespace {
         camera.position = {3.0f, 4.0f, -8.0f};
         engine::scene::LookAt(camera, {0.0f, 0.0f, 0.0f});
         camera.fovDegrees = 60.0f;
-        const engine::scene::CameraController cameraController;
+        engine::scene::CameraController cameraController;
 
         engine::render::RenderList renderList; // this frame's movable objects
 
@@ -317,7 +317,8 @@ namespace {
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
                                    .objectCount = scene.Objects().size(),
                                    .sceneInfo = sceneInfo,
-                                   .cameraPosition = camera.position},
+                                   .cameraPosition = camera.position,
+                                   .cameraSpeedScale = cameraController.SpeedScale()},
                                   settings);
             if (selected) {
                 const engine::scene::SceneObject &object = scene.Object(*selected);

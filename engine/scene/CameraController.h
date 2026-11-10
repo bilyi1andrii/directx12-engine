@@ -17,16 +17,25 @@ namespace engine::scene {
     //   W / S                        forward / back (along the view direction, pitch included)
     //   A / D                        left / right
     //   Space / Left Shift           up / down (world Y)
+    //   mouse wheel                  faster / slower
     class CameraController {
     public:
         // Radians per raw mouse count
         static constexpr float kRotationSpeed = 0.01f;
         // World units per millisecond
         static constexpr float kMoveSpeed = 0.0125f;
+        static constexpr float kSpeedStep = 1.25f;
+        static constexpr float kMinSpeedScale = 1.0f / 8.0f;
+        static constexpr float kMaxSpeedScale = 8.0f;
 
         // Applies this frame's input, only the kinds `allowed` lets through. deltaSeconds: time since the previous
         // frame.
-        void Update(Camera &camera, const core::Input &input, double deltaSeconds, CameraInputs allowed = {}) const;
+        void Update(Camera &camera, const core::Input &input, double deltaSeconds, CameraInputs allowed = {});
+
+        [[nodiscard]] float SpeedScale() const noexcept { return m_speedScale; }
+
+    private:
+        float m_speedScale = 1.0f;
     };
 } // namespace engine::scene
 

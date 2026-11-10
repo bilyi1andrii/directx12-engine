@@ -1,15 +1,19 @@
 #include "scene/CameraController.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <DirectXMath.h>
 
 namespace engine::scene {
     using namespace DirectX;
 
-    void CameraController::Update(Camera &camera, const core::Input &input, double deltaSeconds,
-                                  CameraInputs allowed) const {
+    void CameraController::Update(Camera &camera, const core::Input &input, double deltaSeconds, CameraInputs allowed) {
         if (!allowed.mouse || !input.IsKeyDown(VK_RBUTTON)) {
             return;
         }
+        m_speedScale =
+            std::clamp(m_speedScale * std::pow(kSpeedStep, input.WheelDelta()), kMinSpeedScale, kMaxSpeedScale);
         // Rotation first, so this frame's movement already uses the new direction
         const core::Int2 delta = input.RawMouseDelta();
         AdjustRotation(camera, static_cast<float>(delta.y) * kRotationSpeed,
@@ -18,7 +22,7 @@ namespace engine::scene {
             return;
         }
 
-        const float speed = kMoveSpeed * static_cast<float>(deltaSeconds * 1000.0);
+        const float speed = kMoveSpeed * m_speedScale * static_cast<float>(deltaSeconds * 1000.0);
         XMVECTOR position = XMLoadFloat3(&camera.position);
         const XMVECTOR forward = Forward(camera);
         const XMVECTOR right = Right(camera);

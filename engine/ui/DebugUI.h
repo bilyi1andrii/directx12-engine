@@ -21,6 +21,7 @@ namespace engine::ui {
         size_t objectCount = 0;
         std::string_view sceneInfo; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
         DirectX::XMFLOAT3 cameraPosition{};
+        float cameraSpeedScale = 1.0f;
     };
 
     // The debug UI (Dear ImGui). Owns the ImGui context and its Win32 platform backend (mouse, keyboard, cursor
