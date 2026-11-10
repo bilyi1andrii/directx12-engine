@@ -11,7 +11,7 @@
 // before this root signature is set.
 //
 // Its static samplers:
-//   s0: anisotropic x16, wrap (textures; stays sharp on surfaces seen at a grazing angle)
+//   s0: anisotropic x16, wrap (textures; sharp at grazing angles)
 //   s1: point, clamp (post-processing)
 //   s2: shadow comparison (LESS_EQUAL, white border)
 

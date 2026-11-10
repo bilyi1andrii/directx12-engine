@@ -28,7 +28,7 @@ TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
     }
 }
 
-// Reversed-Z: the near plane gets depth 1, the far plane 0, and a nearer point always the greater depth
+// Reversed-Z: depth 1 at the near plane, 0 at the far plane, greater when nearer
 TEST(Camera, ProjectionReversesDepth) {
     using namespace DirectX;
     const engine::scene::Camera camera;

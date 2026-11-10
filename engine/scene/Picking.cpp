@@ -19,7 +19,7 @@ namespace engine::scene {
         const XMMATRIX view = ViewMatrix(camera);
         const XMMATRIX projection = ProjectionMatrix(camera, viewportPx.x / viewportPx.y);
         // Unproject: pixel + depth -> world, the inverse of what the GPU does (world -> clip -> pixel). Depth is
-        // reversed, as in the projection matrix: 1 is the near plane and 0 the far plane. World matrix: identity.
+        // reversed: 1 is the near plane and 0 the far plane. World matrix: identity.
         const XMVECTOR nearPoint =
             XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 1.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
                                0.0f, 1.0f, projection, view, XMMatrixIdentity());

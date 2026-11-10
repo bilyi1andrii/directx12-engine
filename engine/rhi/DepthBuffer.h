@@ -25,8 +25,7 @@ namespace engine::rhi {
     public:
         // 32-bit float depth, no stencil
         static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_D32_FLOAT;
-        // The far plane: depth is reversed (1 near, 0 far, see scene::ProjectionMatrix), and the depth test is
-        // GREATER_EQUAL
+        // The far plane (depth is reversed: 1 near, 0 far)
         static constexpr float kClearDepth = 0.0f;
 
         DepthBuffer(NativeDevice *device, Allocator &allocator, DescriptorAllocator &dsvAllocator, uint32_t width,

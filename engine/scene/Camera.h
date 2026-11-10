@@ -19,7 +19,7 @@ namespace engine::scene {
 
     // World -> view
     [[nodiscard]] DirectX::XMMATRIX ViewMatrix(const Camera &camera);
-    // View -> clip, with reversed depth: 1 at the near plane, 0 at the far plane
+    // View -> clip, reversed depth (1 near, 0 far)
     [[nodiscard]] DirectX::XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio);
 
     // What the renderer needs from the camera

@@ -100,14 +100,12 @@ namespace engine::ui {
                                  DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
-        // Skip the gizmo for an object behind the camera (clip w: with reversed depth, clip z is positive there too,
-        // and ImGuizmo would draw a mirrored gizmo). Also skip it where ImGuizmo hides it by itself (clip z < 0.001,
-        // near the far plane with reversed depth), so a gizmo that is not drawn does not take mouse clicks.
-        // A drag in progress goes on, as in ImGuizmo.
+        // ImGuizmo hides the gizmo when clip z < 0.001: near the far plane with reversed depth, but not behind the
+        // camera, where clip z is positive. Skip both cases here, so a hidden gizmo takes no clicks. A drag goes on.
         const XMVECTOR clip = XMVector4Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
                                                  XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection));
         constexpr float kMinDistance = 0.001f;
-        constexpr float kImGuizmoMinClipZ = 0.001f; // the threshold in ImGuizmo::Manipulate
+        constexpr float kImGuizmoMinClipZ = 0.001f;
         if ((XMVectorGetW(clip) < kMinDistance || XMVectorGetZ(clip) < kImGuizmoMinClipZ) && !ImGuizmo::IsUsing()) {
             return false; // m_gizmoDrawn stays false from NewFrame
         }
@@ -118,8 +116,7 @@ namespace engine::ui {
         // keep every arrow on the +X/+Y/+Z side, so the arrows also show which way the world axes go
         ImGuizmo::AllowAxisFlip(false);
         // XMFLOAT4X4 stores 16 floats row by row, for row vectors (v * M): the layout ImGuizmo reads, so no
-        // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection, and its mouse rays
-        // detect the reversed depth by themselves.
+        // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection and reversed depth.
         const ImGuizmo::OPERATION operation = m_gizmoMode == GizmoMode::Rotate  ? ImGuizmo::ROTATE
                                               : m_gizmoMode == GizmoMode::Scale ? ImGuizmo::SCALE
                                                                                 : ImGuizmo::TRANSLATE;
