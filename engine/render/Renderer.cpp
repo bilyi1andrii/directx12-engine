@@ -227,6 +227,13 @@ namespace engine::render {
     }
 
     void Renderer::DestroyResources() noexcept {
+        // An exception that ends the app destroys the renderer on its way out, so a lost GPU is logged here.
+        // Before the flush, which fails once the device is removed.
+        try {
+            m_device.LogDeviceRemovedInfo();
+        } catch (const std::exception &e) {
+            core::LogError("Renderer: logging why the device was removed failed: {}", e.what());
+        }
         try {
             m_queue.Flush();
         } catch (const std::exception &e) {

@@ -44,8 +44,8 @@ namespace engine::render {
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
     // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
-    // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError; after
-    // DXGI_ERROR_DEVICE_REMOVED call LogDeviceRemovedInfo() before rethrowing.
+    // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU
+    // was lost, the destructor logs why (and the DRED info in Debug builds).
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
     // Asset loading uses it through GpuUploader.
@@ -101,9 +101,6 @@ namespace engine::render {
         // Submits the frame, presents it (with this frame's RendererSettings::vsync) and remembers the fence value
         // that marks its end
         void EndFrame();
-
-        // If the device was removed, logs the reason (and DRED info in Debug builds)
-        void LogDeviceRemovedInfo() const { m_device.LogDeviceRemovedInfo(); }
 
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
         // For benchmark results
@@ -191,7 +188,8 @@ namespace engine::render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
-        // Shutdown only: waits for the GPU, then destroys every texture, mesh buffer and static list
+        // Shutdown only: logs why the device was removed (if it was), waits for the GPU, then destroys every
+        // texture, mesh buffer and static list
         void DestroyResources() noexcept;
 
         // Shared by dynamic and static instances: splits `list` into chunks of at most `chunkCapacity` objects,

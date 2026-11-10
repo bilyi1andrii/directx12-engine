@@ -25,7 +25,6 @@
 #include "core/ComScope.h"
 #include "core/File.h"
 #include "core/Log.h"
-#include "core/ThrowIfFailed.h"
 #include "core/Timer.h"
 #include "core/Utf8.h"
 #include "core/Window.h"
@@ -365,17 +364,10 @@ namespace {
             renderList.Clear();
             engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
 
-            try {
-                renderer.BeginFrame(window.Width(), window.Height(), settings);
-                renderer.Render(frameView, renderList, staticLists);
-                renderer.RenderUi(uiDrawData); // on top of the scene
-                renderer.EndFrame();
-            } catch (const engine::core::HResultError &) {
-                // Reset, ResizeBuffers, Present, Signal and others fail with
-                // DXGI_ERROR_DEVICE_REMOVED once the GPU is lost
-                renderer.LogDeviceRemovedInfo();
-                throw;
-            }
+            renderer.BeginFrame(window.Width(), window.Height(), settings);
+            renderer.Render(frameView, renderList, staticLists);
+            renderer.RenderUi(uiDrawData); // on top of the scene
+            renderer.EndFrame();
             ++framesRendered;
 
             if (smokeTestFrames) {

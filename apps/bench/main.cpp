@@ -22,7 +22,6 @@
 #include "core/ComScope.h"
 #include "core/Input.h"
 #include "core/Log.h"
-#include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
 #include "core/Window.h"
 #include "rhi/AgilitySdk.h"
@@ -174,22 +173,17 @@ namespace {
             camera.position = pose.position;
             engine::scene::LookAt(camera, pose.target);
 
-            try {
-                renderer.BeginFrame(window.Width(), window.Height(), settings);
-                const Clock::time_point recordStart = Clock::now();
-                renderList.Clear();
-                grid.Submit(renderList); // dynamic mode only
-                renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
-                                grid.StaticLists());
-                const Clock::time_point recordEnd = Clock::now();
-                if (frame >= options.warmupFrames) {
-                    run.timings[frame - options.warmupFrames].cpuRecordMs = ToMs(recordEnd - recordStart);
-                }
-                renderer.EndFrame(); // vsync off (settings)
-            } catch (const engine::core::HResultError &) {
-                renderer.LogDeviceRemovedInfo();
-                throw;
+            renderer.BeginFrame(window.Width(), window.Height(), settings);
+            const Clock::time_point recordStart = Clock::now();
+            renderList.Clear();
+            grid.Submit(renderList); // dynamic mode only
+            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+                            grid.StaticLists());
+            const Clock::time_point recordEnd = Clock::now();
+            if (frame >= options.warmupFrames) {
+                run.timings[frame - options.warmupFrames].cpuRecordMs = ToMs(recordEnd - recordStart);
             }
+            renderer.EndFrame(); // vsync off (settings)
             ++frame;
         }
 
