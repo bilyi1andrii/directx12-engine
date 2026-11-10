@@ -87,9 +87,8 @@ namespace engine::render {
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) override;
 
-        // 1x1 fallback textures: grey for a texture that failed to load, red for an unhandled type
+        // 1x1 grey fallback for a texture that failed to load
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
-        [[nodiscard]] TextureHandle UnhandledTexture() const noexcept { return m_unhandledTexture; }
 
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
         // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
@@ -181,8 +180,8 @@ namespace engine::render {
         // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
         void PrepareUpload(uint64_t bytes);
 
-        // Creates the grey and red fallback textures (constructor only)
-        void CreateFallbackTextures();
+        // Creates the grey fallback texture (constructor only)
+        void CreateFallbackTexture();
 
         // A 1x1 texture of one colour (sRGB values, as in an image file)
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
@@ -237,7 +236,6 @@ namespace engine::render {
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
-        TextureHandle m_unhandledTexture;
 
         // Released after the destructor's flush, before the allocator
         std::vector<GpuStaticList> m_staticLists;

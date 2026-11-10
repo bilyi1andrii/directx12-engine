@@ -117,7 +117,7 @@ namespace engine::render {
         // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
         try {
-            CreateFallbackTextures();
+            CreateFallbackTexture();
             m_upload.Submit(m_queue);
         } catch (...) {
             // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
@@ -209,12 +209,11 @@ namespace engine::render {
         return handle;
     }
 
-    void Renderer::CreateFallbackTextures() {
-        // Grey first, so it gets bindless index 0: a default handle then points to a texture
+    void Renderer::CreateFallbackTexture() {
+        // Before any other texture, so it gets bindless index 0: a default handle then points to a texture
         m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
         ENGINE_ASSERT_MSG(m_unloadedTexture.index == 0, "The grey fallback texture got bindless index {}, not 0",
                           m_unloadedTexture.index);
-        m_unhandledTexture = CreateSolidColorTexture(250, 0, 0, L"Fallback/Unhandled (red)");
     }
 
     TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {

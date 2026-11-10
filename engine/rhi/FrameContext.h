@@ -57,7 +57,6 @@ namespace engine::rhi {
         [[nodiscard]] ID3D12CommandAllocator *CommandAllocator() const noexcept { return m_commandAllocator.Get(); }
         // Per-frame upload memory: allocations are valid until this slot's next WaitAndReset()
         [[nodiscard]] UploadRing &Ring() noexcept { return m_uploadRing; }
-        [[nodiscard]] uint64_t FenceValue() const noexcept { return m_fenceValue; }
 
     private:
         struct DeferredIndex {

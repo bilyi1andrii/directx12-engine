@@ -192,12 +192,9 @@ namespace engine::core {
             m_minimized = msg.wParam == SIZE_MINIMIZED;
             const uint32_t width = LOWORD(msg.lParam);
             const uint32_t height = HIWORD(msg.lParam);
-            if (!m_minimized && width > 0 && height > 0 && (width != m_width || height != m_height)) {
+            if (!m_minimized && width > 0 && height > 0) {
                 m_width = width;
                 m_height = height;
-                if (m_callbacks.onResize) {
-                    m_callbacks.onResize(width, height);
-                }
             }
             return 0;
         }
