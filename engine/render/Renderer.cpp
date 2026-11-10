@@ -258,6 +258,8 @@ namespace engine::render {
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "BeginFrame before EndFrame of frame {}", m_frameNumber);
+        m_frameStage = FrameStage::Begun;
         m_settings = settings;
 
         // This slot was last used kFramesInFlight frames ago; wait until the GPU has finished that
@@ -280,6 +282,11 @@ namespace engine::render {
 
     void Renderer::Render(const FrameView &view, const RenderList &list,
                           std::span<const StaticListHandle> staticLists) {
+        // Render makes the back buffer writable, and that transition must happen once per frame
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Begun, "Render must run once, after BeginFrame, in frame {}",
+                          m_frameNumber);
+        m_frameStage = FrameStage::Rendered;
+
         ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
         const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
 
@@ -482,14 +489,20 @@ namespace engine::render {
     void Renderer::RenderUi(ImDrawData *drawData) {
         ENGINE_ASSERT_MSG(m_ui != nullptr, "RenderUi without EnableUi");
         // A second call would make the backend reuse a vertex buffer the GPU may still be reading
-        ENGINE_ASSERT_MSG(m_uiFrameNumber != m_frameNumber, "RenderUi called twice in frame {}", m_frameNumber);
-        m_uiFrameNumber = m_frameNumber;
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "RenderUi must run once, after Render, in frame {}",
+                          m_frameNumber);
+        m_frameStage = FrameStage::UiRendered;
         // Last in the frame: ImGui sets its own root signature and PSO, and nothing after it needs ours.
         // The UNORM view, because ImGui's colours are already sRGB.
         m_ui->Render(drawData, m_context, CurrentFrame(), m_swapChain.CurrentUiRtv());
     }
 
     void Renderer::EndFrame() {
+        // Render must have made the back buffer writable: EndFrame turns it back
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered || m_frameStage == FrameStage::UiRendered,
+                          "EndFrame without Render in frame {}", m_frameNumber);
+        m_frameStage = FrameStage::Idle;
+
         m_context.Transition(m_swapChain.CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
                              D3D12_RESOURCE_STATE_PRESENT);
         m_context.Close();

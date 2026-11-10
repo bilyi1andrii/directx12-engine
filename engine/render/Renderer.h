@@ -4,7 +4,6 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <span>
 #include <string>
@@ -45,8 +44,8 @@ namespace engine::render {
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
     // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
-    // -> EndFrame(). Any of them can throw core::HResultError; after DXGI_ERROR_DEVICE_REMOVED call
-    // LogDeviceRemovedInfo() before rethrowing.
+    // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError; after
+    // DXGI_ERROR_DEVICE_REMOVED call LogDeviceRemovedInfo() before rethrowing.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
     // Asset loading uses it through GpuUploader.
@@ -116,6 +115,14 @@ namespace engine::render {
         enum class VertexFormat : uint8_t {
             Mesh, // renderdata/Vertex.h (vs_mesh)
             Count,
+        };
+
+        // The last frame call made, for the asserts on their order
+        enum class FrameStage : uint8_t {
+            Idle, // before BeginFrame, or after EndFrame
+            Begun,
+            Rendered,
+            UiRendered,
         };
 
         // A vertex buffer and an index buffer shared by all meshes of one model
@@ -240,7 +247,6 @@ namespace engine::render {
         // The UI's renderer; null until EnableUi. Released after the destructor's flush, before the frames and the
         // bindless heap: its shutdown hands the font texture's descriptor to a frame's deferred frees.
         std::unique_ptr<UiRenderer> m_ui;
-        uint64_t m_uiFrameNumber = std::numeric_limits<uint64_t>::max(); // the frame RenderUi last drew
 
         // Rebuilt for every list; members, so their memory is reused
         std::vector<InstanceRange> m_instanceRanges;
@@ -248,6 +254,7 @@ namespace engine::render {
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;
+        FrameStage m_frameStage = FrameStage::Idle;
     };
 } // namespace engine::render
 
