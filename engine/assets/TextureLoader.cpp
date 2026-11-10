@@ -33,6 +33,12 @@ namespace engine::assets {
                          std::format("{}: DirectXTex failed with HRESULT 0x{:08X}", source, static_cast<uint32_t>(hr))};
         }
 
+        [[nodiscard]] bool IsSingleChannel(DXGI_FORMAT format) noexcept {
+
+            return (format == DXGI_FORMAT_R8_UNORM || format == DXGI_FORMAT_R16_UNORM ||
+                    format == DXGI_FORMAT_R32_FLOAT);
+        }
+
         // Shared last part of loading: sets the format by usage, generates the mips, copies the result out
         [[nodiscard]] std::expected<TextureData, Error> FinishTexture(DirectX::ScratchImage image, TextureUsage usage,
                                                                       std::string_view source) {
@@ -41,6 +47,19 @@ namespace engine::assets {
                 metadata.depth != 1) {
                 return std::unexpected(Error{ErrorCode::UnsupportedFormat,
                                              std::format("{}: only plain 2D textures are supported", source)});
+            }
+
+            // A colour shader would read a one-channel image as (v, 0, 0), and R8 has no sRGB version
+            if (IsSrgbUsage(usage) && IsSingleChannel(metadata.format)) {
+                // FORCE_NON_WIC: copies the value to green and blue without needing COM
+                DirectX::ScratchImage rgba;
+                const HRESULT hr = DirectX::Convert(image.GetImages(), image.GetImageCount(), image.GetMetadata(),
+                                                    DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_FORCE_NON_WIC,
+                                                    DirectX::TEX_THRESHOLD_DEFAULT, rgba);
+                if (FAILED(hr)) {
+                    return std::unexpected(ErrorFromHResult(hr, source));
+                }
+                image = std::move(rgba);
             }
 
             // Not WIC_FLAGS_FORCE_SRGB: that one only affects saving. Before the mips, because filtering depends on

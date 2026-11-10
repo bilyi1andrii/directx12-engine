@@ -23,6 +23,7 @@ using engine::tests::TempFile;
 
 namespace {
     // DXGI_FORMAT values: the tests, like the assets layer, do not include DXGI headers
+    constexpr uint32_t kR8Unorm = 61;
     constexpr uint32_t kRgba8Unorm = 28;
     constexpr uint32_t kRgba8Srgb = 29;
     constexpr uint32_t kBc1Unorm = 71;
@@ -54,6 +55,18 @@ namespace {
         file[14] = std::byte{2};        // height
         file[16] = std::byte{32};       // bits per pixel
         file[17] = std::byte{8 | 0x20}; // 8 alpha bits, top-left origin
+        return file;
+    }
+
+    // Uncompressed 8-bit gray TGA: 18-byte header plus one byte per pixel
+    [[nodiscard]] std::vector<std::byte> GrayTga2x2(std::byte value) {
+        std::vector<std::byte> file(18 + 2 * 2, value);
+        std::memset(file.data(), 0, 18);
+        file[2] = std::byte{3};     // uncompressed black and white
+        file[12] = std::byte{2};    // width
+        file[14] = std::byte{2};    // height
+        file[16] = std::byte{8};    // bits per pixel
+        file[17] = std::byte{0x20}; // top-left origin
         return file;
     }
 
@@ -161,6 +174,26 @@ TEST(LoadTexture, DecodesTga) {
     ASSERT_TRUE(result.has_value()) << result.error().message;
     EXPECT_EQ(result->dxgiFormat, kRgba8Srgb);
     EXPECT_EQ(result->mips.size(), 2u);
+}
+
+TEST(LoadTexture, GrayImageIsRgbForColourAndOneChannelForData) {
+    const std::byte gray{100};
+    const TempFile file(L"engine_test_gray.tga", GrayTga2x2(gray));
+
+    const auto colour = LoadTexture(file.Path(), TextureUsage::Diffuse);
+    ASSERT_TRUE(colour.has_value()) << colour.error().message;
+    EXPECT_EQ(colour->dxgiFormat, kRgba8Srgb);
+    EXPECT_EQ(colour->mips.size(), 2u);
+    EXPECT_EQ(colour->pixels[0], gray);
+    EXPECT_EQ(colour->pixels[1], gray);
+    EXPECT_EQ(colour->pixels[2], gray);
+    EXPECT_EQ(colour->pixels[3], std::byte{255});
+
+    const auto data = LoadTexture(file.Path(), TextureUsage::Roughness);
+    ASSERT_TRUE(data.has_value()) << data.error().message;
+    EXPECT_EQ(data->dxgiFormat, kR8Unorm);
+    EXPECT_EQ(data->mips.size(), 2u);
+    EXPECT_EQ(data->pixels[0], gray);
 }
 
 TEST(LoadTexture, CompressedDdsKeepsItsLevelsAndFollowsUsage) {
