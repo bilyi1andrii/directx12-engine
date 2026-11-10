@@ -41,8 +41,11 @@ namespace engine::assets {
         using render::TextureSource;
         using render::Vertex;
 
-        constexpr unsigned kImportFlags = aiProcess_Triangulate | aiProcess_ConvertToLeftHanded |
-                                          aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
+        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices. It runs first, because
+        // the other steps and the code below trust those indices.
+        constexpr unsigned kImportFlags = aiProcess_ValidateDataStructure | aiProcess_Triangulate |
+                                          aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals |
+                                          aiProcess_CalcTangentSpace;
 
         // Appends `mesh` to the vertices and indices of `geometry` as one submesh. Points and lines are left out.
         void AddSubmesh(const aiMesh &mesh, std::string_view source, MeshData &geometry) {
