@@ -95,6 +95,7 @@ The scene is saved to `saves/sandbox.json` when the window closes and restored a
 | Right mouse button + mouse | Look around |
 | Right mouse button + W / A / S / D | Fly forward / left / back / right |
 | Right mouse button + Space / Left Shift | Fly up / down |
+| Right mouse button + mouse wheel | Fly faster / slower |
 | Left mouse button | Select an object; a click on empty space clears the selection |
 | W / E / R | Gizmo mode for the selected object: move / rotate / scale |
 | I | Switch between the instanced and the non-instanced draw path |

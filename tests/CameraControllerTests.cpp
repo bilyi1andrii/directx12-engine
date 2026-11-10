@@ -21,6 +21,11 @@ namespace {
         input.HandleMessage(WindowMessage{.hwnd = nullptr, .message = message, .wParam = wParam, .lParam = 0});
     }
 
+    // Turns the mouse wheel by `notches` (positive: away from the user)
+    void Wheel(Input &input, int notches) {
+        Send(input, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(static_cast<short>(notches * WHEEL_DELTA))));
+    }
+
     // A camera at the origin looking along +Z after one frame with W held, and the right mouse button if asked
     [[nodiscard]] Camera AfterOneFrameOfW(bool rightButton, CameraInputs allowed = {}) {
         Input input;
@@ -51,4 +56,52 @@ TEST(CameraController, KeysMoveTheCameraOnlyWithTheRightMouseButton) {
 TEST(CameraController, WithheldInputDoesNotMoveTheCamera) {
     EXPECT_FLOAT_EQ(AfterOneFrameOfW(true, {.mouse = false, .keyboard = true}).position.z, 0.0f);
     EXPECT_FLOAT_EQ(AfterOneFrameOfW(true, {.mouse = true, .keyboard = false}).position.z, 0.0f);
+}
+
+// Without the right button the wheel belongs to the rest of the app; with it, each notch is one speed step
+TEST(CameraController, WheelChangesTheSpeedOnlyWithTheRightMouseButton) {
+    CameraController controller;
+    Camera camera;
+    Input input;
+    Wheel(input, 2);
+    controller.Update(camera, input, kFrameSeconds);
+    EXPECT_FLOAT_EQ(controller.SpeedScale(), 1.0f);
+
+    Send(input, WM_RBUTTONDOWN);
+    controller.Update(camera, input, kFrameSeconds);
+    EXPECT_FLOAT_EQ(controller.SpeedScale(), CameraController::kSpeedStep * CameraController::kSpeedStep);
+    input.EndFrame();
+
+    Wheel(input, -1);
+    controller.Update(camera, input, kFrameSeconds);
+    EXPECT_FLOAT_EQ(controller.SpeedScale(), CameraController::kSpeedStep);
+    Send(input, WM_RBUTTONUP);
+}
+
+TEST(CameraController, SpeedScaleMultipliesTheMovement) {
+    CameraController controller;
+    Camera camera;
+    Input input;
+    Send(input, WM_RBUTTONDOWN);
+    Send(input, WM_KEYDOWN, 'W');
+    Wheel(input, 1);
+    controller.Update(camera, input, kFrameSeconds);
+    Send(input, WM_RBUTTONUP);
+    EXPECT_NEAR(camera.position.z, kStep * CameraController::kSpeedStep, 1e-6f);
+}
+
+TEST(CameraController, SpeedScaleStaysWithinItsLimits) {
+    CameraController controller;
+    Camera camera;
+    Input input;
+    Send(input, WM_RBUTTONDOWN);
+    Wheel(input, 100);
+    controller.Update(camera, input, kFrameSeconds);
+    EXPECT_FLOAT_EQ(controller.SpeedScale(), CameraController::kMaxSpeedScale);
+    input.EndFrame();
+
+    Wheel(input, -100);
+    controller.Update(camera, input, kFrameSeconds);
+    EXPECT_FLOAT_EQ(controller.SpeedScale(), CameraController::kMinSpeedScale);
+    Send(input, WM_RBUTTONUP);
 }
