@@ -32,11 +32,6 @@ namespace engine::render {
         return MaterialHandle{.index = texture.index};
     }
 
-    // The material that is just this albedo texture (see MaterialHandle)
-    [[nodiscard]] constexpr MaterialHandle MaterialFromTexture(TextureHandle texture) noexcept {
-        return MaterialHandle{.index = texture.index};
-    }
-
     // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList.
     // The index points into the renderer's table.
     using StaticListHandle = Handle<struct StaticListTag>;
