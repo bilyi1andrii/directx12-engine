@@ -126,9 +126,8 @@ namespace engine::assets {
             m_cubeMesh = m_gpu->CreateMesh(MakeCube(), L"Cube").front();
         }
         render::Model model;
-        // A material is its albedo texture for now
         model.parts.push_back(render::ModelPart{
-            .mesh = *m_cubeMesh, .material = MaterialHandle{.index = texture.index}, .bounds = kCubeBounds});
+            .mesh = *m_cubeMesh, .material = render::MaterialFromTexture(texture), .bounds = kCubeBounds});
         model.bounds = kCubeBounds;
         model.triangleCount = kCubeTriangleCount;
         return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
@@ -141,7 +140,7 @@ namespace engine::assets {
         }
 
         TextureHandle handle;
-        if (const std::expected<render::TextureData, core::Error> data = assets::LoadTexture(path, usage)) {
+        if (const std::expected<render::TextureData, core::Error> data = ImportTexture(path, usage)) {
             handle = CreateTexture(*data, path.filename().native());
         } else {
             core::LogWarning("AssetCache: {}. Using the grey texture.", data.error().message);
@@ -161,7 +160,7 @@ namespace engine::assets {
             std::optional<TextureHandle> &texture = embedded[inFile->index];
             if (!texture) {
                 const render::EmbeddedTextureData &image = model.embeddedTextures[inFile->index];
-                if (const auto data = LoadTextureFromMemory(image.bytes, image.formatHint, TextureUsage::Diffuse)) {
+                if (const auto data = ImportTextureFromMemory(image.bytes, image.formatHint, TextureUsage::Diffuse)) {
                     texture = CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
                 } else {
                     core::LogWarning("AssetCache: {} of {}. Using the grey texture.", data.error().message,
@@ -173,8 +172,7 @@ namespace engine::assets {
         } else {
             albedo = SolidColor(material);
         }
-        // A material is its albedo texture until materials get their own GPU data
-        return MaterialHandle{.index = albedo.index};
+        return render::MaterialFromTexture(albedo);
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {
@@ -196,7 +194,7 @@ namespace engine::assets {
         }
         const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
         TextureHandle handle = m_gpu->UnloadedTexture();
-        if (const auto data = CreateTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse)) {
+        if (const auto data = MakeTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse)) {
             handle = CreateTexture(*data, std::format(L"Color/{:02X}{:02X}{:02X}", red, green, blue));
         }
         m_solidColors.emplace(key, handle);

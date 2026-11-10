@@ -31,6 +31,11 @@ namespace engine::render {
         bool operator==(const TextureHandle &) const = default;
     };
 
+    // The material that is just this albedo texture (see MaterialHandle)
+    [[nodiscard]] constexpr MaterialHandle MaterialFromTexture(TextureHandle texture) noexcept {
+        return MaterialHandle{.index = texture.index};
+    }
+
     // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList.
     // The index points into the renderer's table.
     struct StaticListHandle {

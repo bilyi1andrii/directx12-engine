@@ -151,9 +151,8 @@ namespace sandbox {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        // A material is its albedo texture for now (Handles.h)
         for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
-            scene.SetObjectMaterial({.index = grid.firstObject + i}, {.index = texture.index});
+            scene.SetObjectMaterial({.index = grid.firstObject + i}, engine::render::MaterialFromTexture(texture));
         }
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }

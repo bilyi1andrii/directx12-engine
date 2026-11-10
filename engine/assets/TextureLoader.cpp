@@ -135,7 +135,8 @@ namespace engine::assets {
         }
     }
 
-    std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
+    std::expected<render::TextureData, core::Error> ImportTexture(const std::filesystem::path &path,
+                                                                  TextureUsage usage) {
         const std::string source = core::ToUtf8(path.native());
         const std::wstring extension = LowerCaseExtension(path);
 
@@ -158,7 +159,7 @@ namespace engine::assets {
     }
 
     std::expected<render::TextureData, core::Error>
-    LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage) {
+    ImportTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage) {
         std::string hint(formatHint);
         std::ranges::transform(hint, hint.begin(),
                                [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
@@ -182,7 +183,7 @@ namespace engine::assets {
     }
 
     std::expected<render::TextureData, core::Error>
-    CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
+    MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
         constexpr std::string_view kSource = "in-memory texture";
         constexpr size_t kBytesPerPixel = 4;
         ENGINE_ASSERT_MSG(rgba8.size() == size_t{width} * height * kBytesPerPixel,
