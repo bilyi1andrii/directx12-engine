@@ -22,6 +22,9 @@ namespace engine::assets {
         using render::TextureData;
         using render::TextureMip;
 
+        // The largest 2D texture side D3D12 accepts (this layer does not include D3D12 headers)
+        constexpr size_t kMaxTextureSide = 16384;
+
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
             ErrorCode code = ErrorCode::DecodeFailed;
             if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) {
@@ -47,6 +50,11 @@ namespace engine::assets {
                 metadata.depth != 1) {
                 return std::unexpected(Error{ErrorCode::UnsupportedFormat,
                                              std::format("{}: only plain 2D textures are supported", source)});
+            }
+            if (metadata.width > kMaxTextureSide || metadata.height > kMaxTextureSide) {
+                return std::unexpected(Error{ErrorCode::UnsupportedFormat,
+                                             std::format("{}: {}x{} is over the limit of {} pixels per side", source,
+                                                         metadata.width, metadata.height, kMaxTextureSide)});
             }
 
             // A colour shader would read a one-channel image as (v, 0, 0), and R8 has no sRGB version

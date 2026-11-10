@@ -102,6 +102,22 @@ TEST(TextureUsage, SrgbRuleMatchesDx11) {
     }
 }
 
+// The GPU refuses a larger texture, and that failure would close the app
+TEST(CreateTextureFromPixels, RefusesASideOverTheGpuLimit) {
+    constexpr uint32_t kLimit = 16384;
+
+    EXPECT_TRUE(CreateTextureFromPixels(Checkerboard(kLimit, 1), kLimit, 1, TextureUsage::Roughness).has_value());
+    EXPECT_TRUE(CreateTextureFromPixels(Checkerboard(1, kLimit), 1, kLimit, TextureUsage::Roughness).has_value());
+
+    const auto wide = CreateTextureFromPixels(Checkerboard(kLimit + 1, 1), kLimit + 1, 1, TextureUsage::Roughness);
+    ASSERT_FALSE(wide.has_value());
+    EXPECT_EQ(wide.error().code, ErrorCode::UnsupportedFormat);
+
+    const auto tall = CreateTextureFromPixels(Checkerboard(1, kLimit + 1), 1, kLimit + 1, TextureUsage::Roughness);
+    ASSERT_FALSE(tall.has_value());
+    EXPECT_EQ(tall.error().code, ErrorCode::UnsupportedFormat);
+}
+
 // sRGB bytes mean light: black + white average to 0.5 linear, which encodes to about 188, not 128
 TEST(CreateTextureFromPixels, SrgbMipsAverageLight) {
     const auto result = CreateTextureFromPixels(Checkerboard(4, 4), 4, 4, TextureUsage::Diffuse);
