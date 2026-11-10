@@ -144,6 +144,7 @@ namespace engine::ui {
             }
             ImGui::Text("Camera at %.2f, %.2f, %.2f", stats.cameraPosition.x, stats.cameraPosition.y,
                         stats.cameraPosition.z);
+            ImGui::Text("Camera speed x%.2f (right mouse button + wheel)", stats.cameraSpeedScale);
 
             // The keyboard shortcuts in brackets do the same
             ImGui::SeparatorText("Settings");
