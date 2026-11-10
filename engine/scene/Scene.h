@@ -38,11 +38,7 @@ namespace engine::scene {
     enum class Mobility : uint8_t { Static, Movable };
 
     // An index into Scene::Objects()
-    struct ObjectId {
-        uint32_t index = 0;
-
-        bool operator==(const ObjectId &) const = default;
-    };
+    using ObjectId = render::Handle<struct ObjectTag>;
 
     // What the user selects and moves: one or more parts that move together
     struct SceneObject {
