@@ -100,13 +100,15 @@ namespace engine::ui {
                                  DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
-        // ImGuizmo's own behind-the-camera test (clip z < 0.001) fails with reversed depth, where clip z is positive
-        // behind the camera too, and it would draw a mirrored gizmo. Clip w is the distance in front of the camera
-        // for any depth range, so skip the gizmo here instead. A drag in progress goes on, as in ImGuizmo.
-        const float clipW = XMVectorGetW(XMVector4Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
-                                                            XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection)));
+        // Skip the gizmo for an object behind the camera (clip w: with reversed depth, clip z is positive there too,
+        // and ImGuizmo would draw a mirrored gizmo). Also skip it where ImGuizmo hides it by itself (clip z < 0.001,
+        // near the far plane with reversed depth), so a gizmo that is not drawn does not take mouse clicks.
+        // A drag in progress goes on, as in ImGuizmo.
+        const XMVECTOR clip = XMVector4Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
+                                                 XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection));
         constexpr float kMinDistance = 0.001f;
-        if (clipW < kMinDistance && !ImGuizmo::IsUsing()) {
+        constexpr float kImGuizmoMinClipZ = 0.001f; // the threshold in ImGuizmo::Manipulate
+        if ((XMVectorGetW(clip) < kMinDistance || XMVectorGetZ(clip) < kImGuizmoMinClipZ) && !ImGuizmo::IsUsing()) {
             return false; // m_gizmoDrawn stays false from NewFrame
         }
         // The whole client area, in the pixels ImGui uses (the same as the back buffer)
