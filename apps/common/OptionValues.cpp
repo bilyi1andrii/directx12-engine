@@ -1,7 +1,6 @@
 #include "OptionValues.h"
 
 #include <charconv>
-#include <string>
 #include <system_error>
 
 namespace engine::apps {
@@ -14,10 +13,5 @@ namespace engine::apps {
             return std::nullopt;
         }
         return value;
-    }
-
-    std::filesystem::path PathFromUtf8(std::string_view text) {
-        // Through u8string, so the bytes are read as UTF-8, not in the ANSI code page
-        return std::filesystem::path(std::u8string(text.begin(), text.end()));
     }
 } // namespace engine::apps

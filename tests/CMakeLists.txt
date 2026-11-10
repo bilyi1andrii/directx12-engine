@@ -19,7 +19,8 @@ add_executable(engine_tests
         SceneSaveTests.cpp
         SceneTests.cpp
         TestFiles.h
-        TextureLoaderTests.cpp)
+        TextureLoaderTests.cpp
+        Utf8Tests.cpp)
 
 engine_target_defaults(engine_tests)
 
