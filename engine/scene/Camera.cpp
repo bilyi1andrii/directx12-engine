@@ -21,7 +21,10 @@ namespace engine::scene {
 
     XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio) {
         const float fovRadians = (camera.fovDegrees / 360.0f) * XM_2PI;
-        return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.nearZ, camera.farZ);
+        // Reversed-Z: near and far are swapped, so the near plane gets depth 1 and the far plane 0. Float depth is
+        // most precise near 0, which is where distant objects then land, so they no longer flicker through each
+        // other. The depth buffer clears to 0 and the depth test passes on GREATER_EQUAL.
+        return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.farZ, camera.nearZ);
     }
 
     render::FrameView MakeFrameView(const Camera &camera, float aspectRatio) {

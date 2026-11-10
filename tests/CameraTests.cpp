@@ -27,3 +27,16 @@ TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
         EXPECT_NEAR(forward.z, expected.z, 1e-5f) << "from " << position.x << ", " << position.y << ", " << position.z;
     }
 }
+
+// Reversed-Z: the near plane gets depth 1, the far plane 0, and a nearer point always the greater depth
+TEST(Camera, ProjectionReversesDepth) {
+    using namespace DirectX;
+    const engine::scene::Camera camera;
+    const XMMATRIX projection = engine::scene::ProjectionMatrix(camera, 16.0f / 9.0f);
+    const auto depthAt = [&](float viewZ) {
+        return XMVectorGetZ(XMVector3TransformCoord(XMVectorSet(0.0f, 0.0f, viewZ, 1.0f), projection));
+    };
+    EXPECT_NEAR(depthAt(camera.nearZ), 1.0f, 1e-6f);
+    EXPECT_NEAR(depthAt(camera.farZ), 0.0f, 1e-6f);
+    EXPECT_GT(depthAt(10.0f), depthAt(11.0f));
+}

@@ -146,6 +146,8 @@ namespace engine::rhi {
         rasterizer.CullMode = desc.cull == CullMode::None ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+        // Depth is reversed (1 near, 0 far), so a nearer pixel has the greater depth. The default would be LESS.
+        depthStencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
         if (desc.depthFormat == DXGI_FORMAT_UNKNOWN) {
             depthStencil.DepthEnable = FALSE;
         }
