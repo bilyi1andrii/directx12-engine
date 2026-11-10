@@ -31,17 +31,18 @@ namespace engine::assets {
 
     [[nodiscard]] bool IsSrgbUsage(TextureUsage usage) noexcept;
 
-    // Loads a .dds, .tga, .png, .jpg, ... file and generates its mips. Needs a core::ComScope on this thread.
+    // Decodes a .dds, .tga, .png, .jpg, ... file and generates its mips. Needs a core::ComScope on this thread.
     // Only plain 2D textures: arrays, cube maps and 3D textures return UnsupportedFormat.
-    [[nodiscard]] std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path,
-                                                                              TextureUsage usage);
+    // No cache and no GPU upload: AssetCache::LoadTexture does both.
+    [[nodiscard]] std::expected<render::TextureData, core::Error> ImportTexture(const std::filesystem::path &path,
+                                                                                TextureUsage usage);
 
     [[nodiscard]] std::expected<render::TextureData, core::Error>
-    LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage);
+    ImportTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage);
 
     // Builds a texture from RGBA8 pixels made in code (exactly width * height * 4 bytes) and generates its mips
     [[nodiscard]] std::expected<render::TextureData, core::Error>
-    CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage);
+    MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage);
 } // namespace engine::assets
 
 #endif // D3D12_ENGINE_TEXTURELOADER_H

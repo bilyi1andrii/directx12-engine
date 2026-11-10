@@ -58,18 +58,23 @@ namespace engine::scene {
     // yet, so an ObjectId stays valid as long as the scene.
     class Scene {
     public:
-        // Adds an object with one entity per part. `world` places `pivot`, a point in the parts' shared space, so an
+        // Adds `model` as an object with one entity per part. `world` places `pivot`, a point in model space, so an
         // entity's world is part.transform * translation(-pivot) * world.
-        ObjectId AddObject(std::string name, std::span<const render::ModelPart> parts, const DirectX::XMFLOAT4X4 &world,
+        ObjectId AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
                            Mobility mobility, DirectX::XMFLOAT3 pivot = {});
 
         // Moves a Movable object and all its parts
         void SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world);
 
+        // Moves a Movable object so that its pivot stands at `position`, keeping its rotation and scale
+        void SetObjectPosition(ObjectId id, const DirectX::XMFLOAT3 &position);
+
         // Gives every part of a Movable object this material (a static object's draws are already on the GPU)
         void SetObjectMaterial(ObjectId id, render::MaterialHandle material);
 
         [[nodiscard]] const SceneObject &Object(ObjectId id) const;
+        // Where the object's pivot stands in the world
+        [[nodiscard]] DirectX::XMFLOAT3 ObjectPosition(ObjectId id) const;
         [[nodiscard]] std::span<const SceneObject> Objects() const noexcept { return m_objects; }
 
         [[nodiscard]] size_t EntityCount() const noexcept { return m_transforms.size(); }

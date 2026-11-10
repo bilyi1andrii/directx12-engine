@@ -15,6 +15,7 @@ namespace {
     using namespace DirectX;
     using engine::assets::kCubeBounds;
     using engine::render::Aabb;
+    using engine::render::Model;
     using engine::render::ModelPart;
     using engine::scene::Camera;
     using engine::scene::IntersectHorizontalPlane;
@@ -52,7 +53,7 @@ namespace {
     // An object with one cube part
     ObjectId AddCube(Scene &scene, FXMMATRIX world) {
         const ModelPart part{.bounds = kCubeBounds};
-        return scene.AddObject("cube", {&part, 1}, ToFloat4x4(world), Mobility::Movable);
+        return scene.AddObject("cube", Model{.parts = {part}}, ToFloat4x4(world), Mobility::Movable);
     }
 } // namespace
 
@@ -150,8 +151,8 @@ TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     const std::vector<ModelPart> parts{
         ModelPart{.transform = ToFloat4x4(XMMatrixTranslation(30.0f, 0.0f, 0.0f)), .bounds = kCubeBounds},
         ModelPart{.bounds = kCubeBounds}};
-    const ObjectId model =
-        scene.AddObject("model", parts, ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, 2.0f)), Mobility::Static);
+    const ObjectId model = scene.AddObject("model", Model{.parts = parts},
+                                           ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, 2.0f)), Mobility::Static);
 
     EXPECT_EQ(Pick(scene, {.origin = {0.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}), model);
     EXPECT_FALSE(Pick(scene, {.origin = {9.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}).has_value());

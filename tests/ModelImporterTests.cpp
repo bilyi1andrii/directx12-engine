@@ -121,6 +121,28 @@ TEST(ImportModel, DamagedFileReturnsDecodeFailed) {
     EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
 }
 
+// A face pointing past the last vertex. PLY because its reader lets this through to the validation.
+TEST(ImportModel, FaceIndexOutsideTheVerticesReturnsDecodeFailed) {
+    const TempFile file(L"engine_test_bad_index.ply", Bytes("ply\n"
+                                                            "format ascii 1.0\n"
+                                                            "element vertex 3\n"
+                                                            "property float x\n"
+                                                            "property float y\n"
+                                                            "property float z\n"
+                                                            "element face 1\n"
+                                                            "property list uchar int vertex_indices\n"
+                                                            "end_header\n"
+                                                            "0 0 0\n"
+                                                            "1 0 0\n"
+                                                            "0 1 0\n"
+                                                            "3 0 1 99\n"));
+
+    const auto result = ImportModel(file.Path());
+
+    ASSERT_FALSE(result.has_value());
+    EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
+}
+
 // Lines and points are skipped, so nothing is left to draw: an error, not an empty index buffer for CreateMesh
 TEST(ImportModel, ModelWithoutTrianglesReturnsDecodeFailed) {
     const TempFile file(L"engine_test_lines.obj", Bytes("v 0 0 0\n"

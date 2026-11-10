@@ -65,6 +65,6 @@ namespace engine::assets {
                 pixel[3] = std::byte{255};
             }
         }
-        return CreateTextureFromPixels(rgba8, kSize, kSize, TextureUsage::Diffuse);
+        return MakeTextureFromPixels(rgba8, kSize, kSize, TextureUsage::Diffuse);
     }
 } // namespace engine::assets

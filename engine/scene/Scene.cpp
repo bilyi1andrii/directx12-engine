@@ -5,15 +5,15 @@
 #include "core/Assert.h"
 
 namespace engine::scene {
-    ObjectId Scene::AddObject(std::string name, std::span<const render::ModelPart> parts,
-                              const DirectX::XMFLOAT4X4 &world, Mobility mobility, DirectX::XMFLOAT3 pivot) {
+    ObjectId Scene::AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
+                              Mobility mobility, DirectX::XMFLOAT3 pivot) {
         using namespace DirectX;
 
         const auto id = ObjectId{.index = static_cast<uint32_t>(m_objects.size())};
         const auto firstEntity = static_cast<uint32_t>(m_transforms.size());
         const XMMATRIX fromPivot = XMMatrixTranslation(-pivot.x, -pivot.y, -pivot.z);
         const XMMATRIX objectWorld = XMLoadFloat4x4(&world);
-        for (const render::ModelPart &part : parts) {
+        for (const render::ModelPart &part : model.parts) {
             // Row vectors: first the part's transform, then the pivot, then the object's world
             const XMMATRIX toObject = XMLoadFloat4x4(&part.transform) * fromPivot;
             EntityPart entityPart{.bounds = part.bounds};
@@ -29,7 +29,7 @@ namespace engine::scene {
                                         .mobility = mobility,
                                         .world = world,
                                         .firstEntity = firstEntity,
-                                        .entityCount = static_cast<uint32_t>(parts.size())});
+                                        .entityCount = static_cast<uint32_t>(model.parts.size())});
         return id;
     }
 
@@ -48,6 +48,15 @@ namespace engine::scene {
         }
     }
 
+    void Scene::SetObjectPosition(ObjectId id, const DirectX::XMFLOAT3 &position) {
+        // Row vectors: the translation is the 4th row; the rest holds the rotation and scale
+        DirectX::XMFLOAT4X4 world = Object(id).world;
+        world._41 = position.x;
+        world._42 = position.y;
+        world._43 = position.z;
+        SetObjectWorld(id, world);
+    }
+
     void Scene::SetObjectMaterial(ObjectId id, render::MaterialHandle material) {
         ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
                           m_objects.size());
@@ -63,6 +72,11 @@ namespace engine::scene {
         ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
                           m_objects.size());
         return m_objects[id.index];
+    }
+
+    DirectX::XMFLOAT3 Scene::ObjectPosition(ObjectId id) const {
+        const DirectX::XMFLOAT4X4 &world = Object(id).world;
+        return {world._41, world._42, world._43};
     }
 
     void Extract(const Scene &scene, render::RenderList &list, Mobility mobility) {

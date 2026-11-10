@@ -11,10 +11,10 @@
 #include "assets/TextureLoader.h"
 #include "core/Utf8.h"
 
-using engine::assets::CreateTextureFromPixels;
+using engine::assets::ImportTexture;
+using engine::assets::ImportTextureFromMemory;
 using engine::assets::IsSrgbUsage;
-using engine::assets::LoadTexture;
-using engine::assets::LoadTextureFromMemory;
+using engine::assets::MakeTextureFromPixels;
 using engine::assets::TextureUsage;
 using engine::core::ErrorCode;
 using engine::render::TextureData;
@@ -23,6 +23,7 @@ using engine::tests::TempFile;
 
 namespace {
     // DXGI_FORMAT values: the tests, like the assets layer, do not include DXGI headers
+    constexpr uint32_t kR8Unorm = 61;
     constexpr uint32_t kRgba8Unorm = 28;
     constexpr uint32_t kRgba8Srgb = 29;
     constexpr uint32_t kBc1Unorm = 71;
@@ -54,6 +55,18 @@ namespace {
         file[14] = std::byte{2};        // height
         file[16] = std::byte{32};       // bits per pixel
         file[17] = std::byte{8 | 0x20}; // 8 alpha bits, top-left origin
+        return file;
+    }
+
+    // Uncompressed 8-bit gray TGA: 18-byte header plus one byte per pixel
+    [[nodiscard]] std::vector<std::byte> GrayTga2x2(std::byte value) {
+        std::vector<std::byte> file(18 + 2 * 2, value);
+        std::memset(file.data(), 0, 18);
+        file[2] = std::byte{3};     // uncompressed black and white
+        file[12] = std::byte{2};    // width
+        file[14] = std::byte{2};    // height
+        file[16] = std::byte{8};    // bits per pixel
+        file[17] = std::byte{0x20}; // top-left origin
         return file;
     }
 
@@ -89,9 +102,25 @@ TEST(TextureUsage, SrgbRuleMatchesDx11) {
     }
 }
 
+// The GPU refuses a larger texture, and that failure would close the app
+TEST(MakeTextureFromPixels, RefusesASideOverTheGpuLimit) {
+    constexpr uint32_t kLimit = 16384;
+
+    EXPECT_TRUE(MakeTextureFromPixels(Checkerboard(kLimit, 1), kLimit, 1, TextureUsage::Roughness).has_value());
+    EXPECT_TRUE(MakeTextureFromPixels(Checkerboard(1, kLimit), 1, kLimit, TextureUsage::Roughness).has_value());
+
+    const auto wide = MakeTextureFromPixels(Checkerboard(kLimit + 1, 1), kLimit + 1, 1, TextureUsage::Roughness);
+    ASSERT_FALSE(wide.has_value());
+    EXPECT_EQ(wide.error().code, ErrorCode::UnsupportedFormat);
+
+    const auto tall = MakeTextureFromPixels(Checkerboard(1, kLimit + 1), 1, kLimit + 1, TextureUsage::Roughness);
+    ASSERT_FALSE(tall.has_value());
+    EXPECT_EQ(tall.error().code, ErrorCode::UnsupportedFormat);
+}
+
 // sRGB bytes mean light: black + white average to 0.5 linear, which encodes to about 188, not 128
-TEST(CreateTextureFromPixels, SrgbMipsAverageLight) {
-    const auto result = CreateTextureFromPixels(Checkerboard(4, 4), 4, 4, TextureUsage::Diffuse);
+TEST(MakeTextureFromPixels, SrgbMipsAverageLight) {
+    const auto result = MakeTextureFromPixels(Checkerboard(4, 4), 4, 4, TextureUsage::Diffuse);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     EXPECT_EQ(result->dxgiFormat, kRgba8Srgb);
@@ -101,8 +130,8 @@ TEST(CreateTextureFromPixels, SrgbMipsAverageLight) {
 }
 
 // Data bytes are plain numbers: the average of 0 and 255 is about 128
-TEST(CreateTextureFromPixels, DataMipsAverageNumbers) {
-    const auto result = CreateTextureFromPixels(Checkerboard(4, 4), 4, 4, TextureUsage::Roughness);
+TEST(MakeTextureFromPixels, DataMipsAverageNumbers) {
+    const auto result = MakeTextureFromPixels(Checkerboard(4, 4), 4, 4, TextureUsage::Roughness);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     EXPECT_EQ(result->dxgiFormat, kRgba8Unorm);
@@ -111,8 +140,8 @@ TEST(CreateTextureFromPixels, DataMipsAverageNumbers) {
     EXPECT_NEAR(RedOfFirstPixelInLastMip(*result), 128, 2);
 }
 
-TEST(CreateTextureFromPixels, MipTableDescribesEveryLevel) {
-    const auto result = CreateTextureFromPixels(Checkerboard(8, 4), 8, 4, TextureUsage::Diffuse);
+TEST(MakeTextureFromPixels, MipTableDescribesEveryLevel) {
+    const auto result = MakeTextureFromPixels(Checkerboard(8, 4), 8, 4, TextureUsage::Diffuse);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     ASSERT_EQ(result->mips.size(), 4u);
@@ -130,8 +159,8 @@ TEST(CreateTextureFromPixels, MipTableDescribesEveryLevel) {
     EXPECT_LE(nextFreeByte, result->pixels.size());
 }
 
-TEST(CreateTextureFromPixels, NonPowerOfTwoGetsAFullChain) {
-    const auto result = CreateTextureFromPixels(Checkerboard(5, 3), 5, 3, TextureUsage::Roughness);
+TEST(MakeTextureFromPixels, NonPowerOfTwoGetsAFullChain) {
+    const auto result = MakeTextureFromPixels(Checkerboard(5, 3), 5, 3, TextureUsage::Roughness);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     ASSERT_EQ(result->mips.size(), 3u);
@@ -142,10 +171,10 @@ TEST(CreateTextureFromPixels, NonPowerOfTwoGetsAFullChain) {
 }
 
 // The DX11 fallback textures are 1x1, and GenerateMipMaps fails on 1x1 images
-TEST(CreateTextureFromPixels, OneByOneHasOneLevel) {
+TEST(MakeTextureFromPixels, OneByOneHasOneLevel) {
     const std::array pixel{std::byte{100}, std::byte{100}, std::byte{100}, std::byte{255}};
 
-    const auto result = CreateTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse);
+    const auto result = MakeTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     ASSERT_EQ(result->mips.size(), 1u);
@@ -153,34 +182,54 @@ TEST(CreateTextureFromPixels, OneByOneHasOneLevel) {
 }
 
 // Also covers an upper-case extension and a path outside the ANSI code page
-TEST(LoadTexture, DecodesTga) {
+TEST(ImportTexture, DecodesTga) {
     const TempFile file(L"engine_test_текстура.TGA", Tga2x2());
 
-    const auto result = LoadTexture(file.Path(), TextureUsage::Diffuse);
+    const auto result = ImportTexture(file.Path(), TextureUsage::Diffuse);
 
     ASSERT_TRUE(result.has_value()) << result.error().message;
     EXPECT_EQ(result->dxgiFormat, kRgba8Srgb);
     EXPECT_EQ(result->mips.size(), 2u);
 }
 
-TEST(LoadTexture, CompressedDdsKeepsItsLevelsAndFollowsUsage) {
+TEST(ImportTexture, GrayImageIsRgbForColourAndOneChannelForData) {
+    const std::byte gray{100};
+    const TempFile file(L"engine_test_gray.tga", GrayTga2x2(gray));
+
+    const auto colour = ImportTexture(file.Path(), TextureUsage::Diffuse);
+    ASSERT_TRUE(colour.has_value()) << colour.error().message;
+    EXPECT_EQ(colour->dxgiFormat, kRgba8Srgb);
+    EXPECT_EQ(colour->mips.size(), 2u);
+    EXPECT_EQ(colour->pixels[0], gray);
+    EXPECT_EQ(colour->pixels[1], gray);
+    EXPECT_EQ(colour->pixels[2], gray);
+    EXPECT_EQ(colour->pixels[3], std::byte{255});
+
+    const auto data = ImportTexture(file.Path(), TextureUsage::Roughness);
+    ASSERT_TRUE(data.has_value()) << data.error().message;
+    EXPECT_EQ(data->dxgiFormat, kR8Unorm);
+    EXPECT_EQ(data->mips.size(), 2u);
+    EXPECT_EQ(data->pixels[0], gray);
+}
+
+TEST(ImportTexture, CompressedDdsKeepsItsLevelsAndFollowsUsage) {
     const TempFile file(L"engine_test_bc1.dds", DdsBc1());
 
-    const auto colour = LoadTexture(file.Path(), TextureUsage::Diffuse);
+    const auto colour = ImportTexture(file.Path(), TextureUsage::Diffuse);
     ASSERT_TRUE(colour.has_value()) << colour.error().message;
     EXPECT_EQ(colour->dxgiFormat, kBc1Srgb);
     EXPECT_EQ(colour->mips.size(), 1u);
 
-    const auto data = LoadTexture(file.Path(), TextureUsage::Normals);
+    const auto data = ImportTexture(file.Path(), TextureUsage::Normals);
     ASSERT_TRUE(data.has_value()) << data.error().message;
     EXPECT_EQ(data->dxgiFormat, kBc1Unorm);
 }
 
 // The .png case goes through WIC: without COM it fails with DecodeFailed instead.
 // The message names the file in UTF-8, also outside the ANSI code page (see core/File.cpp).
-TEST(LoadTexture, MissingFileReturnsFileNotFound) {
+TEST(ImportTexture, MissingFileReturnsFileNotFound) {
     for (const wchar_t *name : {L"engine_test_нема.png", L"engine_test_missing.dds", L"engine_test_missing.tga"}) {
-        const auto result = LoadTexture(MissingFile(name), TextureUsage::Diffuse);
+        const auto result = ImportTexture(MissingFile(name), TextureUsage::Diffuse);
 
         ASSERT_FALSE(result.has_value());
         EXPECT_EQ(result.error().code, ErrorCode::FileNotFound) << result.error().message;
@@ -189,33 +238,33 @@ TEST(LoadTexture, MissingFileReturnsFileNotFound) {
 }
 
 // Goes through WIC, so it also fails if COM is not started
-TEST(LoadTexture, FileThatIsNotAnImageReturnsUnsupportedFormat) {
+TEST(ImportTexture, FileThatIsNotAnImageReturnsUnsupportedFormat) {
     constexpr std::array garbage{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
     const TempFile file(L"engine_test_garbage.png", garbage);
 
-    const auto result = LoadTexture(file.Path(), TextureUsage::Diffuse);
+    const auto result = ImportTexture(file.Path(), TextureUsage::Diffuse);
 
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, ErrorCode::UnsupportedFormat) << result.error().message;
 }
 
-// The hint picks the decoder as the extension does in LoadTexture, in any case, and the usage still sets the format
-TEST(LoadTextureFromMemory, HintPicksTheDecoder) {
-    const auto tga = LoadTextureFromMemory(Tga2x2(), "TGA", TextureUsage::Diffuse);
+// The hint picks the decoder as the extension does in ImportTexture, in any case, and the usage still sets the format
+TEST(ImportTextureFromMemory, HintPicksTheDecoder) {
+    const auto tga = ImportTextureFromMemory(Tga2x2(), "TGA", TextureUsage::Diffuse);
     ASSERT_TRUE(tga.has_value()) << tga.error().message;
     EXPECT_EQ(tga->dxgiFormat, kRgba8Srgb);
     EXPECT_EQ(tga->mips.size(), 2u);
 
-    const auto dds = LoadTextureFromMemory(DdsBc1(), "dds", TextureUsage::Normals);
+    const auto dds = ImportTextureFromMemory(DdsBc1(), "dds", TextureUsage::Normals);
     ASSERT_TRUE(dds.has_value()) << dds.error().message;
     EXPECT_EQ(dds->dxgiFormat, kBc1Unorm);
 }
 
 // Goes through WIC, like the file version: no decoder accepts the bytes
-TEST(LoadTextureFromMemory, BytesThatAreNotAnImageReturnUnsupportedFormat) {
+TEST(ImportTextureFromMemory, BytesThatAreNotAnImageReturnUnsupportedFormat) {
     constexpr std::array garbage{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}};
 
-    const auto result = LoadTextureFromMemory(garbage, "png", TextureUsage::Diffuse);
+    const auto result = ImportTextureFromMemory(garbage, "png", TextureUsage::Diffuse);
 
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, ErrorCode::UnsupportedFormat) << result.error().message;

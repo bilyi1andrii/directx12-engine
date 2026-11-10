@@ -22,6 +22,9 @@ namespace engine::assets {
         using render::TextureData;
         using render::TextureMip;
 
+        // The largest 2D texture side D3D12 accepts (this layer does not include D3D12 headers)
+        constexpr size_t kMaxTextureSide = 16384;
+
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
             ErrorCode code = ErrorCode::DecodeFailed;
             if (hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND) || hr == HRESULT_FROM_WIN32(ERROR_PATH_NOT_FOUND)) {
@@ -33,6 +36,12 @@ namespace engine::assets {
                          std::format("{}: DirectXTex failed with HRESULT 0x{:08X}", source, static_cast<uint32_t>(hr))};
         }
 
+        [[nodiscard]] bool IsSingleChannel(DXGI_FORMAT format) noexcept {
+
+            return (format == DXGI_FORMAT_R8_UNORM || format == DXGI_FORMAT_R16_UNORM ||
+                    format == DXGI_FORMAT_R32_FLOAT);
+        }
+
         // Shared last part of loading: sets the format by usage, generates the mips, copies the result out
         [[nodiscard]] std::expected<TextureData, Error> FinishTexture(DirectX::ScratchImage image, TextureUsage usage,
                                                                       std::string_view source) {
@@ -41,6 +50,24 @@ namespace engine::assets {
                 metadata.depth != 1) {
                 return std::unexpected(Error{ErrorCode::UnsupportedFormat,
                                              std::format("{}: only plain 2D textures are supported", source)});
+            }
+            if (metadata.width > kMaxTextureSide || metadata.height > kMaxTextureSide) {
+                return std::unexpected(Error{ErrorCode::UnsupportedFormat,
+                                             std::format("{}: {}x{} is over the limit of {} pixels per side", source,
+                                                         metadata.width, metadata.height, kMaxTextureSide)});
+            }
+
+            // A colour shader would read a one-channel image as (v, 0, 0), and R8 has no sRGB version
+            if (IsSrgbUsage(usage) && IsSingleChannel(metadata.format)) {
+                // FORCE_NON_WIC: copies the value to green and blue without needing COM
+                DirectX::ScratchImage rgba;
+                const HRESULT hr = DirectX::Convert(image.GetImages(), image.GetImageCount(), image.GetMetadata(),
+                                                    DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_FORCE_NON_WIC,
+                                                    DirectX::TEX_THRESHOLD_DEFAULT, rgba);
+                if (FAILED(hr)) {
+                    return std::unexpected(ErrorFromHResult(hr, source));
+                }
+                image = std::move(rgba);
             }
 
             // Not WIC_FLAGS_FORCE_SRGB: that one only affects saving. Before the mips, because filtering depends on
@@ -108,7 +135,8 @@ namespace engine::assets {
         }
     }
 
-    std::expected<render::TextureData, core::Error> LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
+    std::expected<render::TextureData, core::Error> ImportTexture(const std::filesystem::path &path,
+                                                                  TextureUsage usage) {
         const std::string source = core::ToUtf8(path.native());
         const std::wstring extension = LowerCaseExtension(path);
 
@@ -131,7 +159,7 @@ namespace engine::assets {
     }
 
     std::expected<render::TextureData, core::Error>
-    LoadTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage) {
+    ImportTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage) {
         std::string hint(formatHint);
         std::ranges::transform(hint, hint.begin(),
                                [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); });
@@ -155,7 +183,7 @@ namespace engine::assets {
     }
 
     std::expected<render::TextureData, core::Error>
-    CreateTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
+    MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
         constexpr std::string_view kSource = "in-memory texture";
         constexpr size_t kBytesPerPixel = 4;
         ENGINE_ASSERT_MSG(rgba8.size() == size_t{width} * height * kBytesPerPixel,

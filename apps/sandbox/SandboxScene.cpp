@@ -37,7 +37,7 @@ namespace sandbox {
             mode == engine::apps::GridMode::Static ? engine::scene::Mobility::Static : engine::scene::Mobility::Movable;
         const std::vector<XMFLOAT4X4> placement = GridPlacement(grid.side);
         for (const XMFLOAT4X4 &world : placement) {
-            scene.AddObject("Grid cube", cube.parts, world, mobility);
+            scene.AddObject("Grid cube", cube, world, mobility);
         }
         LogInfo("Grid: {} x {} = {} cubes, {}", grid.side, grid.side, placement.size(), engine::apps::ToString(mode));
         return grid;
@@ -102,7 +102,7 @@ namespace sandbox {
         std::string name = engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring());
         LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}{}", name, (*model)->parts.size(), extent,
                 scale, savedWorld ? " (placed as saved)" : "");
-        const engine::scene::ObjectId id = scene.AddObject(std::move(name), (*model)->parts, savedWorld.value_or(world),
+        const engine::scene::ObjectId id = scene.AddObject(std::move(name), **model, savedWorld.value_or(world),
                                                            engine::scene::Mobility::Movable, pivot);
         return PlacedModel{.id = id, .path = path};
     }
@@ -151,9 +151,8 @@ namespace sandbox {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        // A material is its albedo texture for now (Handles.h)
         for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
-            scene.SetObjectMaterial({.index = grid.firstObject + i}, {.index = texture.index});
+            scene.SetObjectMaterial({.index = grid.firstObject + i}, engine::render::MaterialFromTexture(texture));
         }
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
