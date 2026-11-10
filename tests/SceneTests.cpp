@@ -12,6 +12,7 @@ using engine::render::Aabb;
 using engine::render::BatchKey;
 using engine::render::MaterialHandle;
 using engine::render::MeshHandle;
+using engine::render::Model;
 using engine::render::ModelPart;
 using engine::render::RenderList;
 using engine::scene::Extract;
@@ -36,7 +37,7 @@ namespace {
 
     // An object with one part, at (x, 0, 0)
     ObjectId AddCube(Scene &scene, ModelPart part, float x, Mobility mobility = Mobility::Movable) {
-        return scene.AddObject("cube", {&part, 1}, Store(DirectX::XMMatrixTranslation(x, 0, 0)), mobility);
+        return scene.AddObject("cube", Model{.parts = {part}}, Store(DirectX::XMMatrixTranslation(x, 0, 0)), mobility);
     }
 } // namespace
 
@@ -89,7 +90,7 @@ TEST(Scene, AddObjectPlacesPartsInsideTheObject) {
         Store(DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) * DirectX::XMMatrixTranslation(10, 0, 0));
 
     Scene scene;
-    const ObjectId id = scene.AddObject("model", parts, world, Mobility::Movable);
+    const ObjectId id = scene.AddObject("model", Model{.parts = parts}, world, Mobility::Movable);
 
     EXPECT_EQ(scene.Object(id).name, "model");
     EXPECT_EQ(scene.Object(id).entityCount, 2u);
@@ -109,7 +110,7 @@ TEST(Scene, WorldPlacesThePivot) {
     const DirectX::XMFLOAT4X4 world = Store(DirectX::XMMatrixScaling(2, 2, 2) * DirectX::XMMatrixTranslation(10, 0, 0));
 
     Scene scene;
-    const ObjectId id = scene.AddObject("model", {&part, 1}, world, Mobility::Movable, {1, 2, 3});
+    const ObjectId id = scene.AddObject("model", Model{.parts = {part}}, world, Mobility::Movable, {1, 2, 3});
 
     ExpectTranslation(scene.Object(id).world, 10, 0, 0);
     ExpectTranslation(scene.Transforms()[0].world, 8, -4, -6);
@@ -119,7 +120,8 @@ TEST(Scene, SetObjectWorldMovesEveryPartForTheNextExtract) {
     const std::vector<ModelPart> parts{ModelPart{.transform = Store(DirectX::XMMatrixTranslation(1, 0, 0))},
                                        ModelPart{}};
     Scene scene;
-    const ObjectId id = scene.AddObject("model", parts, Store(DirectX::XMMatrixIdentity()), Mobility::Movable);
+    const ObjectId id =
+        scene.AddObject("model", Model{.parts = parts}, Store(DirectX::XMMatrixIdentity()), Mobility::Movable);
 
     scene.SetObjectWorld(id, Store(DirectX::XMMatrixTranslation(0, 7, 0)));
     RenderList list;
@@ -132,12 +134,37 @@ TEST(Scene, SetObjectWorldMovesEveryPartForTheNextExtract) {
     ExpectTranslation(scene.Object(id).world, 0, 7, 0);
 }
 
+// The object is scaled by 2 and turned 90 degrees around Y (+X becomes -Z). A new position moves the pivot there and
+// keeps both, so the part's offset (1, 0, 0) still ends up (0, 0, -2) away from it.
+TEST(Scene, SetObjectPositionKeepsRotationAndScale) {
+    const DirectX::XMFLOAT4X4 world =
+        Store(DirectX::XMMatrixScaling(2, 2, 2) * DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) *
+              DirectX::XMMatrixTranslation(10, 0, 0));
+    const ModelPart part{.transform = Store(DirectX::XMMatrixTranslation(1, 0, 0))};
+    Scene scene;
+    const ObjectId id = scene.AddObject("model", Model{.parts = {part}}, world, Mobility::Movable);
+
+    scene.SetObjectPosition(id, {3, 4, 5});
+
+    const DirectX::XMFLOAT3 position = scene.ObjectPosition(id);
+    EXPECT_FLOAT_EQ(position.x, 3.0f);
+    EXPECT_FLOAT_EQ(position.y, 4.0f);
+    EXPECT_FLOAT_EQ(position.z, 5.0f);
+    ExpectTranslation(scene.Transforms()[0].world, 3, 4, 3);
+    for (int row = 0; row < 3; ++row) {
+        for (int column = 0; column < 3; ++column) {
+            EXPECT_EQ(scene.Object(id).world.m[row][column], world.m[row][column]) << row << ", " << column;
+        }
+    }
+}
+
 // Every part of that object changes, and no other object's
 TEST(Scene, SetObjectMaterialChangesOnlyThatObject) {
     const std::vector<ModelPart> parts{ModelPart{.material = MaterialHandle{1}},
                                        ModelPart{.material = MaterialHandle{2}}};
     Scene scene;
-    const ObjectId id = scene.AddObject("model", parts, Store(DirectX::XMMatrixIdentity()), Mobility::Movable);
+    const ObjectId id =
+        scene.AddObject("model", Model{.parts = parts}, Store(DirectX::XMMatrixIdentity()), Mobility::Movable);
     AddCube(scene, ModelPart{.material = MaterialHandle{3}}, 0);
 
     scene.SetObjectMaterial(id, MaterialHandle{9});

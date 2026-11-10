@@ -44,20 +44,6 @@ using engine::core::LogInfo;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
-    // The object's position in the world
-    DirectX::XMFLOAT3 ObjectPosition(const engine::scene::SceneObject &object) {
-        return {object.world._41, object.world._42, object.world._43};
-    }
-
-    // Moves an object to `position`, keeping its rotation and scale
-    void MoveObject(engine::scene::Scene &scene, engine::scene::ObjectId id, const DirectX::XMFLOAT3 &position) {
-        DirectX::XMFLOAT4X4 world = scene.Object(id).world;
-        world._41 = position.x;
-        world._42 = position.y;
-        world._43 = position.z;
-        scene.SetObjectWorld(id, world);
-    }
-
     // Logs what the renderer window or a shortcut changed this frame
     void LogSettingsChanges(const engine::render::RendererSettings &before,
                             const engine::render::RendererSettings &after) {
@@ -190,14 +176,14 @@ namespace {
             }
             std::optional<float> firstX;
             for (const sandbox::PlacedModel &model : models) {
-                firstX = std::max(firstX.value_or(-FLT_MAX), scene.Object(model.id).world._41 + sandbox::kModelSpacing);
+                firstX = std::max(firstX.value_or(-FLT_MAX), scene.ObjectPosition(model.id).x + sandbox::kModelSpacing);
             }
             std::ranges::move(sandbox::AddModels(scene, assets, newModels, firstX), std::back_inserter(models));
         }
         const size_t modelsShown = models.size();
         float nextModelX = sandbox::kModelSpacing;
         for (const sandbox::PlacedModel &model : models) {
-            nextModelX = std::max(nextModelX, scene.Object(model.id).world._41 + sandbox::kModelSpacing);
+            nextModelX = std::max(nextModelX, scene.ObjectPosition(model.id).x + sandbox::kModelSpacing);
         }
 
         // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
@@ -205,8 +191,7 @@ namespace {
                                                float z) {
             DirectX::XMFLOAT4X4 world{};
             DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
-            return scene.AddObject(std::move(name), assets.CubeModel(texture).parts, world,
-                                   engine::scene::Mobility::Movable);
+            return scene.AddObject(std::move(name), assets.CubeModel(texture), world, engine::scene::Mobility::Movable);
         };
         std::optional<engine::scene::ObjectId> spinningCube;
         if (modelsShown == 0) {
@@ -307,7 +292,7 @@ namespace {
                 // 90 degrees per second. fmod in double keeps the angle precise in long runs.
                 const float angle =
                     XMConvertToRadians(static_cast<float>(std::fmod(frameTimer.TotalSeconds() * 90.0, 360.0)));
-                const XMFLOAT3 position = ObjectPosition(scene.Object(*spinningCube));
+                const XMFLOAT3 position = scene.ObjectPosition(*spinningCube);
                 XMFLOAT4X4 world{};
                 // Spin first, then move, so it spins around its own centre
                 XMStoreFloat4x4(&world, XMMatrixRotationAxis(XMVectorSet(0.0f, 1.0f, 1.0f, 0.0f), angle) *
@@ -338,10 +323,10 @@ namespace {
                                   settings);
             if (selected) {
                 const engine::scene::SceneObject &object = scene.Object(*selected);
-                DirectX::XMFLOAT3 position = ObjectPosition(object);
+                DirectX::XMFLOAT3 position = scene.ObjectPosition(*selected);
                 if (ui.ShowSelectionWindow(object.name, position,
                                            object.mobility == engine::scene::Mobility::Movable)) {
-                    MoveObject(scene, *selected, position);
+                    scene.SetObjectPosition(*selected, position);
                 }
             } else {
                 ui.ShowEmptySelectionWindow();
