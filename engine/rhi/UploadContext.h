@@ -40,8 +40,8 @@ namespace engine::rhi {
         // The batch's command list, for copies and barriers
         [[nodiscard]] CommandContext &Commands();
 
-        // Executes the batch and returns its fence value
-        uint64_t Submit(CommandQueue &queue);
+        // Executes the batch. Its fence value stays inside: ReleaseCompleted checks it.
+        void Submit(CommandQueue &queue);
 
         // Frees the staging buffers of a finished batch. Never waits.
         void ReleaseCompleted(const CommandQueue &queue);

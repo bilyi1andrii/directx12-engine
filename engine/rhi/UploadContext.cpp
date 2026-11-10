@@ -63,7 +63,7 @@ namespace engine::rhi {
         return m_commands;
     }
 
-    uint64_t UploadContext::Submit(CommandQueue &queue) {
+    void UploadContext::Submit(CommandQueue &queue) {
         ENGINE_ASSERT_MSG(m_recording, "UploadContext::Submit without Begin");
         ENGINE_ASSERT(m_submittedStaging.empty()); // Begin() already freed the previous batch
 
@@ -76,7 +76,6 @@ namespace engine::rhi {
         m_submittedStaging = std::move(m_staging);
         m_staging.clear(); // a moved-from vector is not guaranteed to be empty
         m_stagingBytes = 0;
-        return m_submittedFenceValue;
     }
 
     void UploadContext::ReleaseCompleted(const CommandQueue &queue) {
