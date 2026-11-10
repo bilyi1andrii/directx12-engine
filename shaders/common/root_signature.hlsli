@@ -11,7 +11,7 @@
 // before this root signature is set.
 //
 // Its static samplers:
-//   s0: linear, wrap (textures)
+//   s0: anisotropic x16, wrap (textures; stays sharp on surfaces seen at a grazing angle)
 //   s1: point, clamp (post-processing)
 //   s2: shadow comparison (LESS_EQUAL, white border)
 
@@ -41,9 +41,9 @@ namespace engine::gpu {
     "RootConstants(num32BitConstants = 4, b0),"                                                 \
     "CBV(b1, flags = DATA_STATIC_WHILE_SET_AT_EXECUTE),"                                        \
     "CBV(b2, flags = DATA_STATIC_WHILE_SET_AT_EXECUTE),"                                        \
-    "StaticSampler(s0, filter = FILTER_MIN_MAG_MIP_LINEAR,"                                     \
+    "StaticSampler(s0, filter = FILTER_ANISOTROPIC,"                                            \
     "              addressU = TEXTURE_ADDRESS_WRAP, addressV = TEXTURE_ADDRESS_WRAP,"           \
-    "              addressW = TEXTURE_ADDRESS_WRAP, maxAnisotropy = 1,"                         \
+    "              addressW = TEXTURE_ADDRESS_WRAP, maxAnisotropy = 16,"                        \
     "              comparisonFunc = COMPARISON_NEVER, visibility = SHADER_VISIBILITY_PIXEL),"   \
     "StaticSampler(s1, filter = FILTER_MIN_MAG_MIP_POINT,"                                      \
     "              addressU = TEXTURE_ADDRESS_CLAMP, addressV = TEXTURE_ADDRESS_CLAMP,"         \
