@@ -1,13 +1,5 @@
 #include "GridSetup.h"
 
-#include <expected>
-#include <string>
-
-#include "assets/Primitives.h"
-#include "assets/TextureLoader.h"
-#include "core/Error.h"
-#include "core/Log.h"
-
 namespace engine::apps {
     std::optional<GridMode> ParseGridMode(std::string_view text) noexcept {
         if (text == "static") {
@@ -30,25 +22,5 @@ namespace engine::apps {
             ++side;
         }
         return side;
-    }
-
-    render::FrameView MakeFrameView(const scene::Camera &camera, float aspectRatio) {
-        render::FrameView view{};
-        DirectX::XMStoreFloat4x4(&view.view, scene::ViewMatrix(camera));
-        DirectX::XMStoreFloat4x4(&view.projection, scene::ProjectionMatrix(camera, aspectRatio));
-        view.cameraPosition = camera.position;
-        return view;
-    }
-
-    render::TextureHandle CreateGridTexture(render::Renderer &renderer,
-                                            const std::optional<std::filesystem::path> &path) {
-        const std::expected<render::TextureData, core::Error> texture =
-            path ? assets::LoadTexture(*path, assets::TextureUsage::Diffuse) : assets::MakeCheckerboard();
-        if (!texture) {
-            core::LogWarning("Grid texture: {}. Using the grey fallback.", texture.error().message);
-            return renderer.UnloadedTexture();
-        }
-        const std::wstring name = path ? L"Grid/" + path->filename().wstring() : L"Grid/Checkerboard";
-        return renderer.CreateTexture(*texture, name);
     }
 } // namespace engine::apps

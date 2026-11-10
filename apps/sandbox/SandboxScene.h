@@ -13,7 +13,7 @@
 
 #include "assets/AssetCache.h"
 #include "common/GridSetup.h"
-#include "render/Renderer.h"
+#include "renderdata/GpuUploader.h"
 #include "sandbox/SceneSave.h"
 #include "scene/Scene.h"
 
@@ -41,9 +41,6 @@ namespace sandbox {
     inline constexpr std::wstring_view kDefaultGridTexture = L"data/textures/Endstone.jpg";
     inline constexpr std::wstring_view kSpinningCubeTexture = L"data/textures/diamante.jpg";
 
-    // kSpinningCubeTexture, or grey with a warning if it cannot be loaded
-    [[nodiscard]] engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer);
-
     [[nodiscard]] std::filesystem::path RepositoryRoot();
 
     // Every model file in the gitignored assets/ folder, sorted by path
@@ -60,14 +57,14 @@ namespace sandbox {
     std::optional<PlacedModel> AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                                         const std::filesystem::path &path, float x, float z,
                                         const std::optional<DirectX::XMFLOAT4X4> &savedWorld = std::nullopt);
-    
+
     // Adds the models in a row along X, centred on the origin. Returns how many could be loaded.
     std::vector<PlacedModel> AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                                        std::span<const std::filesystem::path> paths,
                                        std::optional<float> firstX = std::nullopt);
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
+                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
                          engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid,
                          std::vector<PlacedModel> &models);
 

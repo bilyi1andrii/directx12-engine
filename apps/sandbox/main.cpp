@@ -150,8 +150,9 @@ namespace {
         const engine::apps::GridMode gridMode = options.gridMode.value_or(
             saved ? engine::apps::ParseGridMode(saved->gridMode).value_or(engine::apps::GridMode::Dynamic)
                   : engine::apps::GridMode::Dynamic);
-        const sandbox::GridObjects grid = sandbox::AddGrid(
-            scene, assets, engine::apps::CreateGridTexture(renderer, gridTexturePath), gridMode, gridCount);
+        const sandbox::GridObjects grid =
+            sandbox::AddGrid(scene, assets, assets.LoadTexture(gridTexturePath, engine::assets::TextureUsage::Diffuse),
+                             gridMode, gridCount);
         if (saved && !saved->gridCubes.empty()) {
             if (grid.mode == engine::apps::GridMode::Dynamic && saved->gridCount == gridCount) {
                 for (const sandbox::SavedGridCube &cube : saved->gridCubes) {
@@ -210,17 +211,21 @@ namespace {
         };
         std::optional<engine::scene::ObjectId> spinningCube;
         if (modelsShown == 0) {
-            spinningCube = addCube("Spinning cube", sandbox::CreateSpinningCubeTexture(renderer), 0.0f, 0.0f);
+            spinningCube =
+                addCube("Spinning cube",
+                        assets.LoadTexture(engine::core::ExecutableDirectory() / sandbox::kSpinningCubeTexture,
+                                           engine::assets::TextureUsage::Diffuse),
+                        0.0f, 0.0f);
         }
         // With models loaded, the cubes stand behind the row so that they do not end up inside a model
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
         const engine::scene::ObjectId orangeCube =
-            addCube("Orange cube", renderer.CreateSolidColorTexture(230, 120, 30, L"Orange"), -5.0f, cubesZ);
+            addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
 
         const std::array namedCubes{
             orangeCube,
-            addCube("Green cube", renderer.CreateSolidColorTexture(60, 170, 70, L"Green"), 5.0f, cubesZ),
-            addCube("Blue cube", renderer.CreateSolidColorTexture(50, 110, 220, L"Blue"), 0.0f, cubesZ + 5.0f),
+            addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ),
+            addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f),
         };
         if (saved) {
             for (const sandbox::SavedCube &savedCube : saved->cubes) {
@@ -292,7 +297,7 @@ namespace {
             // the window's aspect ratio is also the rendered one.
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
             const engine::render::FrameView frameView =
-                engine::apps::MakeFrameView(camera, viewportPx.x / viewportPx.y);
+                engine::scene::MakeFrameView(camera, viewportPx.x / viewportPx.y);
             // The camera ray through the centre of a pixel
             const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
                 return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},

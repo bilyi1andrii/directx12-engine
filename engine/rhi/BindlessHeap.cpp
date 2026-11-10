@@ -30,7 +30,7 @@ namespace engine::rhi {
         m_gpuStart = m_heap->GetGPUDescriptorHandleForHeapStart();
         m_descriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-        // Push in reverse so that the first allocations get slots 0, 1, 2, ... 
+        // Push in reverse so that the first allocations get slots 0, 1, 2, ...
         m_freeIndices.reserve(capacity);
         for (uint32_t i = capacity; i > 0; --i) {
             m_freeIndices.push_back(i - 1);

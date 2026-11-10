@@ -305,7 +305,7 @@ namespace engine::assets {
         for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
             AddSubmesh(*scene->mMeshes[i], source, model.mesh);
         }
-        
+
         if (model.mesh.indices.empty()) {
             return std::unexpected(
                 Error{ErrorCode::DecodeFailed, std::format("{}: the file has no triangles", source)});

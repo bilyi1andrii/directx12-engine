@@ -19,7 +19,8 @@ namespace engine::rhi {
     // Destroying it releases the texture and its memory at once: the owner must make sure the GPU is idle
     // (Renderer flushes the queue first). Resize() defers the old texture instead.
     //
-    // Move-only. The resource allocator and the DSV allocator must outlive it.
+    // Can be move-constructed but not assigned: assigning would release the old texture at once instead of deferring
+    // it. The resource allocator and the DSV allocator must outlive it.
     class DepthBuffer {
     public:
         // 32-bit float depth, no stencil
@@ -33,7 +34,7 @@ namespace engine::rhi {
         DepthBuffer(const DepthBuffer &) = delete;
         DepthBuffer &operator=(const DepthBuffer &) = delete;
         DepthBuffer(DepthBuffer &&) noexcept = default;
-        DepthBuffer &operator=(DepthBuffer &&) noexcept = default;
+        DepthBuffer &operator=(DepthBuffer &&) = delete;
 
         // Recreates the texture at the new size. The old texture goes to `frame`'s deferred-release
         // list, because earlier frames may still be using it. Does nothing for an unchanged size or 0x0.

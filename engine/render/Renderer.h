@@ -11,8 +11,6 @@
 #include <string_view>
 #include <vector>
 
-#include <DirectXMath.h>
-
 #include "rhi/Allocator.h"
 #include "rhi/BindlessHeap.h"
 #include "rhi/Buffer.h"
@@ -29,6 +27,7 @@
 #include "rhi/UploadRing.h"
 #include "rhi/ValidationStats.h"
 
+#include "renderdata/FrameView.h"
 #include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
@@ -42,12 +41,6 @@ struct ImDrawData;
 
 namespace engine::render {
     class UiRenderer;
-
-    struct FrameView {
-        DirectX::XMFLOAT4X4 view;
-        DirectX::XMFLOAT4X4 projection;
-        DirectX::XMFLOAT3 cameraPosition; // world space
-    };
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
@@ -94,11 +87,6 @@ namespace engine::render {
 
         // Creates a texture from a copy of `data`. It can be used in the same frame and lives as long as the renderer.
         [[nodiscard]] TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) override;
-
-        // A 1x1 texture of one colour (sRGB values, as in an image file), with the lifetime of CreateTexture's.
-        // Callers above the renderer cannot name DXGI formats, so they use this for plain colours.
-        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
-                                                            std::wstring_view name);
 
         // 1x1 fallback textures: grey for a texture that failed to load, red for an unhandled type
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
@@ -191,6 +179,10 @@ namespace engine::render {
 
         // Creates the grey and red fallback textures (constructor only)
         void CreateFallbackTextures();
+
+        // A 1x1 texture of one colour (sRGB values, as in an image file)
+        [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
+                                                            std::wstring_view name);
 
         // Shutdown only: waits for the GPU, then destroys every texture, mesh buffer and static list
         void DestroyResources() noexcept;

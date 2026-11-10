@@ -81,10 +81,10 @@ namespace {
     };
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
-    std::expected<const engine::render::Model *, std::string>
-    LoadGridModel(const BenchOptions &options, engine::render::Renderer &renderer, engine::assets::AssetCache &assets) {
+    std::expected<const engine::render::Model *, std::string> LoadGridModel(const BenchOptions &options,
+                                                                            engine::assets::AssetCache &assets) {
         if (!options.modelPath) {
-            return &assets.CubeModel(engine::apps::CreateGridTexture(renderer, std::nullopt));
+            return &assets.CubeModel(assets.CheckerboardTexture());
         }
         const auto model = assets.LoadModel(*options.modelPath);
         if (!model) {
@@ -120,8 +120,7 @@ namespace {
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
-        const std::expected<const engine::render::Model *, std::string> model =
-            LoadGridModel(options, renderer, assets);
+        const std::expected<const engine::render::Model *, std::string> model = LoadGridModel(options, assets);
         if (!model) {
             return std::unexpected(model.error());
         }
@@ -180,7 +179,7 @@ namespace {
                 const Clock::time_point recordStart = Clock::now();
                 renderList.Clear();
                 grid.Submit(renderList); // dynamic mode only
-                renderer.Render(engine::apps::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+                renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
                                 grid.StaticLists());
                 const Clock::time_point recordEnd = Clock::now();
                 if (frame >= options.warmupFrames) {

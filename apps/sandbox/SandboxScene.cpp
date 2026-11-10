@@ -7,7 +7,6 @@
 #include <expected>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -26,27 +25,6 @@ using engine::core::LogInfo;
 using engine::core::LogWarning;
 
 namespace sandbox {
-    namespace {
-        // `path` as a colour texture named `name`; grey with a warning on failure
-        engine::render::TextureHandle LoadTextureOrGrey(engine::render::Renderer &renderer,
-                                                        const std::filesystem::path &path, std::wstring_view name) {
-            const std::expected<engine::render::TextureData, engine::core::Error> texture =
-                engine::assets::LoadTexture(path, engine::assets::TextureUsage::Diffuse);
-            if (!texture) {
-                LogWarning("Texture {}: {}. Using the grey fallback.", engine::core::ToUtf8(name),
-                           texture.error().message);
-                return renderer.UnloadedTexture();
-            }
-            return renderer.CreateTexture(*texture, name);
-        }
-    } // namespace
-
-    engine::render::TextureHandle CreateSpinningCubeTexture(engine::render::Renderer &renderer) {
-        // The build copies data/ next to the exe
-        const std::filesystem::path path = engine::core::ExecutableDirectory() / kSpinningCubeTexture;
-        return LoadTextureOrGrey(renderer, path, L"SpinningCube/" + path.filename().wstring());
-    }
-
     GridObjects AddGrid(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
                         engine::render::TextureHandle texture, engine::apps::GridMode mode, uint32_t count) {
         using namespace DirectX;
@@ -143,7 +121,7 @@ namespace sandbox {
     }
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         engine::render::Renderer &renderer, engine::assets::AssetCache &assets,
+                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
                          engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid,
                          std::vector<PlacedModel> &models) {
         engine::core::Timer timer;
@@ -169,7 +147,7 @@ namespace sandbox {
         }
 
         const engine::render::TextureHandle texture = assets.LoadTexture(path, engine::assets::TextureUsage::Diffuse);
-        if (texture == renderer.UnloadedTexture()) {
+        if (texture == gpu.UnloadedTexture()) {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
