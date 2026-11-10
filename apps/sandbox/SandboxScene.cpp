@@ -47,8 +47,6 @@ namespace sandbox {
     std::vector<DirectX::XMFLOAT4X4> GridPlacement(uint32_t side) {
         using namespace DirectX;
 
-        // The same cell offsets as the bench's SubmitGrid, so the layouts match. Row by row, like SubmitGrid adds
-        // them: saves refer to grid cubes by this index.
         std::vector<XMFLOAT4X4> worlds(size_t{side} * side);
         for (uint32_t row = 0; row < side; ++row) {
             for (uint32_t col = 0; col < side; ++col) {

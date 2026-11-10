@@ -41,8 +41,7 @@ namespace engine::assets {
         using render::TextureSource;
         using render::Vertex;
 
-        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices. It runs first, because
-        // the other steps and the code below trust those indices.
+        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices.
         constexpr unsigned kImportFlags = aiProcess_ValidateDataStructure | aiProcess_Triangulate |
                                           aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals |
                                           aiProcess_CalcTangentSpace;

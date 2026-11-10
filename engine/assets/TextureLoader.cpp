@@ -22,7 +22,7 @@ namespace engine::assets {
         using render::TextureData;
         using render::TextureMip;
 
-        // The largest 2D texture side D3D12 accepts (this layer does not include D3D12 headers)
+        // The largest 2D texture side D3D12 accepts
         constexpr size_t kMaxTextureSide = 16384;
 
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
