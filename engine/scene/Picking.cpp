@@ -18,13 +18,13 @@ namespace engine::scene {
                           viewportPx.y);
         const XMMATRIX view = ViewMatrix(camera);
         const XMMATRIX projection = ProjectionMatrix(camera, viewportPx.x / viewportPx.y);
-        // Unproject: pixel + depth -> world, the inverse of what the GPU does (world -> clip -> pixel). Depth 0 is
-        // the near plane and 1 the far plane, as in the projection matrix. World matrix: identity.
+        // Unproject: pixel + depth -> world, the inverse of what the GPU does (world -> clip -> pixel). Depth is
+        // reversed: 1 is the near plane and 0 the far plane. World matrix: identity.
         const XMVECTOR nearPoint =
-            XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 0.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
+            XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 1.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
                                0.0f, 1.0f, projection, view, XMMatrixIdentity());
         const XMVECTOR farPoint =
-            XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 1.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
+            XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 0.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
                                0.0f, 1.0f, projection, view, XMMatrixIdentity());
         Ray ray;
         XMStoreFloat3(&ray.origin, nearPoint);
