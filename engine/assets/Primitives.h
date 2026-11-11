@@ -22,6 +22,19 @@ namespace engine::assets {
     // triangles clockwise seen from outside.
     [[nodiscard]] render::MeshData MakeCube();
 
+    // The box around MakeSphere's vertices
+    inline constexpr render::Aabb kSphereBounds{.min = {-1.0f, -1.0f, -1.0f}, .max = {1.0f, 1.0f, 1.0f}};
+
+    // MakeSphere's grid: steps around the Y axis, and steps from the top pole to the bottom one
+    inline constexpr uint32_t kSphereSlices = 32;
+    inline constexpr uint32_t kSphereStacks = 16;
+    // Two per grid cell, one per cell that touches a pole
+    inline constexpr uint64_t kSphereTriangleCount = uint64_t{kSphereSlices} * 2 * (kSphereStacks - 1);
+
+    // Sphere of radius 1 around the origin with smooth normals, one submesh, triangles clockwise seen from
+    // outside. A texture wraps once around the Y axis, its top edge at the +Y pole.
+    [[nodiscard]] render::MeshData MakeSphere();
+
     // A 256x256 light and dark grey checkerboard, as a colour texture. Without mips, distant cubes would shimmer.
     [[nodiscard]] std::expected<render::TextureData, core::Error> MakeCheckerboard();
 } // namespace engine::assets

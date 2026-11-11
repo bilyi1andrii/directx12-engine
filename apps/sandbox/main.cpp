@@ -38,6 +38,7 @@
 #include "scene/Picking.h"
 #include "scene/Scene.h"
 #include "ui/DebugUI.h"
+#include "ui/LightsWindow.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -110,7 +111,7 @@ namespace {
         }
 
         const bool keepScene = !smokeTestFrames && !options.modelPath;
-        const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::LoadSave() : std::nullopt;
+        const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::ReadSave() : std::nullopt;
 
         // Looks at the cube from above and to the side, so three faces are visible
         engine::scene::Camera camera;
@@ -221,12 +222,12 @@ namespace {
             }
         }
         // The lights stand between and behind the cubes
-        sandbox::AddDefaultLights(scene, cubesZ);
+        sandbox::AddDefaultLights(scene, assets, cubesZ);
 
-        // The smoke test selects a cube so that the gizmo runs every frame
+        // The smoke test selects a light so that the gizmo and every field of the Lights window run every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
-            selected = orangeCube;
+            selected = scene.LightObjects().front();
         }
 
         // Edited by the renderer window and the shortcuts I and V; the renderer takes a copy in BeginFrame
@@ -335,6 +336,12 @@ namespace {
             } else {
                 ui.ShowEmptySelectionWindow();
             }
+            // Lights are scene data: the window edits them in place, and this frame's Extract passes them on
+            if (engine::ui::ShowLightsWindow(scene.Environment(),
+                                             selected ? std::string_view(scene.Object(*selected).name) : "",
+                                             selected ? scene.Light(*selected) : nullptr)) {
+                sandbox::RecolorMarker(scene, assets, *selected);
+            }
             ImDrawData *const uiDrawData = ui.Render();
             LogSettingsChanges(previousSettings, settings);
 
@@ -421,7 +428,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             smokeTest ? engine::apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
         LogInfo("Exiting with code {}", exitCode);
         return exitCode;
-    } catch (std::exception &e) {
+    } catch (const std::exception &e) {
         LogError("{}", e.what());
         // A dialog would block an unattended run until someone closes it
         if (!smokeTest) {

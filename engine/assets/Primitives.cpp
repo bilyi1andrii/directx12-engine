@@ -1,6 +1,7 @@
 #include "assets/Primitives.h"
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -48,6 +49,54 @@ namespace engine::assets {
         }
         cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
         return cube;
+    }
+
+    render::MeshData MakeSphere() {
+        using DirectX::XMFLOAT2;
+        using DirectX::XMFLOAT3;
+
+        render::MeshData sphere;
+        // One more column than slices: the first and the last stand in the same place with u = 0 and u = 1
+        const uint32_t columns = kSphereSlices + 1;
+        sphere.vertices.reserve(size_t{kSphereStacks + 1} * columns);
+        for (uint32_t stack = 0; stack <= kSphereStacks; ++stack) {
+            const float v = static_cast<float>(stack) / kSphereStacks;
+            // From the +Y pole (0) down to the -Y pole (pi)
+            const float fromTop = DirectX::XM_PI * v;
+            const float y = std::cos(fromTop);
+            const float ringRadius = std::sin(fromTop);
+            for (uint32_t slice = 0; slice <= kSphereSlices; ++slice) {
+                const float u = static_cast<float>(slice) / kSphereSlices;
+                // Around the Y axis from +X towards +Z: to the right, seen from outside
+                const float around = DirectX::XM_2PI * u;
+                const float cosAround = std::cos(around);
+                const float sinAround = std::sin(around);
+                const XMFLOAT3 position{ringRadius * cosAround, y, ringRadius * sinAround};
+                // On a unit sphere the normal is the position. The tangent points where u grows.
+                sphere.vertices.push_back({position, XMFLOAT2{u, v}, position, XMFLOAT3{-sinAround, 0.0f, cosAround}});
+            }
+        }
+
+        sphere.indices.reserve(kSphereTriangleCount * 3);
+        for (uint32_t stack = 0; stack < kSphereStacks; ++stack) {
+            for (uint32_t slice = 0; slice < kSphereSlices; ++slice) {
+                // The corners of one grid cell, seen from outside
+                const uint32_t topLeft = stack * columns + slice;
+                const uint32_t topRight = topLeft + 1;
+                const uint32_t bottomLeft = topLeft + columns;
+                const uint32_t bottomRight = bottomLeft + 1;
+                // Two clockwise triangles. At a pole one side of the cell is a single point, so the triangle
+                // on that side has no area and is left out.
+                if (stack + 1 < kSphereStacks) {
+                    sphere.indices.insert(sphere.indices.end(), {topLeft, bottomRight, bottomLeft});
+                }
+                if (stack > 0) {
+                    sphere.indices.insert(sphere.indices.end(), {topLeft, topRight, bottomRight});
+                }
+            }
+        }
+        sphere.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(sphere.indices.size())});
+        return sphere;
     }
 
     std::expected<render::TextureData, core::Error> MakeCheckerboard() {

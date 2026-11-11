@@ -70,7 +70,7 @@ namespace sandbox {
 
     [[nodiscard]] std::filesystem::path SavePath();
 
-    [[nodiscard]] std::optional<SandboxSave> LoadSave();
+    [[nodiscard]] std::optional<SandboxSave> ReadSave();
 
     [[nodiscard]] SandboxSave MakeSave(const engine::scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
                                        std::span<const engine::scene::ObjectId> namedCubes,
