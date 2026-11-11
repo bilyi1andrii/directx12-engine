@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "rhi/Allocator.h"
@@ -31,6 +32,7 @@
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/Lights.h"
+#include "renderdata/Material.h"
 #include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
@@ -92,6 +94,10 @@ namespace engine::render {
 
         // 1x1 grey fallback for a texture that failed to load
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
+
+        // Adds `material` to the material table. It can be drawn in the same frame and lives as long as the
+        // renderer. Costs no GPU memory: the table holds the albedo's index and picks the PSO.
+        [[nodiscard]] MaterialHandle CreateMaterial(const MaterialInfo &material) override;
 
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
         // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
@@ -168,6 +174,8 @@ namespace engine::render {
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
+        [[nodiscard]] const MaterialInfo &Material(MaterialHandle handle) const;
+
         [[nodiscard]] const GpuStaticList &StaticList(StaticListHandle handle) const;
 
         // Takes ownership of `geometry`; returns its index in m_geometries
@@ -177,7 +185,7 @@ namespace engine::render {
 
         void CreatePipelines();
 
-        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
+        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 
         // Makes sure an upload batch is open for `bytes` more staging memory. Submits the open batch first if it
         // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
@@ -232,13 +240,17 @@ namespace engine::render {
 
         // The global root signature and every PSO
         rhi::PipelineCache m_pipelines;
-        // Filled by CreatePipelines; indexed by VertexFormat
-        std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
+        // One PSO per vertex format, shading and culling (index 1: two-sided, no culling). Filled by
+        // CreatePipelines; read through PipelineFor.
+        using ShadingPipelines = std::array<std::array<rhi::PipelineHandle, 2>, kShadingCount>;
+        std::array<ShadingPipelines, std::to_underlying(VertexFormat::Count)> m_pipelinesByFormat;
         std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
+        // MaterialHandle::index points into it. Entry 0 is the grey texture, lit, so a default handle can be drawn.
+        std::vector<MaterialInfo> m_materials;
 
         // Released after the destructor's flush, before the allocator
         std::vector<GpuStaticList> m_staticLists;

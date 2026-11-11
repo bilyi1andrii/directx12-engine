@@ -19,18 +19,13 @@ namespace engine::render {
     // A mesh (vertex + index buffer) owned by the renderer. The default, 0, is the first mesh created.
     using MeshHandle = Handle<struct MeshTag>;
 
-    // A material. Until materials get their own GPU data, a material is just its albedo texture, so
-    // index = TextureHandle::index. The default, 0, is the grey fallback texture.
+    // A material in the renderer's table, made by GpuUploader::CreateMaterial from a MaterialInfo (Material.h).
+    // The default, 0, is the grey fallback texture, lit and one-sided.
     using MaterialHandle = Handle<struct MaterialTag>;
 
     // A texture owned by the renderer. The index is its bindless slot: shaders read ResourceDescriptorHeap[index].
     // The default, 0, is the grey fallback texture.
     using TextureHandle = Handle<struct TextureTag>;
-
-    // The material that is just this albedo texture (see MaterialHandle)
-    [[nodiscard]] constexpr MaterialHandle MaterialFromTexture(TextureHandle texture) noexcept {
-        return MaterialHandle{.index = texture.index};
-    }
 
     // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList.
     // The index points into the renderer's table.

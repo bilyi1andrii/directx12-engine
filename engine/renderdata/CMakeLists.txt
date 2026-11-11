@@ -13,6 +13,7 @@ add_library(engine_renderdata STATIC
         LightPacking.cpp
         LightPacking.h
         Lights.h
+        Material.h
         MaterialDesc.h
         MeshData.h
         Model.h
