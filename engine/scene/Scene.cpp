@@ -1,5 +1,8 @@
 #include "scene/Scene.h"
 
+#include <algorithm>
+#include <cstddef>
+#include <span>
 #include <utility>
 
 #include "core/Assert.h"
@@ -31,6 +34,24 @@ namespace engine::scene {
                                         .firstEntity = firstEntity,
                                         .entityCount = static_cast<uint32_t>(model.parts.size())});
         return id;
+    }
+
+    ObjectId Scene::AddLight(std::string name, const render::Model &marker, const DirectX::XMFLOAT4X4 &world,
+                             const render::LocalLight &light) {
+        const ObjectId id = AddObject(std::move(name), marker, world, Mobility::Movable);
+        m_lightObjects.push_back(id);
+        m_lights.push_back(light);
+        return id;
+    }
+
+    render::LocalLight *Scene::Light(ObjectId id) {
+        const auto found = std::ranges::find(m_lightObjects, id);
+        return found != m_lightObjects.end() ? &m_lights[static_cast<size_t>(found - m_lightObjects.begin())] : nullptr;
+    }
+
+    const render::LocalLight *Scene::Light(ObjectId id) const {
+        const auto found = std::ranges::find(m_lightObjects, id);
+        return found != m_lightObjects.end() ? &m_lights[static_cast<size_t>(found - m_lightObjects.begin())] : nullptr;
     }
 
     void Scene::SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world) {
@@ -89,6 +110,30 @@ namespace engine::scene {
             for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
                 list.Add(render::BatchKey{.mesh = renderers[i].mesh, .material = renderers[i].material},
                          transforms[i].world);
+            }
+        }
+    }
+
+    void Extract(const Scene &scene, render::LightSet &lights) {
+        using namespace DirectX;
+
+        lights.environment = scene.Environment();
+        lights.points.clear();
+        lights.spots.clear();
+        const std::span<const ObjectId> lightObjects = scene.LightObjects();
+        const std::span<const render::LocalLight> sceneLights = scene.Lights();
+        for (size_t i = 0; i < sceneLights.size(); ++i) {
+            const render::LocalLight &light = sceneLights[i];
+            // Row vectors: the 4th row is the translation, the 3rd is where the object's +Z axis points
+            const XMFLOAT4X4 &world = scene.Object(lightObjects[i]).world;
+            const XMFLOAT3 position{world._41, world._42, world._43};
+            if (light.type == render::LightType::Point) {
+                lights.points.push_back({.light = light, .position = position});
+            } else {
+                // The row's length is the object's scale along Z, which must not change the light
+                XMFLOAT3 direction{};
+                XMStoreFloat3(&direction, XMVector3Normalize(XMVectorSet(world._31, world._32, world._33, 0.0f)));
+                lights.spots.push_back({.light = light, .position = position, .direction = direction});
             }
         }
     }

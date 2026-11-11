@@ -10,6 +10,7 @@
 
 #ifdef __cplusplus
 #include <bit>
+#include <cstddef>
 #include <cstdint>
 
 #include <DirectXMath.h>
@@ -29,14 +30,59 @@ struct DrawConstants
     uint instanceBufferIndex; // bindless index of the draw's StructuredBuffer<InstanceData>
 };
 
-// Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli)
+// How many point and spot lights one frame can have. The CPU keeps the first ones and drops the rest.
+static const uint kMaxPointLights = 8;
+static const uint kMaxSpotLights = 4;
+
+// A light that shines from one point in all directions
+struct PointLightData
+{
+    float3 position; // world space
+    float  strength;
+    float3 color;
+    float  pad0;
+    float3 attenuation; // light / (x + y * distance + z * distance^2)
+    float  pad1;
+};
+
+// A light that shines from one point in a cone: full strength inside the inner cone, fading to nothing at the outer
+struct SpotLightData
+{
+    float3 position; // world space
+    float  strength;
+    float3 direction; // where it points, world space, unit length
+    float  innerCos;  // cosine of the inner cone's half angle; always greater than outerCos
+    float3 color;
+    float  outerCos;
+    float3 attenuation; // as in PointLightData
+    float  pad0;
+};
+
+// Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli).
+// The lights are filled by render::PackLights (renderdata/LightPacking.h).
 struct FrameConstants
 {
     float4x4 view;
     float4x4 projection;
     float4x4 viewProjection;
     float3   cameraPosition; // world space
-    uint     pad0;
+    uint     pointLightCount;
+
+    // Light that reaches every surface from all sides
+    float3 ambientColor;
+    float  ambientStrength;
+    // Highlights: their colour and how tight they are. The same for every material for now.
+    float3 specularColor;
+    float  shininess;
+
+    // One light without a position, like the sun
+    float3 directionalDirection; // where it shines, world space, unit length
+    float  directionalStrength;  // 0 when the light is off
+    float3 directionalColor;
+    uint   spotLightCount;
+
+    PointLightData pointLights[kMaxPointLights]; // the first pointLightCount are used
+    SpotLightData  spotLights[kMaxSpotLights];   // the first spotLightCount are used
 };
 
 // Per-object data: one element of a StructuredBuffer<InstanceData>. Objects that move are written into the UploadRing
@@ -49,6 +95,24 @@ struct InstanceData
 
 #ifdef __cplusplus
     static_assert(sizeof(FrameConstants) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
+    // HLSL starts every array element on a new 16-byte row, so the light structs must fill whole rows
+    static_assert(sizeof(PointLightData) == 48, "PointLightData must match its HLSL layout");
+    static_assert(sizeof(SpotLightData) == 64, "SpotLightData must match its HLSL layout");
+    // Where HLSL puts each member after the matrices. C++ packs the same way only while every float3 is followed
+    // by a 4-byte field; these fail if a change breaks that.
+    static_assert(offsetof(FrameConstants, cameraPosition) == 192);
+    static_assert(offsetof(FrameConstants, pointLightCount) == 204);
+    static_assert(offsetof(FrameConstants, ambientColor) == 208);
+    static_assert(offsetof(FrameConstants, ambientStrength) == 220);
+    static_assert(offsetof(FrameConstants, specularColor) == 224);
+    static_assert(offsetof(FrameConstants, shininess) == 236);
+    static_assert(offsetof(FrameConstants, directionalDirection) == 240);
+    static_assert(offsetof(FrameConstants, directionalStrength) == 252);
+    static_assert(offsetof(FrameConstants, directionalColor) == 256);
+    static_assert(offsetof(FrameConstants, spotLightCount) == 268);
+    static_assert(offsetof(FrameConstants, pointLights) == 272);
+    static_assert(offsetof(FrameConstants, spotLights) == 656);
+    static_assert(sizeof(FrameConstants) == 912);
     // sizeof(InstanceData) is the SRV stride. The SRV's first element is (upload offset / stride), so instance
     // data is allocated aligned to the stride.
     static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");

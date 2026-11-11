@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "SandboxLights.h"
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
@@ -119,6 +120,7 @@ namespace {
         engine::scene::CameraController cameraController;
 
         engine::render::RenderList renderList; // this frame's movable objects
+        engine::render::LightSet lights;       // this frame's lights
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
@@ -218,6 +220,9 @@ namespace {
                 }
             }
         }
+        // The lights stand between and behind the cubes
+        sandbox::AddDefaultLights(scene, cubesZ);
+
         // The smoke test selects a cube so that the gizmo runs every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
@@ -347,9 +352,10 @@ namespace {
 
             renderList.Clear();
             engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
+            engine::scene::Extract(scene, lights);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            renderer.Render(frameView, renderList, staticLists);
+            renderer.Render(frameView, lights, renderList, staticLists);
             renderer.RenderUi(uiDrawData); // on top of the scene
             renderer.EndFrame();
             ++framesRendered;

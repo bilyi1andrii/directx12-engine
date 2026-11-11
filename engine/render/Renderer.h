@@ -30,6 +30,7 @@
 #include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
+#include "renderdata/Lights.h"
 #include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
@@ -43,7 +44,7 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, lights, list, staticLists) -> [RenderUi(drawData)]
     // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU
     // was lost, the destructor logs why (and the DRED info in Debug builds).
     //
@@ -73,7 +74,9 @@ namespace engine::render {
         }
 
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
-        void Render(const FrameView &view, const RenderList &list, std::span<const StaticListHandle> staticLists = {});
+        // and lit by `lights`
+        void Render(const FrameView &view, const LightSet &lights, const RenderList &list,
+                    std::span<const StaticListHandle> staticLists = {});
 
         // Uploads the objects of `list` once into GPU memory. Pass the handle to Render
         // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.

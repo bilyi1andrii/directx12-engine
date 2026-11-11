@@ -21,6 +21,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "render/UiRenderer.h"
+#include "renderdata/LightPacking.h"
 #include "renderdata/Vertex.h"
 #include "rhi/UploadRing.h"
 
@@ -80,8 +81,9 @@ namespace engine::render {
         };
 
         // The shader's view of FrameView: matrices transposed (DirectXMath uses row vectors, HLSL reads
-        // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection
-        gpu::FrameConstants MakeFrameConstants(const FrameView &view) {
+        // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection.
+        // And the frame's lights.
+        gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
 
             const XMMATRIX viewMatrix = XMLoadFloat4x4(&view.view);
@@ -92,6 +94,7 @@ namespace engine::render {
             XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
             XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(viewMatrix * projection));
             constants.cameraPosition = view.cameraPosition;
+            PackLights(lights, constants);
             return constants;
         }
     } // namespace
@@ -288,7 +291,7 @@ namespace engine::render {
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
     }
 
-    void Renderer::Render(const FrameView &view, const RenderList &list,
+    void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
                           std::span<const StaticListHandle> staticLists) {
         // Render makes the back buffer writable, and that transition must happen once per frame
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Begun, "Render must run once, after BeginFrame, in frame {}",
@@ -311,7 +314,7 @@ namespace engine::render {
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
-        const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
+        const gpu::FrameConstants frameConstants = MakeFrameConstants(view, lights);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
@@ -536,11 +539,11 @@ namespace engine::render {
 
         m_pipelineByFormat[static_cast<size_t>(VertexFormat::Mesh)] = m_pipelines.Get({
             .vertexShader = L"vs_mesh.cso",
-            .pixelShader = L"ps_unlit.cso",
+            .pixelShader = L"ps_light.cso",
             .inputLayout = kVertexLayout,
             .renderTargetFormats = kBackBufferTargets,
             .depthFormat = rhi::DepthBuffer::kFormat,
-            .name = L"Unlit textured PSO",
+            .name = L"Lit textured PSO",
         });
     }
 

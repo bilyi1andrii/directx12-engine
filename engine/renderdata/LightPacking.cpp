@@ -1,0 +1,83 @@
+#include "renderdata/LightPacking.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
+
+#include <DirectXMath.h>
+
+#include "common/shared_types.hlsli"
+
+namespace engine::render {
+    namespace {
+        // `direction` at unit length; straight down if it has no length
+        [[nodiscard]] DirectX::XMFLOAT3 UnitDirection(const DirectX::XMFLOAT3 &direction) {
+            using namespace DirectX;
+
+            const XMVECTOR vector = XMLoadFloat3(&direction);
+            XMFLOAT3 result{0.0f, -1.0f, 0.0f};
+            if (XMVectorGetX(XMVector3LengthSq(vector)) > 1e-12f) {
+                XMStoreFloat3(&result, XMVector3Normalize(vector));
+            }
+            return result;
+        }
+    } // namespace
+
+    void PackLights(const LightSet &lights, gpu::FrameConstants &constants) {
+        const LightEnvironment &environment = lights.environment;
+        constants.ambientColor = environment.ambientColor;
+        constants.ambientStrength = environment.ambientStrength;
+        constants.specularColor = environment.specularColor;
+        // The shader computes pow(x, shininess) with x from 0 on, and pow(0, 0) is not a number
+        constants.shininess = std::max(environment.shininess, 1.0f);
+
+        const DirectionalLight &directional = environment.directional;
+        constants.directionalDirection = UnitDirection(directional.direction);
+        constants.directionalColor = directional.color;
+        // The shader has no on/off flag: a light of strength 0 adds nothing
+        constants.directionalStrength = directional.enabled ? directional.strength : 0.0f;
+
+        uint32_t pointCount = 0;
+        for (const PointLight &point : lights.points) {
+            if (!point.light.enabled) {
+                continue;
+            }
+            if (pointCount == gpu::kMaxPointLights) {
+                break;
+            }
+            gpu::PointLightData &data = constants.pointLights[pointCount++];
+            data.position = point.position;
+            data.strength = point.light.strength;
+            data.color = point.light.color;
+            data.attenuation = point.light.attenuation;
+        }
+        constants.pointLightCount = pointCount;
+
+        uint32_t spotCount = 0;
+        for (const SpotLight &spot : lights.spots) {
+            if (!spot.light.enabled) {
+                continue;
+            }
+            if (spotCount == gpu::kMaxSpotLights) {
+                break;
+            }
+            // The shader divides by innerCos - outerCos, so the inner cone must stay inside the outer one, with
+            // a small gap when both angles are equal (a hard edge)
+            constexpr float kMinCosGap = 1e-4f;
+            const float outerDegrees = std::clamp(spot.light.outerAngleDegrees, 0.0f, 90.0f);
+            const float innerDegrees = std::clamp(spot.light.innerAngleDegrees, 0.0f, outerDegrees);
+            const float outerCos = std::cos(DirectX::XMConvertToRadians(outerDegrees));
+            const float innerCos = std::cos(DirectX::XMConvertToRadians(innerDegrees));
+
+            gpu::SpotLightData &data = constants.spotLights[spotCount++];
+            data.position = spot.position;
+            data.strength = spot.light.strength;
+            data.direction = UnitDirection(spot.direction);
+            data.innerCos = std::max(innerCos, outerCos + kMinCosGap);
+            data.color = spot.light.color;
+            data.outerCos = outerCos;
+            data.attenuation = spot.light.attenuation;
+        }
+        constants.spotLightCount = spotCount;
+    }
+} // namespace engine::render

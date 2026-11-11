@@ -134,6 +134,8 @@ namespace {
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
         const engine::render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
+        // The default lighting: ambient and the directional light, no point or spot lights
+        const engine::render::LightSet lights;
 
         BenchRun run{.adapterName = renderer.AdapterName(),
                      .driverVersion = renderer.DriverVersion(),
@@ -177,7 +179,7 @@ namespace {
             const Clock::time_point recordStart = Clock::now();
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
-            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), lights, renderList,
                             grid.StaticLists());
             const Clock::time_point recordEnd = Clock::now();
             if (frame >= options.warmupFrames) {
