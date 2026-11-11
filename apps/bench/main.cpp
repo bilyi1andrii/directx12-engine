@@ -77,7 +77,17 @@ namespace {
         size_t objectCount = 0;
         size_t partCount = 0;       // of one object
         uint64_t triangleCount = 0; // of all objects: what one frame draws
+        std::string lights;         // how many lights of each kind shine
     };
+
+    // For run.txt: the lights that are switched on, e.g. "1 directional, 2 point, 2 spot"
+    std::string DescribeLights(const engine::render::LightSet &lights) {
+        const auto enabled = [](const auto &light) {
+            return light.light.enabled;
+        };
+        return std::format("{} directional, {} point, {} spot", lights.environment.directional.enabled ? 1 : 0,
+                           std::ranges::count_if(lights.points, enabled), std::ranges::count_if(lights.spots, enabled));
+    }
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
     std::expected<const engine::render::Model *, std::string> LoadGridModel(const BenchOptions &options,
@@ -134,8 +144,7 @@ namespace {
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
         const engine::render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
-        // The default lighting: ambient and the directional light, no point or spot lights
-        const engine::render::LightSet lights;
+        const engine::render::LightSet lights = grid.Lights();
 
         BenchRun run{.adapterName = renderer.AdapterName(),
                      .driverVersion = renderer.DriverVersion(),
@@ -144,7 +153,8 @@ namespace {
                      .tearingSupported = renderer.TearingSupported(),
                      .objectCount = grid.ObjectCount(),
                      .partCount = (*model)->parts.size(),
-                     .triangleCount = grid.ObjectCount() * (*model)->triangleCount};
+                     .triangleCount = grid.ObjectCount() * (*model)->triangleCount,
+                     .lights = DescribeLights(lights)};
         LogInfo("Bench: {}x{}, {} warm-up + {} measured frames", run.width, run.height, options.warmupFrames,
                 options.frames);
 
@@ -206,6 +216,7 @@ namespace {
             {"parts", std::format("{}", run.partCount)},
             {"instances", std::format("{}", run.objectCount * run.partCount)},
             {"triangles", std::format("{}", run.triangleCount)},
+            {"lights", run.lights},
             {"draw_path", instanced ? "instanced" : "non-instanced"},
             {"resolution", std::format("{}x{}", run.width, run.height)},
             {"window", "borderless fullscreen"},
