@@ -1,10 +1,12 @@
-# engine_ui: the debug UI (Dear ImGui panels that write RendererSettings). CPU only: owns the ImGui context and
-# its Win32 platform backend; drawing is engine_render's job (UiRenderer). Must never link engine_rhi, engine_render,
-# d3d12 or dxgi.
+# engine_ui: the debug UI (Dear ImGui panels that edit RendererSettings and other plain engine_renderdata structs,
+# such as the lights). CPU only: owns the ImGui context and its Win32 platform backend; drawing is
+# engine_render's job (UiRenderer). Must never link engine_rhi, engine_render, d3d12 or dxgi.
 
 add_library(engine_ui STATIC
         DebugUI.cpp
-        DebugUI.h)
+        DebugUI.h
+        LightsWindow.cpp
+        LightsWindow.h)
 
 engine_target_defaults(engine_ui)
 
@@ -12,7 +14,7 @@ engine_target_defaults(engine_ui)
 target_include_directories(engine_ui PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 
 # PUBLIC: DebugUI.h uses core::Window and RendererSettings (engine_renderdata, not engine_render: the UI writes
-# settings, it never calls the renderer). PRIVATE: only DebugUI.cpp includes ImGui and ImGuizmo (the gizmo)
+# settings, it never calls the renderer). PRIVATE: only the .cpp files include ImGui and ImGuizmo (the gizmo)
 target_link_libraries(engine_ui
         PUBLIC
         engine_core

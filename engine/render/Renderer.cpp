@@ -21,6 +21,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "render/UiRenderer.h"
+#include "renderdata/LightPacking.h"
 #include "renderdata/Vertex.h"
 #include "rhi/UploadRing.h"
 
@@ -79,9 +80,9 @@ namespace engine::render {
             },
         };
 
-        // The shader's view of FrameView: matrices transposed (DirectXMath uses row vectors, HLSL reads
-        // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection
-        gpu::FrameConstants MakeFrameConstants(const FrameView &view) {
+        // The camera and the lights in the layout the shaders read. Matrices are transposed: DirectXMath uses row
+        // vectors, and HLSL reads matrices column-major, so shaders compute mul(v, M).
+        gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
 
             const XMMATRIX viewMatrix = XMLoadFloat4x4(&view.view);
@@ -92,6 +93,7 @@ namespace engine::render {
             XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
             XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(viewMatrix * projection));
             constants.cameraPosition = view.cameraPosition;
+            PackLights(lights, constants);
             return constants;
         }
     } // namespace
@@ -118,6 +120,8 @@ namespace engine::render {
         m_upload.Begin(m_queue);
         try {
             CreateFallbackTexture();
+            // Material 0, so a default MaterialHandle draws the grey texture
+            m_materials.push_back(MaterialInfo{.albedo = m_unloadedTexture});
             m_upload.Submit(m_queue);
         } catch (...) {
             // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
@@ -209,6 +213,13 @@ namespace engine::render {
         return handle;
     }
 
+    MaterialHandle Renderer::CreateMaterial(const MaterialInfo &material) {
+        ENGINE_ASSERT_MSG(std::to_underlying(material.shading) < kShadingCount, "Material with unknown shading {}",
+                          std::to_underlying(material.shading));
+        m_materials.push_back(material);
+        return MaterialHandle{.index = static_cast<uint32_t>(m_materials.size() - 1)};
+    }
+
     void Renderer::CreateFallbackTexture() {
         // Before any other texture, so it gets bindless index 0: a default handle then points to a texture
         m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
@@ -288,7 +299,7 @@ namespace engine::render {
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
     }
 
-    void Renderer::Render(const FrameView &view, const RenderList &list,
+    void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
                           std::span<const StaticListHandle> staticLists) {
         // Render makes the back buffer writable, and that transition must happen once per frame
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Begun, "Render must run once, after BeginFrame, in frame {}",
@@ -311,7 +322,7 @@ namespace engine::render {
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
-        const gpu::FrameConstants frameConstants = MakeFrameConstants(view);
+        const gpu::FrameConstants frameConstants = MakeFrameConstants(view, lights);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
@@ -430,9 +441,10 @@ namespace engine::render {
         for (const InstanceDraw &draw : draws) {
             const GpuMesh &mesh = Mesh(draw.key.mesh);
             const GpuGeometry &geometry = m_geometries[mesh.geometry];
+            const MaterialInfo &material = Material(draw.key.material);
             // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the geometry's vertex
             // format and on the material, so it is checked for every draw.
-            const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, draw.key.material);
+            const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, material);
             if (pipeline != currentPipeline) {
                 m_context.SetPipelineState(m_pipelines.Native(pipeline));
                 currentPipeline = pipeline;
@@ -447,7 +459,7 @@ namespace engine::render {
 
             // Every draw reads indexCount indices from firstIndex on, and the GPU adds baseVertex to each
             gpu::DrawConstants constants{.instanceOffset = draw.firstElement,
-                                         .materialIndex = draw.key.material.index,
+                                         .materialIndex = material.albedo.index,
                                          .instanceBufferIndex = draw.instanceBufferIndex};
             if (m_settings.drawPath == DrawPath::Instanced) {
                 // One draw for all `count` objects: object i reads element instanceOffset + SV_InstanceID (= i)
@@ -471,6 +483,12 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(handle.index < m_meshes.size(), "Mesh handle {} out of range ({} meshes)", handle.index,
                           m_meshes.size());
         return m_meshes[handle.index];
+    }
+
+    const MaterialInfo &Renderer::Material(MaterialHandle handle) const {
+        ENGINE_ASSERT_MSG(handle.index < m_materials.size(), "Material handle {} out of range ({} materials)",
+                          handle.index, m_materials.size());
+        return m_materials[handle.index];
     }
 
     const Renderer::GpuStaticList &Renderer::StaticList(StaticListHandle handle) const {
@@ -534,19 +552,40 @@ namespace engine::render {
     void Renderer::CreatePipelines() {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
-        m_pipelineByFormat[static_cast<size_t>(VertexFormat::Mesh)] = m_pipelines.Get({
-            .vertexShader = L"vs_mesh.cso",
-            .pixelShader = L"ps_unlit.cso",
-            .inputLayout = kVertexLayout,
-            .renderTargetFormats = kBackBufferTargets,
-            .depthFormat = rhi::DepthBuffer::kFormat,
-            .name = L"Unlit textured PSO",
-        });
+        // A PSO fixes the pixel shader and the cull mode; a command list cannot change them between draws.
+        // So each combination a material can ask for gets its own PSO, created here so no frame waits for one.
+        struct Variant {
+            Shading shading;
+            bool doubleSided;
+            std::wstring_view pixelShader;
+            std::wstring_view name;
+        };
+        constexpr std::array kVariants{
+            Variant{Shading::Lit, false, L"ps_light.cso", L"Lit PSO"},
+            Variant{Shading::Lit, true, L"ps_light.cso", L"Lit two-sided PSO"},
+            Variant{Shading::Unlit, false, L"ps_unlit.cso", L"Unlit PSO"},
+            Variant{Shading::Unlit, true, L"ps_unlit.cso", L"Unlit two-sided PSO"},
+        };
+        ShadingPipelines &meshPipelines = m_pipelinesByFormat[std::to_underlying(VertexFormat::Mesh)];
+        for (const Variant &variant : kVariants) {
+            meshPipelines[std::to_underlying(variant.shading)][variant.doubleSided ? 1 : 0] = m_pipelines.Get({
+                .vertexShader = L"vs_mesh.cso",
+                .pixelShader = variant.pixelShader,
+                .inputLayout = kVertexLayout,
+                .cull = variant.doubleSided ? rhi::CullMode::None : rhi::CullMode::Back,
+                .renderTargetFormats = kBackBufferTargets,
+                .depthFormat = rhi::DepthBuffer::kFormat,
+                .name = variant.name,
+            });
+        }
     }
 
-    rhi::PipelineHandle Renderer::PipelineFor(VertexFormat format, MaterialHandle /*material*/) const {
-        const rhi::PipelineHandle pipeline = m_pipelineByFormat[static_cast<size_t>(format)];
-        ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}", static_cast<int>(format));
+    rhi::PipelineHandle Renderer::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
+        const rhi::PipelineHandle pipeline =
+            m_pipelinesByFormat[std::to_underlying(format)][std::to_underlying(material.shading)]
+                               [material.doubleSided ? 1 : 0];
+        ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}, shading {}", std::to_underlying(format),
+                          std::to_underlying(material.shading));
         return pipeline;
     }
 } // namespace engine::render

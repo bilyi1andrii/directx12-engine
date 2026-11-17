@@ -11,6 +11,7 @@ add_executable(engine_tests
         FileTests.cpp
         GridLayoutTests.cpp
         InstanceChunksTests.cpp
+        LightPackingTests.cpp
         ModelDataTests.cpp
         ModelImporterTests.cpp
         PickingTests.cpp
@@ -23,6 +24,9 @@ add_executable(engine_tests
         Utf8Tests.cpp)
 
 engine_target_defaults(engine_tests)
+
+# LightPackingTests.cpp includes "common/shared_types.hlsli" to read what PackLights wrote
+target_include_directories(engine_tests PRIVATE "${PROJECT_SOURCE_DIR}/shaders")
 
 target_link_libraries(engine_tests PRIVATE
         bench_output

@@ -4,12 +4,16 @@
 #include <DirectXMath.h>
 #include <gtest/gtest.h>
 
+#include "renderdata/Lights.h"
 #include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 #include "scene/Scene.h"
 
 using engine::render::Aabb;
 using engine::render::BatchKey;
+using engine::render::LightSet;
+using engine::render::LightType;
+using engine::render::LocalLight;
 using engine::render::MaterialHandle;
 using engine::render::MeshHandle;
 using engine::render::Model;
@@ -172,4 +176,72 @@ TEST(Scene, SetObjectMaterialChangesOnlyThatObject) {
     EXPECT_EQ(scene.Renderers()[0].material, MaterialHandle{9});
     EXPECT_EQ(scene.Renderers()[1].material, MaterialHandle{9});
     EXPECT_EQ(scene.Renderers()[2].material, MaterialHandle{3});
+}
+
+// A light stands at its object's translation. The object is scaled unevenly and then turned 90 degrees around Y
+// (+Z becomes +X), so a spot light points along +X, at unit length whatever the scale.
+TEST(Scene, ExtractPlacesLightsWhereTheirObjectsStand) {
+    Scene scene;
+    scene.AddLight("point", Model{}, Store(DirectX::XMMatrixTranslation(1, 2, 3)),
+                   LocalLight{.type = LightType::Point, .strength = 3.5f});
+    scene.AddLight("spot", Model{},
+                   Store(DirectX::XMMatrixScaling(2, 3, 5) * DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) *
+                         DirectX::XMMatrixTranslation(4, 5, 6)),
+                   LocalLight{.type = LightType::Spot, .strength = 1.5f});
+
+    LightSet lights;
+    Extract(scene, lights);
+
+    constexpr float kTolerance = 1e-5f;
+    ASSERT_EQ(lights.points.size(), 1u);
+    EXPECT_EQ(lights.points[0].light.strength, 3.5f);
+    EXPECT_EQ(lights.points[0].position.x, 1.0f);
+    EXPECT_EQ(lights.points[0].position.y, 2.0f);
+    EXPECT_EQ(lights.points[0].position.z, 3.0f);
+    ASSERT_EQ(lights.spots.size(), 1u);
+    EXPECT_EQ(lights.spots[0].light.strength, 1.5f);
+    EXPECT_EQ(lights.spots[0].position.x, 4.0f);
+    EXPECT_EQ(lights.spots[0].position.z, 6.0f);
+    EXPECT_NEAR(lights.spots[0].direction.x, 1.0f, kTolerance);
+    EXPECT_NEAR(lights.spots[0].direction.y, 0.0f, kTolerance);
+    EXPECT_NEAR(lights.spots[0].direction.z, 0.0f, kTolerance);
+}
+
+// Moving the object moves its light: there is no second copy of the position to keep in step
+TEST(Scene, ExtractFollowsAMovedLightAndReplacesTheOldList) {
+    Scene scene;
+    scene.Environment().ambientStrength = 0.75f;
+    const ObjectId id = scene.AddLight("point", Model{}, Store(DirectX::XMMatrixIdentity()), LocalLight{});
+    LightSet lights;
+    Extract(scene, lights);
+
+    scene.SetObjectPosition(id, {7, 8, 9});
+    Extract(scene, lights);
+
+    EXPECT_EQ(lights.environment.ambientStrength, 0.75f);
+    ASSERT_EQ(lights.points.size(), 1u); // not added a second time
+    EXPECT_EQ(lights.points[0].position.x, 7.0f);
+    EXPECT_EQ(lights.points[0].position.y, 8.0f);
+    EXPECT_EQ(lights.points[0].position.z, 9.0f);
+}
+
+// A disabled light is still extracted, so that what the renderer gets is the scene as it is
+TEST(Scene, OnlyLightObjectsHaveALight) {
+    Scene scene;
+    const ObjectId cube = AddCube(scene, ModelPart{}, 1);
+    const ObjectId lamp = scene.AddLight("lamp", Model{.parts = {ModelPart{}}}, Store(DirectX::XMMatrixIdentity()),
+                                         LocalLight{.type = LightType::Spot});
+
+    EXPECT_EQ(scene.Light(cube), nullptr);
+    ASSERT_NE(scene.Light(lamp), nullptr);
+    EXPECT_EQ(scene.Object(lamp).mobility, Mobility::Movable);
+    EXPECT_EQ(scene.Object(lamp).entityCount, 1u); // its marker is drawn and picked like any object
+
+    scene.Light(lamp)->enabled = false;
+    LightSet lights;
+    Extract(scene, lights);
+
+    EXPECT_TRUE(lights.points.empty());
+    ASSERT_EQ(lights.spots.size(), 1u);
+    EXPECT_FALSE(lights.spots[0].light.enabled);
 }

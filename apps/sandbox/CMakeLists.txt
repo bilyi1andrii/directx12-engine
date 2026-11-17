@@ -14,6 +14,8 @@ target_link_libraries(sandbox_save
 
 add_executable(sandbox
         main.cpp
+        SandboxLights.cpp
+        SandboxLights.h
         SandboxOptions.cpp
         SandboxOptions.h
         SandboxScene.cpp

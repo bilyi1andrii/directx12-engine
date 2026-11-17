@@ -17,9 +17,11 @@ using engine::assets::AssetCache;
 using engine::assets::TextureUsage;
 using engine::core::ErrorCode;
 using engine::render::MaterialHandle;
+using engine::render::MaterialInfo;
 using engine::render::MeshData;
 using engine::render::MeshHandle;
 using engine::render::Model;
+using engine::render::Shading;
 using engine::render::TextureData;
 using engine::render::TextureHandle;
 using engine::tests::MissingFile;
@@ -45,9 +47,19 @@ namespace {
 
         TextureHandle UnloadedTexture() const noexcept override { return TextureHandle{.index = kUnloaded}; }
 
+        MaterialHandle CreateMaterial(const MaterialInfo &material) override {
+            materials.push_back(material);
+            return MaterialHandle{.index = static_cast<uint32_t>(materials.size() - 1)};
+        }
+
+        // What CreateMaterial was given for `handle`
+        [[nodiscard]] const MaterialInfo &Material(MaterialHandle handle) const { return materials.at(handle.index); }
+
         static constexpr uint32_t kUnloaded = 0;
         int meshUploads = 0;
         std::vector<TextureData> textures; // every texture created, in order
+        // Every material created, in order. Like the renderer, material 0 exists from the start.
+        std::vector<MaterialInfo> materials{MaterialInfo{}};
 
     private:
         uint32_t m_nextMesh = 0;
@@ -123,8 +135,8 @@ TEST(AssetCache, CubeModelsShareOneMeshAndUseTheirTexture) {
     ASSERT_EQ(first.parts.size(), 1u);
     ASSERT_EQ(second.parts.size(), 1u);
     EXPECT_EQ(first.parts[0].mesh, second.parts[0].mesh);
-    EXPECT_EQ(first.parts[0].material, MaterialHandle{.index = 7});
-    EXPECT_EQ(second.parts[0].material, MaterialHandle{.index = 8});
+    EXPECT_EQ(gpu.Material(first.parts[0].material), MaterialInfo{.albedo = TextureHandle{.index = 7}});
+    EXPECT_EQ(gpu.Material(second.parts[0].material), MaterialInfo{.albedo = TextureHandle{.index = 8}});
     EXPECT_EQ(first.bounds.min.x, -1.0f);
     EXPECT_EQ(first.bounds.max.y, 1.0f);
     EXPECT_EQ(first.triangleCount, 12u);
@@ -211,8 +223,8 @@ TEST(AssetCache, MaterialWithoutTextureGetsItsColour) {
     EXPECT_EQ(colour.pixels[1], std::byte{128});
     EXPECT_EQ(colour.pixels[2], std::byte{0});
     ASSERT_EQ(model.parts.size(), 2u);
-    EXPECT_EQ(model.parts[0].material, (MaterialHandle{.index = 1}));
-    EXPECT_EQ(model.parts[1].material, (MaterialHandle{.index = 1}));
+    EXPECT_EQ(model.parts[0].material, model.parts[1].material);
+    EXPECT_EQ(gpu.Material(model.parts[0].material).albedo, TextureHandle{.index = 1});
 }
 
 TEST(AssetCache, BlackMaterialShowsTheGreyTexture) {
@@ -225,7 +237,7 @@ TEST(AssetCache, BlackMaterialShowsTheGreyTexture) {
 
     EXPECT_TRUE(gpu.textures.empty());
     ASSERT_FALSE(model.parts.empty());
-    EXPECT_EQ(model.parts[0].material, (MaterialHandle{.index = FakeUploader::kUnloaded}));
+    EXPECT_EQ(gpu.Material(model.parts[0].material).albedo.index, FakeUploader::kUnloaded);
 }
 
 // Two materials with the same albedo file load it once; a file that is missing becomes the grey texture
@@ -242,9 +254,10 @@ TEST(AssetCache, TextureFilesLoadOnceAndMissingOnesAreGrey) {
     EXPECT_EQ(gpu.textures.size(), 1u);
     ASSERT_EQ(model.parts.size(), 2u);
     EXPECT_EQ(model.parts[0].material, model.parts[1].material);
-    EXPECT_NE(model.parts[0].material, (MaterialHandle{.index = FakeUploader::kUnloaded}));
+    const TextureHandle albedo = gpu.Material(model.parts[0].material).albedo;
+    EXPECT_NE(albedo.index, FakeUploader::kUnloaded);
     // The same file asked for directly: no new texture
-    EXPECT_EQ(cache.LoadTexture(tga.Path(), TextureUsage::Diffuse).index, model.parts[0].material.index);
+    EXPECT_EQ(cache.LoadTexture(tga.Path(), TextureUsage::Diffuse), albedo);
     EXPECT_EQ(gpu.textures.size(), 1u);
 
     EXPECT_EQ(cache.LoadTexture(MissingFile(L"engine_test_cache_none.png"), TextureUsage::Diffuse).index,
@@ -265,5 +278,47 @@ TEST(AssetCache, TextureCountIncludesEmbeddedImages) {
     ASSERT_EQ(gpu.textures.size(), 1u);
     EXPECT_EQ(cache.TextureCount(), 1u);
     ASSERT_EQ(model.parts.size(), 1u);
-    EXPECT_NE(model.parts[0].material, (MaterialHandle{.index = FakeUploader::kUnloaded}));
+    EXPECT_NE(gpu.Material(model.parts[0].material).albedo.index, FakeUploader::kUnloaded);
+}
+
+TEST(AssetCache, EqualMaterialsShareAHandle) {
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+    const TextureHandle texture{.index = 7};
+
+    const MaterialHandle lit = cache.Material(texture);
+    const MaterialHandle unlit = cache.Material(texture, Shading::Unlit);
+    const MaterialHandle twoSided = cache.Material(texture, Shading::Lit, true);
+    const MaterialHandle otherTexture = cache.Material(TextureHandle{.index = 8});
+
+    EXPECT_EQ(cache.Material(texture), lit);
+    EXPECT_EQ(cache.Material(texture, Shading::Unlit), unlit);
+    EXPECT_EQ(cache.Material(texture, Shading::Lit, true), twoSided);
+    // Four different materials, each created once (material 0 was there before)
+    EXPECT_EQ(gpu.materials.size(), 5u);
+    EXPECT_NE(lit, unlit);
+    EXPECT_NE(lit, twoSided);
+    EXPECT_NE(lit, otherTexture);
+    EXPECT_EQ(gpu.Material(unlit), (MaterialInfo{.albedo = texture, .shading = Shading::Unlit}));
+    EXPECT_EQ(gpu.Material(twoSided), (MaterialInfo{.albedo = texture, .doubleSided = true}));
+}
+
+// glTF's "doubleSided" reaches the renderer; a material without it stays one-sided
+TEST(AssetCache, ModelMaterialsPassDoubleSidedOn) {
+    std::string text(kEmbeddedTextureGltf);
+    const std::string_view material = R"("materials": [{)";
+    text.replace(text.find(material), material.size(), R"("materials": [{"doubleSided": true, )");
+    const TempFile twoSidedGltf(L"engine_test_cache_two_sided.gltf", Bytes(text));
+    const TempFile oneSidedGltf(L"engine_test_cache_one_sided.gltf", Bytes(kEmbeddedTextureGltf));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &twoSided = Load(cache, twoSidedGltf.Path());
+    const Model &oneSided = Load(cache, oneSidedGltf.Path());
+
+    ASSERT_EQ(twoSided.parts.size(), 1u);
+    ASSERT_EQ(oneSided.parts.size(), 1u);
+    EXPECT_TRUE(gpu.Material(twoSided.parts[0].material).doubleSided);
+    EXPECT_FALSE(gpu.Material(oneSided.parts[0].material).doubleSided);
+    EXPECT_EQ(gpu.Material(twoSided.parts[0].material).shading, Shading::Lit);
 }

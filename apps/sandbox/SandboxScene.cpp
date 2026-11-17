@@ -149,8 +149,9 @@ namespace sandbox {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
+        const engine::render::MaterialHandle material = assets.Material(texture);
         for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
-            scene.SetObjectMaterial({.index = grid.firstObject + i}, engine::render::MaterialFromTexture(texture));
+            scene.SetObjectMaterial({.index = grid.firstObject + i}, material);
         }
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
@@ -159,7 +160,7 @@ namespace sandbox {
         return RepositoryRoot() / L"saves" / L"sandbox.json";
     }
 
-    std::optional<SandboxSave> LoadSave() {
+    std::optional<SandboxSave> ReadSave() {
         const std::filesystem::path file = SavePath();
         std::expected<SandboxSave, engine::core::Error> save = ReadSandboxSave(file, RepositoryRoot());
         if (save) {

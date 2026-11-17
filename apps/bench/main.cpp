@@ -27,6 +27,7 @@
 #include "rhi/AgilitySdk.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
+#include "renderdata/LightPacking.h"
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
@@ -77,7 +78,14 @@ namespace {
         size_t objectCount = 0;
         size_t partCount = 0;       // of one object
         uint64_t triangleCount = 0; // of all objects: what one frame draws
+        std::string lights;         // how many lights of each kind shine
     };
+
+    // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
+    std::string DescribeLights(const engine::render::LightSet &lights) {
+        const engine::render::PackedLightCounts counts = engine::render::CountPackedLights(lights);
+        return std::format("{} directional, {} point, {} spot", counts.directional, counts.points, counts.spots);
+    }
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
     std::expected<const engine::render::Model *, std::string> LoadGridModel(const BenchOptions &options,
@@ -134,6 +142,7 @@ namespace {
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
         const engine::render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
+        const engine::render::LightSet lights = grid.Lights();
 
         BenchRun run{.adapterName = renderer.AdapterName(),
                      .driverVersion = renderer.DriverVersion(),
@@ -142,7 +151,8 @@ namespace {
                      .tearingSupported = renderer.TearingSupported(),
                      .objectCount = grid.ObjectCount(),
                      .partCount = (*model)->parts.size(),
-                     .triangleCount = grid.ObjectCount() * (*model)->triangleCount};
+                     .triangleCount = grid.ObjectCount() * (*model)->triangleCount,
+                     .lights = DescribeLights(lights)};
         LogInfo("Bench: {}x{}, {} warm-up + {} measured frames", run.width, run.height, options.warmupFrames,
                 options.frames);
 
@@ -177,7 +187,7 @@ namespace {
             const Clock::time_point recordStart = Clock::now();
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
-            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), renderList,
+            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), lights, renderList,
                             grid.StaticLists());
             const Clock::time_point recordEnd = Clock::now();
             if (frame >= options.warmupFrames) {
@@ -204,6 +214,7 @@ namespace {
             {"parts", std::format("{}", run.partCount)},
             {"instances", std::format("{}", run.objectCount * run.partCount)},
             {"triangles", std::format("{}", run.triangleCount)},
+            {"lights", run.lights},
             {"draw_path", instanced ? "instanced" : "non-instanced"},
             {"resolution", std::format("{}x{}", run.width, run.height)},
             {"window", "borderless fullscreen"},

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -11,7 +12,10 @@
 #include "renderdata/MeshData.h"
 
 using DirectX::XMFLOAT3;
+using engine::assets::kSphereBounds;
+using engine::assets::kSphereTriangleCount;
 using engine::assets::MakeCube;
+using engine::assets::MakeSphere;
 using engine::render::MeshData;
 using engine::render::Vertex;
 
@@ -119,5 +123,51 @@ TEST(MakeCube, EveryFaceShowsTheWholeTextureUpright) {
             }
         }
         EXPECT_EQ(uvs.size(), 4u) << "face " << face << " does not use all four corners of the texture";
+    }
+}
+
+TEST(MakeSphere, VerticesLieOnTheUnitSphereWithOutwardNormals) {
+    const MeshData sphere = MakeSphere();
+
+    XMFLOAT3 low{1.0f, 1.0f, 1.0f};
+    XMFLOAT3 high{-1.0f, -1.0f, -1.0f};
+    for (const Vertex &vertex : sphere.vertices) {
+        EXPECT_NEAR(Length(vertex.position), 1.0f, kTolerance);
+        // On a unit sphere around the origin the outward normal is the position
+        EXPECT_NEAR(Length(Sub(vertex.normal, vertex.position)), 0.0f, kTolerance);
+        EXPECT_NEAR(Length(vertex.tangent), 1.0f, kTolerance);
+        EXPECT_NEAR(Dot(vertex.tangent, vertex.normal), 0.0f, kTolerance);
+        low = {std::min(low.x, vertex.position.x), std::min(low.y, vertex.position.y),
+               std::min(low.z, vertex.position.z)};
+        high = {std::max(high.x, vertex.position.x), std::max(high.y, vertex.position.y),
+                std::max(high.z, vertex.position.z)};
+    }
+    // The sphere fills kSphereBounds on every axis
+    EXPECT_NEAR(Length(Sub(low, kSphereBounds.min)), 0.0f, kTolerance);
+    EXPECT_NEAR(Length(Sub(high, kSphereBounds.max)), 0.0f, kTolerance);
+}
+
+TEST(MakeSphere, HasOneSubmeshOfClockwiseTrianglesWithArea) {
+    const MeshData sphere = MakeSphere();
+
+    ASSERT_EQ(sphere.submeshes.size(), 1u);
+    EXPECT_EQ(sphere.submeshes[0].firstIndex, 0u);
+    EXPECT_EQ(sphere.submeshes[0].indexCount, sphere.indices.size());
+    ASSERT_EQ(sphere.indices.size(), kSphereTriangleCount * 3);
+    for (const uint32_t index : sphere.indices) {
+        ASSERT_LT(index, sphere.vertices.size());
+    }
+    for (size_t i = 0; i < sphere.indices.size(); i += 3) {
+        const Vertex &v0 = sphere.vertices[sphere.indices[i]];
+        const Vertex &v1 = sphere.vertices[sphere.indices[i + 1]];
+        const Vertex &v2 = sphere.vertices[sphere.indices[i + 2]];
+        const XMFLOAT3 faceNormal = Cross(Sub(v1.position, v0.position), Sub(v2.position, v0.position));
+        // No triangle is squeezed into a line at the poles
+        EXPECT_GT(Length(faceNormal), 1e-4f) << "triangle " << i / 3;
+        // Clockwise from outside (D3D's front face) <=> the face normal points away from the centre
+        const XMFLOAT3 outward{v0.position.x + v1.position.x + v2.position.x,
+                               v0.position.y + v1.position.y + v2.position.y,
+                               v0.position.z + v1.position.z + v2.position.z};
+        EXPECT_GT(Dot(faceNormal, outward), 0.0f) << "triangle " << i / 3;
     }
 }

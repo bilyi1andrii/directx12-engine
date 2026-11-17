@@ -13,6 +13,7 @@
 #include "common/GridSetup.h"
 #include "render/Renderer.h"
 #include "renderdata/Handles.h"
+#include "renderdata/Lights.h"
 #include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 #include "scene/CameraPath.h"
@@ -40,6 +41,10 @@ namespace engine::bench {
         // The bench's camera path: one loop around the grid in kStressPathFrames frames, always looking at its
         // centre. Distance and height grow with the grid. The DX11 engine copies this formula.
         [[nodiscard]] std::array<scene::CameraKeyframe, 5> CameraPath() const noexcept;
+
+        // The bench lights: ambient, specular and directional light,
+        // plus two point and two spot lights
+        [[nodiscard]] render::LightSet Lights() const;
 
     private:
         apps::GridMode m_mode;

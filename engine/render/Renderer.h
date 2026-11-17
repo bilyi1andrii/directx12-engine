@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "rhi/Allocator.h"
@@ -30,6 +31,8 @@
 #include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
 #include "renderdata/InstanceChunks.h"
+#include "renderdata/Lights.h"
+#include "renderdata/Material.h"
 #include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
@@ -43,7 +46,7 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, list, staticLists) -> [RenderUi(drawData)]
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, lights, list, staticLists) -> [RenderUi(drawData)]
     // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU
     // was lost, the destructor logs why (and the DRED info in Debug builds).
     //
@@ -73,7 +76,9 @@ namespace engine::render {
         }
 
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
-        void Render(const FrameView &view, const RenderList &list, std::span<const StaticListHandle> staticLists = {});
+        // and lit by `lights`
+        void Render(const FrameView &view, const LightSet &lights, const RenderList &list,
+                    std::span<const StaticListHandle> staticLists = {});
 
         // Uploads the objects of `list` once into GPU memory. Pass the handle to Render
         // every frame to draw them; `list` can be cleared afterwards. Lives as long as the renderer.
@@ -89,6 +94,10 @@ namespace engine::render {
 
         // 1x1 grey fallback for a texture that failed to load
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
+
+        // Adds `material` to the material table. The handle works in the same frame and as long as the renderer.
+        // Costs no GPU memory: an entry is only the albedo's index and the choice of PSO.
+        [[nodiscard]] MaterialHandle CreateMaterial(const MaterialInfo &material) override;
 
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
         // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
@@ -165,6 +174,8 @@ namespace engine::render {
 
         [[nodiscard]] const GpuMesh &Mesh(MeshHandle handle) const;
 
+        [[nodiscard]] const MaterialInfo &Material(MaterialHandle handle) const;
+
         [[nodiscard]] const GpuStaticList &StaticList(StaticListHandle handle) const;
 
         // Takes ownership of `geometry`; returns its index in m_geometries
@@ -174,7 +185,7 @@ namespace engine::render {
 
         void CreatePipelines();
 
-        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, MaterialHandle material) const;
+        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 
         // Makes sure an upload batch is open for `bytes` more staging memory. Submits the open batch first if it
         // would grow past 64 MB, so staging memory stays bounded while large models and textures load.
@@ -229,13 +240,16 @@ namespace engine::render {
 
         // The global root signature and every PSO
         rhi::PipelineCache m_pipelines;
-        // Filled by CreatePipelines; indexed by VertexFormat
-        std::array<rhi::PipelineHandle, static_cast<size_t>(VertexFormat::Count)> m_pipelineByFormat;
+        // PSOs by [vertex format][shading][doubleSided ? 1 : 0]. Filled by CreatePipelines, read through PipelineFor.
+        using ShadingPipelines = std::array<std::array<rhi::PipelineHandle, 2>, kShadingCount>;
+        std::array<ShadingPipelines, std::to_underlying(VertexFormat::Count)> m_pipelinesByFormat;
         std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
+        // Indexed by MaterialHandle::index. Entry 0 is the grey texture, lit, so a default handle draws something.
+        std::vector<MaterialInfo> m_materials;
 
         // Released after the destructor's flush, before the allocator
         std::vector<GpuStaticList> m_staticLists;

@@ -29,14 +29,59 @@ struct DrawConstants
     uint instanceBufferIndex; // bindless index of the draw's StructuredBuffer<InstanceData>
 };
 
-// Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli)
+// How many point and spot lights one frame can have. The CPU keeps the first ones and drops the rest.
+static const uint kMaxPointLights = 8;
+static const uint kMaxSpotLights = 4;
+
+// A light that shines from one point in all directions
+struct PointLightData
+{
+    float3 position; // world space
+    float  strength;
+    float3 color;
+    float  pad0;
+    float3 attenuation; // light / (x + y * distance + z * distance^2)
+    float  pad1;
+};
+
+// A light that shines from one point in a cone: full strength inside the inner cone, fading to nothing at the outer
+struct SpotLightData
+{
+    float3 position; // world space
+    float  strength;
+    float3 direction; // where it points, world space, unit length
+    float  innerCos;  // cosine of the inner cone's half angle; always greater than outerCos
+    float3 color;
+    float  outerCos;
+    float3 attenuation; // as in PointLightData
+    float  pad0;
+};
+
+// Per-frame constants, root CBV b1 (gpu::kRootFrameConstants, common/root_signature.hlsli).
+// The lights are filled by render::PackLights (renderdata/LightPacking.h).
 struct FrameConstants
 {
     float4x4 view;
     float4x4 projection;
     float4x4 viewProjection;
     float3   cameraPosition; // world space
-    uint     pad0;
+    uint     pointLightCount;
+
+    // Light that reaches every surface from all sides
+    float3 ambientColor;
+    float  ambientStrength;
+    // Highlights: their colour and how tight they are. The same for every material for now.
+    float3 specularColor;
+    float  shininess;
+
+    // One light without a position, like the sun
+    float3 directionalDirection; // where it shines, world space, unit length
+    float  directionalStrength;  // 0 when the light is off
+    float3 directionalColor;
+    uint   spotLightCount;
+
+    PointLightData pointLights[kMaxPointLights]; // the first pointLightCount are used
+    SpotLightData  spotLights[kMaxSpotLights];   // the first spotLightCount are used
 };
 
 // Per-object data: one element of a StructuredBuffer<InstanceData>. Objects that move are written into the UploadRing
@@ -49,6 +94,9 @@ struct InstanceData
 
 #ifdef __cplusplus
     static_assert(sizeof(FrameConstants) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
+    // HLSL starts every array element on a new 16-byte row
+    static_assert(sizeof(PointLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
+    static_assert(sizeof(SpotLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     // sizeof(InstanceData) is the SRV stride. The SRV's first element is (upload offset / stride), so instance
     // data is allocated aligned to the stride.
     static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");

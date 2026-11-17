@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "SandboxLights.h"
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
@@ -37,6 +38,7 @@
 #include "scene/Picking.h"
 #include "scene/Scene.h"
 #include "ui/DebugUI.h"
+#include "ui/LightsWindow.h"
 
 using engine::core::LogError;
 using engine::core::LogInfo;
@@ -109,7 +111,7 @@ namespace {
         }
 
         const bool keepScene = !smokeTestFrames && !options.modelPath;
-        const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::LoadSave() : std::nullopt;
+        const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::ReadSave() : std::nullopt;
 
         // Looks at the cube from above and to the side, so three faces are visible
         engine::scene::Camera camera;
@@ -119,6 +121,7 @@ namespace {
         engine::scene::CameraController cameraController;
 
         engine::render::RenderList renderList; // this frame's movable objects
+        engine::render::LightSet lights;       // this frame's lights
 
         // Destroyed before the renderer, which owns what the cache created
         engine::assets::AssetCache assets(renderer);
@@ -218,10 +221,12 @@ namespace {
                 }
             }
         }
-        // The smoke test selects a cube so that the gizmo runs every frame
+        // The lights stand between and behind the cubes
+        sandbox::AddDefaultLights(scene, assets, cubesZ);
+
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
-            selected = orangeCube;
+            selected = scene.LightObjects().front();
         }
 
         // Edited by the renderer window and the shortcuts I and V; the renderer takes a copy in BeginFrame
@@ -330,6 +335,12 @@ namespace {
             } else {
                 ui.ShowEmptySelectionWindow();
             }
+            // Lights are scene data: the window edits them in place, and this frame's Extract passes them on
+            if (engine::ui::ShowLightsWindow(scene.Environment(),
+                                             selected ? std::string_view(scene.Object(*selected).name) : "",
+                                             selected ? scene.Light(*selected) : nullptr)) {
+                sandbox::RecolorMarker(scene, assets, *selected);
+            }
             ImDrawData *const uiDrawData = ui.Render();
             LogSettingsChanges(previousSettings, settings);
 
@@ -347,9 +358,10 @@ namespace {
 
             renderList.Clear();
             engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
+            engine::scene::Extract(scene, lights);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            renderer.Render(frameView, renderList, staticLists);
+            renderer.Render(frameView, lights, renderList, staticLists);
             renderer.RenderUi(uiDrawData); // on top of the scene
             renderer.EndFrame();
             ++framesRendered;
@@ -415,7 +427,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             smokeTest ? engine::apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
         LogInfo("Exiting with code {}", exitCode);
         return exitCode;
-    } catch (std::exception &e) {
+    } catch (const std::exception &e) {
         LogError("{}", e.what());
         // A dialog would block an unattended run until someone closes it
         if (!smokeTest) {

@@ -30,8 +30,14 @@ VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
     const float4 worldPosition = mul(float4(input.position, 1.0f), world);
     output.position = mul(worldPosition, g_frame.viewProjection);
     output.uv = input.uv;
-    // Same as DX11: wrong for non-uniformly scaled objects. To be fixed when lighting uses the normals.
-    output.normal = normalize(mul(float4(input.normal, 0.0f), world).xyz);
+    // `world` would tilt the normal when the object is stretched more along one axis than another.
+    // The cross products of its rows keep the normal at a right angle to the surface (the cofactor matrix).
+    const float3 axisX = world[0].xyz;
+    const float3 axisY = world[1].xyz;
+    const float3 axisZ = world[2].xyz;
+    output.normal = normalize(input.normal.x * cross(axisY, axisZ) + input.normal.y * cross(axisZ, axisX) +
+                              input.normal.z * cross(axisX, axisY));
+    // A tangent lies in the surface, so `world` itself is right for it
     output.tangent = normalize(mul(float4(input.tangent, 0.0f), world).xyz);
     output.worldPosition = worldPosition.xyz;
     return output;

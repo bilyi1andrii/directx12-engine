@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "renderdata/Handles.h"
+#include "renderdata/Material.h"
 #include "renderdata/MeshData.h"
 #include "renderdata/TextureData.h"
 
@@ -22,6 +23,10 @@ namespace engine::render {
 
         // The grey texture for one that failed to load
         [[nodiscard]] virtual TextureHandle UnloadedTexture() const noexcept = 0;
+
+        // Adds a material to the renderer's table and returns its handle. Every call adds a new entry, so reuse
+        // the handle for surfaces that look the same (AssetCache::Material does).
+        [[nodiscard]] virtual MaterialHandle CreateMaterial(const MaterialInfo &material) = 0;
 
     protected:
         GpuUploader() = default;

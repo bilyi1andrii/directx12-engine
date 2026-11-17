@@ -11,18 +11,22 @@
 #include <unordered_map>
 #include <vector>
 
+#include <DirectXMath.h>
+
 #include "assets/TextureLoader.h"
 #include "core/Error.h"
 #include "renderdata/GpuUploader.h"
 #include "renderdata/Handles.h"
+#include "renderdata/Material.h"
 #include "renderdata/MaterialDesc.h"
 #include "renderdata/Model.h"
 #include "renderdata/ModelData.h"
 
 namespace engine::assets {
     // Loads each model and texture file once and keeps the GPU handles.
-    // A material is its albedo texture for now: without one, a 1x1 texture of its base colour (black -> grey);
-    // a texture that fails to load is grey, with a warning.
+    // From a model's materials it uses only the albedo texture and `doubleSided` for now.
+    // A material without a texture gets a 1x1 texture of its base colour; black becomes grey.
+    // A texture that fails to load becomes grey, with a warning.
     // Needs a core::ComScope on this thread. Not thread-safe. Nothing is unloaded; the renderer must outlive it.
     class AssetCache {
     public:
@@ -30,6 +34,8 @@ namespace engine::assets {
 
         AssetCache(const AssetCache &) = delete;
         AssetCache &operator=(const AssetCache &) = delete;
+        AssetCache(AssetCache &&) = delete;
+        AssetCache &operator=(AssetCache &&) = delete;
 
         // Imports and uploads `path` on the first call; the pointer lives as long as the cache. Failures are not
         // cached: the next call tries again.
@@ -39,21 +45,32 @@ namespace engine::assets {
         // lives as long as the cache.
         [[nodiscard]] const render::Model &CubeModel(render::TextureHandle texture);
 
+        // A model of one sphere of radius 1 with `material`. All spheres share one mesh, uploaded on the first
+        // call. The reference lives as long as the cache.
+        [[nodiscard]] const render::Model &SphereModel(render::MaterialHandle material);
+
         // Loads `path` as `usage` on the first call. A failure gives the grey texture and is cached too.
         [[nodiscard]] render::TextureHandle LoadTexture(const std::filesystem::path &path, TextureUsage usage);
 
         // A 1x1 sRGB texture of one colour (values as in an image file), made once per colour
         [[nodiscard]] render::TextureHandle SolidColor(uint8_t red, uint8_t green, uint8_t blue);
+        // The same, from a colour with channels from 0 to 1 (values outside are clamped)
+        [[nodiscard]] render::TextureHandle SolidColor(const DirectX::XMFLOAT3 &color);
 
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
+
+        // The material with this texture, shading and culling. Each combination is created once, then reused.
+        [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,
+                                                      render::Shading shading = render::Shading::Lit,
+                                                      bool doubleSided = false);
 
         [[nodiscard]] size_t ModelCount() const noexcept { return m_models.size(); }
         // Textures the cache created: files, embedded images and solid colours
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
-        // `material`'s handle (its albedo texture). `embedded` remembers the images of `model` already decoded.
+        // The handle for a model's material. `embedded` holds the model's embedded images decoded so far.
         [[nodiscard]] render::MaterialHandle Material(const render::ModelData &model,
                                                       const render::MaterialDesc &material,
                                                       std::vector<std::optional<render::TextureHandle>> &embedded,
@@ -71,10 +88,15 @@ namespace engine::assets {
         std::optional<render::MeshHandle> m_cubeMesh;
         // By texture index; unordered_map keeps elements in place here too
         std::unordered_map<uint32_t, render::Model> m_cubeModels;
+        std::optional<render::MeshHandle> m_sphereMesh;
+        // By material index
+        std::unordered_map<uint32_t, render::Model> m_sphereModels;
         // By normalized path + usage (one file read as colour and as data is two textures)
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
+        // By albedo index, shading and doubleSided, packed into one integer by Material
+        std::unordered_map<uint64_t, render::MaterialHandle> m_materials;
         std::optional<render::TextureHandle> m_checkerboard;
         size_t m_createdTextures = 0;
     };

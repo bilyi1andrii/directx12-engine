@@ -126,11 +126,25 @@ namespace engine::assets {
             m_cubeMesh = m_gpu->CreateMesh(MakeCube(), L"Cube").front();
         }
         render::Model model;
-        model.parts.push_back(render::ModelPart{
-            .mesh = *m_cubeMesh, .material = render::MaterialFromTexture(texture), .bounds = kCubeBounds});
+        model.parts.push_back(
+            render::ModelPart{.mesh = *m_cubeMesh, .material = Material(texture), .bounds = kCubeBounds});
         model.bounds = kCubeBounds;
         model.triangleCount = kCubeTriangleCount;
         return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
+    }
+
+    const render::Model &AssetCache::SphereModel(MaterialHandle material) {
+        if (const auto it = m_sphereModels.find(material.index); it != m_sphereModels.end()) {
+            return it->second;
+        }
+        if (!m_sphereMesh) {
+            m_sphereMesh = m_gpu->CreateMesh(MakeSphere(), L"Sphere").front();
+        }
+        render::Model model;
+        model.parts.push_back(render::ModelPart{.mesh = *m_sphereMesh, .material = material, .bounds = kSphereBounds});
+        model.bounds = kSphereBounds;
+        model.triangleCount = kSphereTriangleCount;
+        return m_sphereModels.emplace(material.index, std::move(model)).first->second;
     }
 
     TextureHandle AssetCache::LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
@@ -172,7 +186,20 @@ namespace engine::assets {
         } else {
             albedo = SolidColor(material);
         }
-        return render::MaterialFromTexture(albedo);
+        return Material(albedo, render::Shading::Lit, material.doubleSided);
+    }
+
+    MaterialHandle AssetCache::Material(TextureHandle albedo, render::Shading shading, bool doubleSided) {
+        // Each value gets its own bits: the index in 0-31, shading in 32-39, doubleSided in bit 40
+        const uint64_t key =
+            albedo.index | (uint64_t{std::to_underlying(shading)} << 32) | (uint64_t{doubleSided} << 40);
+        if (const auto it = m_materials.find(key); it != m_materials.end()) {
+            return it->second;
+        }
+        const MaterialHandle handle =
+            m_gpu->CreateMaterial({.albedo = albedo, .shading = shading, .doubleSided = doubleSided});
+        m_materials.emplace(key, handle);
+        return handle;
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {
@@ -199,6 +226,10 @@ namespace engine::assets {
         }
         m_solidColors.emplace(key, handle);
         return handle;
+    }
+
+    TextureHandle AssetCache::SolidColor(const DirectX::XMFLOAT3 &color) {
+        return SolidColor(ToByte(color.x), ToByte(color.y), ToByte(color.z));
     }
 
     TextureHandle AssetCache::CheckerboardTexture() {

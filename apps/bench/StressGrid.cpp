@@ -5,6 +5,7 @@
 
 using engine::apps::kGridHeight;
 using engine::apps::kGridSpacing;
+using engine::apps::kGridTop;
 
 namespace engine::bench {
     namespace {
@@ -49,6 +50,30 @@ namespace engine::bench {
             {.frame = 3 * kQuarter, .position = {0.0f, height, -radius}, .target = center},
             {.frame = kStressPathFrames, .position = {radius, height, 0.0f}, .target = center},
         }};
+    }
+
+    render::LightSet StressGrid::Lights() const {
+        const float offset = 0.25f * Extent();
+        const float height = kGridTop + 6.0f;
+        // Down and along +Z
+        constexpr DirectX::XMFLOAT3 kSpotDirection{-0.3f, -1.0f, 1.2f};
+        const auto point = [](const DirectX::XMFLOAT3 &color) {
+            return render::LocalLight{.type = render::LightType::Point, .color = color, .strength = 3.5f};
+        };
+        const auto spot = [](const DirectX::XMFLOAT3 &color) {
+            return render::LocalLight{.type = render::LightType::Spot, .color = color, .strength = 1.5f};
+        };
+
+        render::LightSet lights;
+        lights.points = {
+            {.light = point({0.0f, 0.0f, 1.0f}), .position = {-offset, height, 0.0f}}, // blue
+            {.light = point({1.0f, 0.0f, 0.0f}), .position = {offset, height, 0.0f}},  // red
+        };
+        lights.spots = {
+            {.light = spot({1.0f, 0.55f, 0.2f}), .position = {0.0f, height, offset}, .direction = kSpotDirection},
+            {.light = spot({0.0f, 1.0f, 0.0f}), .position = {0.0f, height, -offset}, .direction = kSpotDirection},
+        };
+        return lights;
     }
 
     std::span<const render::StaticListHandle> StressGrid::StaticLists() const noexcept {
