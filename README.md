@@ -34,6 +34,7 @@ data.
 
 - Direct3D 12 with the Agility SDK, Shader Model 6.6 bindless resources and one global root signature defined in HLSL
 - Two frames in flight, GPU memory through D3D12MA, and deferred release of everything the GPU may still be using
+- Blinn-Phong lighting: a directional light plus point and spot lights that can be selected, moved and edited
 - Automatic batching by mesh and material, drawn either instanced or with one draw call per object
 - Moving objects uploaded every frame, static objects uploaded once to GPU memory
 - Models from glTF, OBJ and FBX files (Assimp), textures with generated mips (DirectXTex)
@@ -43,7 +44,7 @@ data.
 - A benchmark with a scripted camera that writes per-frame timings to CSV
 - Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
 
-Rendering is textured and unlit for now.
+There are no shadows or tonemapping yet, so very bright areas clip to white.
 
 ## How to run
 
@@ -80,6 +81,11 @@ The sandbox shows a grid of textured cubes, a few cubes you can select and move,
 spinning cube in the middle. While it runs, you can drop a model or an image on the window: a model stands where
 you drop it, and an image becomes the grid's texture (dynamic grid only).
 
+Two point lights and two spot lights shine on the scene, each shown as a small sphere in its colour. Click a sphere
+to select its light, move it with the gizmo, and turn a spot light with the gizmo's rotate mode. The Lights window in
+the bottom-right corner edits the ambient, specular and directional light, and the selected light's colour, strength,
+fade-out and cone. Lights are not saved.
+
 The scene is saved to `saves/sandbox.json` when the window closes and restored at the next start.
 
 | Option | Effect |
@@ -96,7 +102,7 @@ The scene is saved to `saves/sandbox.json` when the window closes and restored a
 | Right mouse button + W / A / S / D | Fly forward / left / back / right |
 | Right mouse button + Space / Left Shift | Fly up / down |
 | Right mouse button + mouse wheel | Fly faster / slower |
-| Left mouse button | Select an object; a click on empty space clears the selection |
+| Left mouse button | Select an object or a light's sphere; a click on empty space clears the selection |
 | W / E / R | Gizmo mode for the selected object: move / rotate / scale |
 | I | Switch between the instanced and the non-instanced draw path |
 | V | Toggle vsync |
@@ -106,7 +112,8 @@ The scene is saved to `saves/sandbox.json` when the window closes and restored a
 ### Benchmark
 
 `bench.exe` measures how the engine scales with the number of objects. It draws a square grid of copies of one model
-while a scripted camera flies around it, in borderless fullscreen with vsync off, and closes by itself. Use the
+while a scripted camera flies around it, lit by a fixed set of lights (one directional, two point, two spot), in
+borderless fullscreen with vsync off, and closes by itself. Use the
 `x64-release` build: the others are too slow for their numbers to mean anything.
 
 ```powershell
@@ -125,11 +132,11 @@ while a scripted camera flies around it, in borderless fullscreen with vsync off
 
 Each run writes to `<out>/dx12/<name>/<date-time>/`, where `<name>` is `cube` or the model's folder and file name.
 `frames.csv` holds the CPU times of every frame (GPU times are coming), and `run.txt` holds the settings, the size of
-the scene, the GPU and the driver. Pressing Esc stops the run and writes nothing.
+the scene, the lights, the GPU and the driver. Pressing Esc stops the run and writes nothing.
 
 ## Next Steps
 
-- Lighting (Blinn-Phong), GPU timings and more UI panels
+- GPU timings
 - Frame graph, shadows and transparency
 - HDR and tonemapping
 - PBR materials
