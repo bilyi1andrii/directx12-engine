@@ -11,12 +11,15 @@
 #include <DirectXMath.h>
 
 #include "common/GridSetup.h"
-#include "render/GpuResources.h"
 #include "renderdata/Handles.h"
 #include "renderdata/Lights.h"
 #include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 #include "scene/CameraPath.h"
+
+namespace engine::render {
+    class GpuResources;
+} // namespace engine::render
 
 namespace engine::bench {
     // Length of the grid's camera path in frames, the same as the bench's default --frames

@@ -162,6 +162,9 @@ namespace engine::render {
             }
         }
         m_textures.clear();
+        // The materials and the fallback handle name bindless slots that are freed with the textures
+        m_unloadedTexture = {};
+        m_materials.clear();
         for (GpuGeometry &geometry : m_geometries) {
             for (rhi::Buffer *buffer : {&geometry.vertices, &geometry.indices}) {
                 if (buffer->IsValid()) {

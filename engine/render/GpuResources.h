@@ -61,11 +61,15 @@ namespace engine::render {
     //
     // Everything lives as long as this object. Creation records copies into the open upload batch of
     // `upload` (or opens one); the owner submits it before the frame that first draws the new resources.
-    // DestroyAll must run after a GPU flush and before destruction (asserted).
+    //
+    // Renderer owns it and is the only caller of the startup and shutdown functions (CreateDefaults, DestroyAll).
+    // Renderer flushes the GPU before DestroyAll; the destructor only checks that DestroyAll ran.
     //
     // Not copyable or movable: it keeps references to the allocator, the upload context, the queue and the heap,
     // which must outlive it.
     class GpuResources final : public GpuUploader {
+        friend class Renderer;
+
     public:
         GpuResources(rhi::Allocator &allocator, rhi::UploadContext &upload, rhi::CommandQueue &queue,
                      rhi::BindlessHeap &bindlessHeap) noexcept;
@@ -76,10 +80,6 @@ namespace engine::render {
         GpuResources &operator=(const GpuResources &) = delete;
         GpuResources(GpuResources &&) = delete;
         GpuResources &operator=(GpuResources &&) = delete;
-
-        // Creates the grey fallback texture and material 0, so a default handle draws something. Call once, before
-        // any other texture: the grey texture must get bindless index 0.
-        void CreateDefaults();
 
         // Uploads a model's geometry: one vertex buffer and one 32-bit index buffer shared by all its submeshes.
         // Returns one MeshHandle per submesh, in submesh order, so MeshNode::submesh indexes the result. The meshes
@@ -126,11 +126,15 @@ namespace engine::render {
             return m_staticLists[handle.index];
         }
 
+    private:
+        // Creates the grey fallback texture and material 0, so a default handle draws something. Call once, before
+        // any other texture: the grey texture must get bindless index 0.
+        void CreateDefaults();
+
         // Shutdown only, after the GPU is idle: hands every texture, mesh buffer and static list to `frame`, which
-        // releases them when it is reset or destroyed. Handles are invalid afterwards.
+        // releases them when it is reset or destroyed. Empties every table, so all handles are invalid afterwards.
         void DestroyAll(rhi::FrameContext &frame) noexcept;
 
-    private:
         // Takes ownership of `geometry`; returns its index in m_geometries
         [[nodiscard]] uint32_t AddGeometry(GpuGeometry geometry);
         // Registers a range of a geometry as a mesh
