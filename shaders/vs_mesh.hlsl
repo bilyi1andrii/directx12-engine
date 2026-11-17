@@ -30,9 +30,8 @@ VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
     const float4 worldPosition = mul(float4(input.position, 1.0f), world);
     output.position = mul(worldPosition, g_frame.viewProjection);
     output.uv = input.uv;
-    // A normal must stay at a right angle to its surface. Multiplying it by `world` does not keep that when an
-    // object is scaled more along one axis than another. These three cross products of world's rows do
-    // (they are the cofactor matrix of its 3x3 part), without a second matrix per object.
+    // `world` would tilt the normal when the object is stretched more along one axis than another.
+    // The cross products of its rows keep the normal at a right angle to the surface (the cofactor matrix).
     const float3 axisX = world[0].xyz;
     const float3 axisY = world[1].xyz;
     const float3 axisZ = world[2].xyz;

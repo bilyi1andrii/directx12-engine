@@ -53,11 +53,9 @@ namespace engine::bench {
     }
 
     render::LightSet StressGrid::Lights() const {
-        // A quarter of the grid from its centre, at a fixed height above the tops of the cubes. The lights fade
-        // with distance, so their pools are the same size on every grid.
         const float offset = 0.25f * Extent();
         const float height = kGridTop + 6.0f;
-        // Down and along +Z, as in the DX11 scene
+        // Down and along +Z
         constexpr DirectX::XMFLOAT3 kSpotDirection{-0.3f, -1.0f, 1.2f};
         const auto point = [](const DirectX::XMFLOAT3 &color) {
             return render::LocalLight{.type = render::LightType::Point, .color = color, .strength = 3.5f};
@@ -66,7 +64,6 @@ namespace engine::bench {
             return render::LocalLight{.type = render::LightType::Spot, .color = color, .strength = 1.5f};
         };
 
-        // The environment keeps its defaults: the ambient, specular and directional light of the DX11 scene
         render::LightSet lights;
         lights.points = {
             {.light = point({0.0f, 0.0f, 1.0f}), .position = {-offset, height, 0.0f}}, // blue

@@ -224,7 +224,6 @@ namespace {
         // The lights stand between and behind the cubes
         sandbox::AddDefaultLights(scene, assets, cubesZ);
 
-        // The smoke test selects a light so that the gizmo and every field of the Lights window run every frame
         std::optional<engine::scene::ObjectId> selected;
         if (smokeTestFrames) {
             selected = scene.LightObjects().front();

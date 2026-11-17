@@ -28,7 +28,7 @@ namespace engine::render {
         constants.ambientColor = environment.ambientColor;
         constants.ambientStrength = environment.ambientStrength;
         constants.specularColor = environment.specularColor;
-        // The shader computes pow(x, shininess) with x from 0 on, and pow(0, 0) is not a number
+        // The shader computes pow(x, shininess), where x can be 0, and pow(0, 0) gives NaN on the GPU
         constants.shininess = std::max(environment.shininess, 1.0f);
 
         const DirectionalLight &directional = environment.directional;
@@ -61,8 +61,8 @@ namespace engine::render {
             if (spotCount == gpu::kMaxSpotLights) {
                 break;
             }
-            // The shader divides by innerCos - outerCos, so the inner cone must stay inside the outer one, with
-            // a small gap when both angles are equal (a hard edge)
+            // The shader divides by innerCos - outerCos. So the inner cone stays inside the outer one, and equal
+            // angles get a small gap.
             constexpr float kMinCosGap = 1e-4f;
             const float outerDegrees = std::clamp(spot.light.outerAngleDegrees, 0.0f, 90.0f);
             const float innerDegrees = std::clamp(spot.light.innerAngleDegrees, 0.0f, outerDegrees);

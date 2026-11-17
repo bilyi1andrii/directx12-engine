@@ -53,8 +53,8 @@ namespace engine::scene {
 
     // Objects and their parts (entities). Entity i is Transforms()[i] + Renderers()[i] + Parts()[i]. Nothing is removed
     // yet, so an ObjectId stays valid as long as the scene.
-    // A point or spot light is an object too: it stands and points where its object does. Light that has no place
-    // (ambient, the directional light) is the scene's Environment().
+    // A point or spot light is an object too, so it moves and turns like one.
+    // Ambient and directional light have no position; they live in Environment().
     class Scene {
     public:
         // Adds `model` as an object with one entity per part. `world` places `pivot`, a point in model space, so an
@@ -62,14 +62,14 @@ namespace engine::scene {
         ObjectId AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
                            Mobility mobility, DirectX::XMFLOAT3 pivot = {});
 
-        // Adds a Movable object that is also a point or spot light. It is drawn with `marker`, which may be an empty
-        // Model: then there is nothing to draw or click. The light shines from `world`'s translation, and a spot
-        // light points along `world`'s +Z axis.
+        // Adds a point or spot light as a Movable object drawn with `marker`. An empty `marker` draws nothing and
+        // cannot be clicked. The light shines from the object's position. A spot light points along the object's
+        // +Z axis.
         ObjectId AddLight(std::string name, const render::Model &marker, const DirectX::XMFLOAT4X4 &world,
                           const render::LocalLight &light);
 
-        // The light of an object, to read or edit; nullptr if the object is not a light. Valid until the next
-        // AddLight. Searches every light: a scene has a dozen.
+        // The light of an object, to read or edit, or nullptr if the object is not a light.
+        // The pointer is valid until the next AddLight. A linear search, which is fine for a dozen lights.
         [[nodiscard]] render::LocalLight *Light(ObjectId id);
         [[nodiscard]] const render::LocalLight *Light(ObjectId id) const;
 
@@ -112,9 +112,9 @@ namespace engine::scene {
     // Adds every object with this `mobility` to `list`, batched by mesh and material. No culling yet.
     void Extract(const Scene &scene, render::RenderList &list, Mobility mobility);
 
-    // Replaces `lights` with the scene's environment and all its lights, disabled ones too, in world space.
-    // A light's position is its object's translation; a spot's direction is the object's +Z axis at unit length,
-    // whatever the object's scale.
+    // Replaces `lights` with the scene's environment and all its lights, disabled ones included.
+    // Positions and directions are in world space. A spot light's direction has unit length, whatever the scale
+    // of its object.
     void Extract(const Scene &scene, render::LightSet &lights);
 } // namespace engine::scene
 

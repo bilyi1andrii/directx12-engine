@@ -190,6 +190,7 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(TextureHandle albedo, render::Shading shading, bool doubleSided) {
+        // Each value gets its own bits: the index in 0-31, shading in 32-39, doubleSided in bit 40
         const uint64_t key =
             albedo.index | (uint64_t{std::to_underlying(shading)} << 32) | (uint64_t{doubleSided} << 40);
         if (const auto it = m_materials.find(key); it != m_materials.end()) {

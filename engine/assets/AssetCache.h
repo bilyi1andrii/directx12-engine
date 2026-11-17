@@ -22,8 +22,9 @@
 
 namespace engine::assets {
     // Loads each model and texture file once and keeps the GPU handles.
-    // Of a model's material only the albedo texture and `doubleSided` are used for now. Without a texture it gets
-    // a 1x1 texture of its base colour (black -> grey); a texture that fails to load is grey, with a warning.
+    // From a model's materials it uses only the albedo texture and `doubleSided` for now.
+    // A material without a texture gets a 1x1 texture of its base colour; black becomes grey.
+    // A texture that fails to load becomes grey, with a warning.
     // Needs a core::ComScope on this thread. Not thread-safe. Nothing is unloaded; the renderer must outlive it.
     class AssetCache {
     public:
@@ -55,7 +56,7 @@ namespace engine::assets {
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
 
-        // The material with this texture, shading and culling, made once per combination
+        // The material with this texture, shading and culling. Each combination is created once, then reused.
         [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,
                                                       render::Shading shading = render::Shading::Lit,
                                                       bool doubleSided = false);
@@ -65,7 +66,7 @@ namespace engine::assets {
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
-        // The handle for a model's material. `embedded` remembers the images of `model` already decoded.
+        // The handle for a model's material. `embedded` holds the model's embedded images decoded so far.
         [[nodiscard]] render::MaterialHandle Material(const render::ModelData &model,
                                                       const render::MaterialDesc &material,
                                                       std::vector<std::optional<render::TextureHandle>> &embedded,
@@ -90,7 +91,7 @@ namespace engine::assets {
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
-        // By albedo index, shading and doubleSided (see Material)
+        // By albedo index, shading and doubleSided, packed into one integer by Material
         std::unordered_map<uint64_t, render::MaterialHandle> m_materials;
         std::optional<render::TextureHandle> m_checkerboard;
         size_t m_createdTextures = 0;

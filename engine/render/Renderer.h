@@ -95,8 +95,8 @@ namespace engine::render {
         // 1x1 grey fallback for a texture that failed to load
         [[nodiscard]] TextureHandle UnloadedTexture() const noexcept override { return m_unloadedTexture; }
 
-        // Adds `material` to the material table. It can be drawn in the same frame and lives as long as the
-        // renderer. Costs no GPU memory: the table holds the albedo's index and picks the PSO.
+        // Adds `material` to the material table. The handle works in the same frame and as long as the renderer.
+        // Costs no GPU memory: an entry is only the albedo's index and the choice of PSO.
         [[nodiscard]] MaterialHandle CreateMaterial(const MaterialInfo &material) override;
 
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
@@ -240,8 +240,7 @@ namespace engine::render {
 
         // The global root signature and every PSO
         rhi::PipelineCache m_pipelines;
-        // One PSO per vertex format, shading and culling (index 1: two-sided, no culling). Filled by
-        // CreatePipelines; read through PipelineFor.
+        // PSOs by [vertex format][shading][doubleSided ? 1 : 0]. Filled by CreatePipelines, read through PipelineFor.
         using ShadingPipelines = std::array<std::array<rhi::PipelineHandle, 2>, kShadingCount>;
         std::array<ShadingPipelines, std::to_underlying(VertexFormat::Count)> m_pipelinesByFormat;
         std::vector<GpuGeometry> m_geometries;
@@ -249,7 +248,7 @@ namespace engine::render {
         // All textures; a TextureHandle is a bindless index, not a position in this list
         std::vector<rhi::Texture> m_textures;
         TextureHandle m_unloadedTexture;
-        // MaterialHandle::index points into it. Entry 0 is the grey texture, lit, so a default handle can be drawn.
+        // Indexed by MaterialHandle::index. Entry 0 is the grey texture, lit, so a default handle draws something.
         std::vector<MaterialInfo> m_materials;
 
         // Released after the destructor's flush, before the allocator

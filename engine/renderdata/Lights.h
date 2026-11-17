@@ -27,8 +27,8 @@ namespace engine::render {
 
     enum class LightType : uint8_t { Point, Spot };
 
-    // A point or spot light without its place: position and direction come from where it stands in the world
-    // (in a scene: the light object's world matrix)
+    // The settings of a point or spot light. Its position and direction are not stored here.
+    // In a scene they come from the light's object; in a LightSet, from PointLight and SpotLight.
     struct LocalLight {
         LightType type = LightType::Point;
         bool enabled = true;
@@ -52,8 +52,8 @@ namespace engine::render {
         DirectX::XMFLOAT3 direction{0.0f, 0.0f, 1.0f}; // where it points, world space; any length
     };
 
-    // Every light of a frame, in world space: what Renderer::Render reads. The renderer uses the first
-    // gpu::kMaxPointLights and gpu::kMaxSpotLights enabled lights and ignores the rest.
+    // All lights of one frame, in world space, as Renderer::Render takes them.
+    // The renderer uses the first gpu::kMaxPointLights and gpu::kMaxSpotLights enabled lights and ignores the rest.
     struct LightSet {
         LightEnvironment environment;
         std::vector<PointLight> points;

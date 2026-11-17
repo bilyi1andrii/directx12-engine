@@ -56,7 +56,8 @@ namespace engine::assets {
         using DirectX::XMFLOAT3;
 
         render::MeshData sphere;
-        // One more column than slices: the first and the last stand in the same place with u = 0 and u = 1
+        // One more column than slices. The last column repeats the first with u = 1 instead of 0, so the texture
+        // does not jump from 1 back to 0 inside one cell.
         const uint32_t columns = kSphereSlices + 1;
         sphere.vertices.reserve(size_t{kSphereStacks + 1} * columns);
         for (uint32_t stack = 0; stack <= kSphereStacks; ++stack) {

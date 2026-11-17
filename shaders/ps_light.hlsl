@@ -1,6 +1,6 @@
-// Lit pixel shader: the texture's colour under Blinn-Phong lighting from the frame's lights (ambient, one
-// directional light, point lights and spot lights). No shadows yet.
-// Lighting is computed in linear space; bright areas clip to white until there is a tonemapper.
+// Lit pixel shader: the texture's colour, lit by the frame's lights (Blinn-Phong). No shadows.
+// The lights are the ambient light, one directional light, and the point and spot lights.
+// The maths runs on linear colours. Bright areas clip to white, because there is no tonemapper yet.
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -39,7 +39,7 @@ float Attenuation(float3 attenuation, float distanceToLight)
 
 float3 DirectionalLight(float3 N, float3 V)
 {
-    // directionalDirection is where the light shines; -direction points back to it
+    // directionalDirection is where the light shines, so its negative points back to the light
     return g_frame.directionalColor * g_frame.directionalStrength *
            DiffuseAndSpecular(N, -g_frame.directionalDirection, V);
 }
@@ -61,7 +61,8 @@ float3 SpotLight(SpotLightData light, float3 N, float3 worldPosition, float3 V)
 
     // Cosine of the angle between the cone's axis and the ray to this pixel: 1 on the axis
     const float theta = dot(light.direction, -L);
-    // 1 inside the inner cone, 0 outside the outer one, a soft edge in between. The CPU keeps innerCos > outerCos.
+    // 1 inside the inner cone, 0 outside the outer one, a soft edge in between.
+    // PackLights keeps innerCos > outerCos, so this never divides by zero.
     const float cone = saturate((theta - light.outerCos) / (light.innerCos - light.outerCos));
 
     return Attenuation(light.attenuation, distanceToLight) * cone * light.color * light.strength *
@@ -73,12 +74,13 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 {
     // For now the material index is the bindless slot of the albedo texture
     Texture2D<float4> albedoTexture = ResourceDescriptorHeap[g_draw.materialIndex];
-    // sRGB textures come back linear; the sRGB render target converts back on write
+    // The texture is sRGB, so sampling returns linear colour.
+    // The sRGB render target converts the result back to sRGB when it is written.
     const float3 albedo = albedoTexture.Sample(g_anisotropicWrap, input.uv).rgb;
 
-    // Interpolating between vertices shortens the normal. Seen from behind (two-sided materials), the surface
-    // faces the other way.
+    // Blending the three vertex normals across the triangle makes the normal shorter than 1
     float3 N = normalize(input.normal);
+    // A two-sided material shows the back of a triangle too. There the normal points away from the camera.
     N = isFrontFace ? N : -N;
     const float3 V = normalize(g_frame.cameraPosition - input.worldPosition);
 

@@ -80,9 +80,8 @@ namespace engine::render {
             },
         };
 
-        // The shader's view of FrameView: matrices transposed (DirectXMath uses row vectors, HLSL reads
-        // column-major by default, so shaders compute mul(v, M)) plus the combined view-projection.
-        // And the frame's lights.
+        // The camera and the lights in the layout the shaders read. Matrices are transposed: DirectXMath uses row
+        // vectors, and HLSL reads matrices column-major, so shaders compute mul(v, M).
         gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
 
@@ -121,7 +120,7 @@ namespace engine::render {
         m_upload.Begin(m_queue);
         try {
             CreateFallbackTexture();
-            // Material 0, what a default MaterialHandle names
+            // Material 0, so a default MaterialHandle draws the grey texture
             m_materials.push_back(MaterialInfo{.albedo = m_unloadedTexture});
             m_upload.Submit(m_queue);
         } catch (...) {
@@ -553,8 +552,8 @@ namespace engine::render {
     void Renderer::CreatePipelines() {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
-        // The pixel shader and the cull mode are part of a PSO, so every combination a material can ask for is
-        // its own PSO, created here and not in the middle of a frame
+        // A PSO fixes the pixel shader and the cull mode; a command list cannot change them between draws.
+        // So each combination a material can ask for gets its own PSO, created here so no frame waits for one.
         struct Variant {
             Shading shading;
             bool doubleSided;

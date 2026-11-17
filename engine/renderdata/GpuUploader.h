@@ -24,7 +24,8 @@ namespace engine::render {
         // The grey texture for one that failed to load
         [[nodiscard]] virtual TextureHandle UnloadedTexture() const noexcept = 0;
 
-        // A new material on every call: the caller keeps the handle for surfaces that look the same
+        // Adds a material to the renderer's table and returns its handle. Every call adds a new entry, so reuse
+        // the handle for surfaces that look the same (AssetCache::Material does).
         [[nodiscard]] virtual MaterialHandle CreateMaterial(const MaterialInfo &material) = 0;
 
     protected:

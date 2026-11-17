@@ -42,9 +42,8 @@ namespace engine::bench {
         // centre. Distance and height grow with the grid. The DX11 engine copies this formula.
         [[nodiscard]] std::array<scene::CameraKeyframe, 5> CameraPath() const noexcept;
 
-        // The bench lights: the default ambient, specular and directional light, plus two point and two spot
-        // lights above the grid, with the colours and strengths of the DX11 scene. They stand further apart on
-        // a bigger grid. The DX11 engine copies this formula.
+        // The bench lights: ambient, specular and directional light,
+        // plus two point and two spot lights
         [[nodiscard]] render::LightSet Lights() const;
 
     private:

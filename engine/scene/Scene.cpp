@@ -130,7 +130,7 @@ namespace engine::scene {
             if (light.type == render::LightType::Point) {
                 lights.points.push_back({.light = light, .position = position});
             } else {
-                // The row's length is the object's scale along Z, which must not change the light
+                // The row's length is the object's Z scale. Scaling the marker must not change the light.
                 XMFLOAT3 direction{};
                 XMStoreFloat3(&direction, XMVector3Normalize(XMVectorSet(world._31, world._32, world._33, 0.0f)));
                 lights.spots.push_back({.light = light, .position = position, .direction = direction});

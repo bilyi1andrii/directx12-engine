@@ -31,8 +31,8 @@ namespace sandbox {
             // Any `up` works, except one along the direction itself
             const XMVECTOR up = std::abs(XMVectorGetY(forward)) > 0.99f ? XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)
                                                                         : XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-            // A camera's view matrix turns its viewing direction onto +Z; the inverse turns +Z onto the direction.
-            // The scale only sizes the sphere: a light ignores its object's scale.
+            // A view matrix turns the viewing direction onto +Z, so its inverse turns +Z onto `forward`.
+            // The scale only sizes the sphere; the light ignores it.
             XMFLOAT4X4 world{};
             XMStoreFloat4x4(&world,
                             XMMatrixScaling(kMarkerRadius, kMarkerRadius, kMarkerRadius) *
