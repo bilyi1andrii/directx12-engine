@@ -9,7 +9,9 @@ add_library(engine_render STATIC
         Renderer.cpp
         Renderer.h
         UiRenderer.cpp
-        UiRenderer.h)
+        UiRenderer.h
+        passes/OpaquePass.cpp
+        passes/OpaquePass.h)
 
 engine_target_defaults(engine_render)
 

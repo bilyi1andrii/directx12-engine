@@ -1,13 +1,10 @@
 #ifndef D3D12_ENGINE_RENDERER_H
 #define D3D12_ENGINE_RENDERER_H
 
-#include <array>
-#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "rhi/Allocator.h"
@@ -25,11 +22,10 @@
 
 #include "render/DynamicInstances.h"
 #include "render/GpuResources.h"
+#include "render/passes/OpaquePass.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
-#include "renderdata/InstanceChunks.h"
 #include "renderdata/Lights.h"
-#include "renderdata/Material.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
 
@@ -107,16 +103,9 @@ namespace engine::render {
 
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
-        void CreatePipelines();
-
-        [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
-
         // Shutdown only: logs why the device was removed (if it was), waits for the GPU, then destroys every
         // texture, mesh buffer and static list
         void DestroyResources() noexcept;
-
-        // Records `draws` on the current draw path: one instanced draw each, or one draw per object
-        void RecordDraws(std::span<const InstanceDraw> draws);
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
         // live-object report sees everything else released. The resource allocator is next: every
@@ -142,16 +131,15 @@ namespace engine::render {
         // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
         rhi::DepthBuffer m_depth;
 
-        // The global root signature and every PSO
+        // The global root signature and every PSO; the passes keep handles into it
         rhi::PipelineCache m_pipelines;
-        // PSOs by [vertex format][shading][doubleSided ? 1 : 0]. Filled by CreatePipelines, read through PipelineFor.
-        using ShadingPipelines = std::array<std::array<rhi::PipelineHandle, 2>, kShadingCount>;
-        std::array<ShadingPipelines, std::to_underlying(VertexFormat::Count)> m_pipelinesByFormat;
 
         // After the allocator, the upload context, the queue and the bindless heap, which it uses. Its buffers and
         // textures are handed to a frame by DestroyResources (after the destructor's flush), so the frames
         // release them, before the allocator goes.
         GpuResources m_resources;
+        // After the pipeline cache, which it keeps a reference to
+        OpaquePass m_opaque;
         // This frame's moving objects; CPU memory only (the instance data is in the frames' upload rings)
         DynamicInstances m_dynamicInstances;
 
