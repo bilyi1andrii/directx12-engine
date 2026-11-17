@@ -42,6 +42,26 @@ namespace engine::render {
         m_graph.m_passes[m_pass].depth = FrameGraph::DepthTarget{.texture = texture, .clear = clear};
     }
 
+    void PassBuilder::Read(FgTexture texture) {
+        m_graph.AddUse(m_pass, texture, fg::Access::ShaderRead);
+        [[maybe_unused]] const fg::GraphDesc::Texture &desc = m_graph.m_desc.textures[texture.index];
+        ENGINE_ASSERT_MSG(!desc.imported && m_graph.m_transientDescs[desc.descId].shaderRead,
+                          "Pass {} reads texture {}, which has no shader view (a transient with shaderRead)",
+                          m_graph.m_passes[m_pass].name, m_graph.m_textureNames[texture.index]);
+    }
+
+    uint32_t PassContext::ShaderIndex(FgTexture texture) const {
+#ifdef _DEBUG
+        bool declared = false;
+        for (const fg::TextureUse &use : m_graph.m_desc.UsesOf(m_pass)) {
+            declared = declared || (use.texture == texture.index && use.access == fg::Access::ShaderRead);
+        }
+        ENGINE_ASSERT_MSG(declared, "Pass {} samples texture {} without PassBuilder::Read",
+                          m_graph.m_passes[m_pass].name, texture.index);
+#endif
+        return m_graph.m_gpuShaderIndices[m_graph.m_compiled.textures[texture.index].gpuTexture];
+    }
+
     FgTexture FrameGraph::Import(std::string_view name, fg::Access start, fg::Access end) {
         ENGINE_ASSERT_MSG(!m_isCompiled && !m_executing, "Import of {} after Compile", name);
         m_textureNames.emplace_back(name);
@@ -86,6 +106,7 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(!m_isCompiled, "Compile called twice without Reset");
         m_compiled = fg::Compile(m_desc);
         m_gpuBindings.assign(m_compiled.gpuTextures.size(), ImportBinding{});
+        m_gpuShaderIndices.assign(m_compiled.gpuTextures.size(), TransientTexturePool::kNoSrv);
         TakeTransients(pool, frame);
         m_isCompiled = true;
 
@@ -142,7 +163,7 @@ namespace engine::render {
             commands.SetGraphicsRootSignature(m_rootSignature);
             commands.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, inputs.frameConstants);
 
-            PassContext context(commands, frame, inputs);
+            PassContext context(*this, passIndex, commands, frame, inputs);
             pass.execute(context);
         }
 
@@ -161,6 +182,7 @@ namespace engine::render {
         m_passes.clear();
         m_compiled = {};
         m_gpuBindings.clear();
+        m_gpuShaderIndices.clear();
         // The pool already counts these textures in their new state, so the fixes must be made before a new graph
         ENGINE_ASSERT_MSG(m_stateFixes.empty(), "Reset between Compile and Execute");
         m_isCompiled = false;
@@ -176,11 +198,28 @@ namespace engine::render {
             }
         }
 
+        // The colour the first running pass clears each GPU texture to: the pool creates it with that optimized
+        // clear value. Transients that share a texture and clear it to different colours make the later clears
+        // slower (the debug layer warns).
+        std::vector<std::optional<ClearColor>> clearColors(m_compiled.gpuTextures.size());
+        for (size_t pass = 0; pass < m_passes.size(); ++pass) {
+            if (!m_compiled.passes[pass].kept) {
+                continue;
+            }
+            for (const ColorTarget &target : m_passes[pass].colors) {
+                const uint32_t gpu = m_compiled.textures[target.texture.index].gpuTexture;
+                if (target.clear && !clearColors[gpu]) {
+                    clearColors[gpu] = target.clear;
+                }
+            }
+        }
+
         m_poolRequests.clear();
         for (size_t gpu = 0; gpu < m_compiled.gpuTextures.size(); ++gpu) {
             const fg::CompiledGraph::GpuTexture &texture = m_compiled.gpuTextures[gpu];
             if (!texture.imported) {
                 m_poolRequests.push_back({.desc = m_transientDescs[texture.descId],
+                                          .clearColor = clearColors[gpu],
                                           .state = ToState(texture.restAccess),
                                           .name = names[gpu]});
             }
@@ -201,6 +240,7 @@ namespace engine::render {
                                   .views = {texture.view},
                                   .width = texture.width,
                                   .height = texture.height};
+            m_gpuShaderIndices[gpu] = texture.srvIndex;
             if (texture.currentState != state) {
                 m_stateFixes.push_back({.resource = texture.resource, .before = texture.currentState, .after = state});
             }

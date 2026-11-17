@@ -1,7 +1,9 @@
 #ifndef D3D12_ENGINE_TRANSIENTTEXTUREPOOL_H
 #define D3D12_ENGINE_TRANSIENTTEXTUREPOOL_H
 
+#include <array>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -41,6 +43,10 @@ namespace engine::render {
     public:
         struct Request {
             TransientTextureDesc desc;
+            // A colour target's clear colour, given to the GPU at creation as its optimized clear value: clearing to
+            // another colour is slower and the debug layer warns. Only a texture with the same one is reused.
+            // Depth textures always get rhi::kClearDepth.
+            std::optional<std::array<float, 4>> clearColor;
             // The state the texture must be in when the next frame starts
             D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
             std::string_view name; // ASCII; for a new texture's debug name
@@ -57,8 +63,9 @@ namespace engine::render {
         };
         static constexpr uint32_t kNoSrv = UINT32_MAX;
 
-        TransientTexturePool(rhi::NativeDevice *device, rhi::Allocator &allocator, rhi::DescriptorAllocator &rtvAllocator,
-                             rhi::DescriptorAllocator &dsvAllocator, rhi::BindlessHeap &heap);
+        TransientTexturePool(rhi::NativeDevice *device, rhi::Allocator &allocator,
+                             rhi::DescriptorAllocator &rtvAllocator, rhi::DescriptorAllocator &dsvAllocator,
+                             rhi::BindlessHeap &heap);
         ~TransientTexturePool();
 
         TransientTexturePool(const TransientTexturePool &) = delete;
@@ -66,8 +73,8 @@ namespace engine::render {
         TransientTexturePool(TransientTexturePool &&) = delete;
         TransientTexturePool &operator=(TransientTexturePool &&) = delete;
 
-        // Gives one texture per request (into `textures`, in order): a pool texture of the same description, or a
-        // new one created in the request's state. Each texture goes to at most one request. Textures no request
+        // Gives one texture per request (into `textures`, in order): a pool texture of the same description and
+        // clear colour, or a new one created in the request's state. Each texture goes to at most one request. Textures no request
         // took are destroyed once the GPU has finished `frame`. Afterwards the pool counts each texture as being in
         // its request's state: the caller makes that true before the texture's first use.
         void Take(std::span<const Request> requests, rhi::FrameContext &frame, std::vector<Texture> &textures);
@@ -78,6 +85,7 @@ namespace engine::render {
     private:
         struct Entry {
             TransientTextureDesc desc;
+            std::optional<std::array<float, 4>> clearColor;
             rhi::Allocation allocation;
             rhi::Descriptor view;
             uint32_t srvIndex = kNoSrv;

@@ -1,5 +1,6 @@
 #include "render/TransientTexturePool.h"
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
@@ -25,7 +26,8 @@ namespace engine::render {
         m_taken.assign(m_entries.size(), false);
         for (const Request &request : requests) {
             size_t index = 0;
-            while (index < m_entries.size() && (m_taken[index] || m_entries[index].desc != request.desc)) {
+            while (index < m_entries.size() && (m_taken[index] || m_entries[index].desc != request.desc ||
+                                                m_entries[index].clearColor != request.clearColor)) {
                 ++index;
             }
             if (index == m_entries.size()) {
@@ -97,22 +99,26 @@ namespace engine::render {
             .Flags = flags,
         };
 
-        // Optimized clear value: GPUs keep compressed depth data and can clear it almost for free, but only to the
-        // value given at creation. Clearing to any other value works, but is slower and the debug layer warns.
-        // Colour targets get none, because the passes choose their clear colour.
-        const D3D12_CLEAR_VALUE depthClear{
-            .Format = rhi::kDepthFormat,
-            .DepthStencil = {.Depth = rhi::kClearDepth, .Stencil = 0},
-        };
+        // Optimized clear value: GPUs keep compressed render-target and depth data and can clear it almost for free,
+        // but only to the value given at creation. Clearing to any other value works, but is slower and the debug
+        // layer warns.
+        D3D12_CLEAR_VALUE clearValue{.Format = depth ? rhi::kDepthFormat : desc.format, .Color = {}};
+        if (depth) {
+            clearValue.DepthStencil = {.Depth = rhi::kClearDepth, .Stencil = 0};
+        } else if (request.clearColor) {
+            std::ranges::copy(*request.clearColor, clearValue.Color);
+        }
+        const bool hasClearValue = depth || request.clearColor.has_value();
 
         // Default heap: GPU-local memory the CPU cannot access, where render targets and depth live. Not zeroed:
         // the passes clear what they draw into.
         const std::string name = std::string("FG/") + std::string(request.name);
         Entry entry{
             .desc = desc,
-            .allocation =
-                m_allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, resourceDesc, request.state,
-                                           depth ? &depthClear : nullptr, std::wstring(name.begin(), name.end())),
+            .clearColor = request.clearColor,
+            .allocation = m_allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, resourceDesc, request.state,
+                                                     hasClearValue ? &clearValue : nullptr,
+                                                     std::wstring(name.begin(), name.end())),
             .view = depth ? m_dsvAllocator.Allocate() : m_rtvAllocator.Allocate(),
             .srvIndex = kNoSrv,
             .state = request.state,

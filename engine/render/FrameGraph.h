@@ -53,6 +53,9 @@ namespace engine::render {
         void WriteColor(FgTexture texture, std::optional<ClearColor> clear, uint32_t view = 0);
         // Depth test and depth write into `texture`. With `clear`, the graph clears it to that depth first.
         void WriteDepth(FgTexture texture, std::optional<float> clear);
+        // Samples `texture` in pixel shaders; the pass gets its bindless index from PassContext::ShaderIndex.
+        // Only a transient created with `shaderRead`, written by an earlier pass.
+        void Read(FgTexture texture);
 
     private:
         friend class FrameGraph;
@@ -70,12 +73,18 @@ namespace engine::render {
         // The frame slot being recorded, for resources freed during the pass
         [[nodiscard]] rhi::FrameContext &Frame() const noexcept { return m_frame; }
         [[nodiscard]] const FrameInputs &Inputs() const noexcept { return m_inputs; }
+        // The bindless index of a texture this pass declared with PassBuilder::Read, for shaders to sample it
+        // (ResourceDescriptorHeap[index]). Stays the same until the graph is rebuilt.
+        [[nodiscard]] uint32_t ShaderIndex(FgTexture texture) const;
 
     private:
         friend class FrameGraph;
-        PassContext(rhi::CommandContext &commands, rhi::FrameContext &frame, const FrameInputs &inputs)
-            : m_commands(commands), m_frame(frame), m_inputs(inputs) {}
+        PassContext(const FrameGraph &graph, uint32_t pass, rhi::CommandContext &commands, rhi::FrameContext &frame,
+                    const FrameInputs &inputs)
+            : m_graph(graph), m_pass(pass), m_commands(commands), m_frame(frame), m_inputs(inputs) {}
 
+        const FrameGraph &m_graph;
+        uint32_t m_pass;
         rhi::CommandContext &m_commands;
         rhi::FrameContext &m_frame;
         const FrameInputs &m_inputs;
@@ -133,6 +142,7 @@ namespace engine::render {
 
     private:
         friend class PassBuilder;
+        friend class PassContext;
 
         struct ColorTarget {
             FgTexture texture;
@@ -178,6 +188,8 @@ namespace engine::render {
         // The binding of each GPU texture (fg::CompiledGraph::gpuTextures): transients' from Compile, imports' from
         // each Execute
         std::vector<ImportBinding> m_gpuBindings;
+        // The bindless index of each GPU texture's shader view; TransientTexturePool::kNoSrv if it has none
+        std::vector<uint32_t> m_gpuShaderIndices;
         // Made at the start of the first Execute after Compile, then cleared
         std::vector<StateFix> m_stateFixes;
         // Scratch for TakeTransients
