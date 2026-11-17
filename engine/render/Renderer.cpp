@@ -14,7 +14,9 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "render/FrameInputs.h"
 #include "render/UiRenderer.h"
+#include "render/passes/UiPass.h"
 #include "renderdata/LightPacking.h"
 #include "rhi/UploadRing.h"
 
@@ -41,6 +43,11 @@ namespace engine::render {
             PackLights(lights, constants);
             return constants;
         }
+
+        // The back buffer's two render-target views, as numbered in its ImportBinding. The scene draws through
+        // the sRGB view; the UI through the UNORM one, because ImGui's colours are already sRGB.
+        constexpr uint32_t kBackBufferSrgbView = 0;
+        constexpr uint32_t kBackBufferUnormView = 1;
     } // namespace
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
@@ -54,7 +61,8 @@ namespace engine::render {
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer"),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
-          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines) {
+          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
+          m_graph(m_pipelines.RootSignature()) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -122,39 +130,63 @@ namespace engine::render {
     }
 
     void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
-                          std::span<const StaticListHandle> staticLists) {
-        // Render makes the back buffer writable, and that transition must happen once per frame
+                          std::span<const StaticListHandle> staticLists, ImDrawData *ui) {
+        // Once per frame: a second call would write the dynamic instances and the UI's vertex buffer again, and the
+        // UI backend would reuse a buffer the GPU may still be reading
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Begun, "Render must run once, after BeginFrame, in frame {}",
                           m_frameNumber);
+        ENGINE_ASSERT_MSG(ui == nullptr || m_ui != nullptr, "UI draw data without EnableUi");
         m_frameStage = FrameStage::Rendered;
-
-        ID3D12Resource *backBuffer = m_swapChain.CurrentBackBuffer();
-        const D3D12_CPU_DESCRIPTOR_HANDLE rtv = m_swapChain.CurrentRtv();
-
-        // The sky: linear values, so through the sRGB view the screen shows about (56, 69, 108) of 255
-        constexpr std::array clearColor{0.04f, 0.06f, 0.15f, 1.0f};
-        m_context.Transition(backBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
-        m_context.ClearRenderTarget(rtv, clearColor);
-        // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
-        m_context.ClearDepth(m_depth.Dsv(), rhi::DepthBuffer::kClearDepth);
-
-        m_context.SetRenderTarget(rtv, m_depth.Dsv());
-        m_context.SetViewportAndScissor(m_swapChain.Width(), m_swapChain.Height());
-        m_context.SetGraphicsRootSignature(m_pipelines.RootSignature());
 
         // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
         // already records the next frame into the other slot's ring
         const gpu::FrameConstants frameConstants = MakeFrameConstants(view, lights);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
-        m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
         m_dynamicInstances.Upload(list, CurrentFrame(), m_bindlessHeap);
         // Static lists first, then the dynamic objects
+        m_drawSets.clear();
         for (const StaticListHandle handle : staticLists) {
-            m_opaque.Record(m_context, m_resources, m_settings.drawPath, m_resources.StaticList(handle).draws);
+            m_drawSets.emplace_back(m_resources.StaticList(handle).draws);
         }
-        m_opaque.Record(m_context, m_resources, m_settings.drawPath, m_dynamicInstances.Draws());
+        m_drawSets.emplace_back(m_dynamicInstances.Draws());
+
+        const GraphKey key{.width = m_swapChain.Width(), .height = m_swapChain.Height(), .ui = m_ui != nullptr};
+        if (m_graphKey != key) {
+            BuildGraph();
+            m_graphKey = key;
+        }
+
+        const std::array imports{
+            ImportBinding{.texture = m_backBuffer,
+                          .resource = m_swapChain.CurrentBackBuffer(),
+                          .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
+                          .width = m_swapChain.Width(),
+                          .height = m_swapChain.Height()},
+            ImportBinding{.texture = m_sceneDepth,
+                          .resource = m_depth.Native(),
+                          .views = {m_depth.Dsv()},
+                          .width = m_depth.Width(),
+                          .height = m_depth.Height()},
+        };
+        const FrameInputs inputs{
+            .frameConstants = frameCb.gpu, .drawPath = m_settings.drawPath, .drawSets = m_drawSets, .ui = ui};
+        m_graph.Execute(m_context, CurrentFrame(), imports, inputs);
+    }
+
+    void Renderer::BuildGraph() {
+        m_graph.Reset();
+        m_backBuffer = m_graph.Import("BackBuffer", fg::Access::Present, fg::Access::Present);
+        // The depth buffer stays in DEPTH_WRITE (nothing samples it), so the graph never changes its state
+        m_sceneDepth = m_graph.Import("SceneDepth", fg::Access::DepthWrite, fg::Access::DepthWrite);
+
+        m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, m_sceneDepth, m_resources);
+        if (m_ui) {
+            // Last: on top of the scene
+            AddUiPass(m_graph, m_backBuffer, kBackBufferUnormView, *m_ui);
+        }
+        m_graph.Compile();
     }
 
     void Renderer::EnableUi() {
@@ -162,25 +194,11 @@ namespace engine::render {
         m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
     }
 
-    void Renderer::RenderUi(ImDrawData *drawData) {
-        ENGINE_ASSERT_MSG(m_ui != nullptr, "RenderUi without EnableUi");
-        // A second call would make the backend reuse a vertex buffer the GPU may still be reading
-        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "RenderUi must run once, after Render, in frame {}",
-                          m_frameNumber);
-        m_frameStage = FrameStage::UiRendered;
-        // Last in the frame: ImGui sets its own root signature and PSO, and nothing after it needs ours.
-        // The UNORM view, because ImGui's colours are already sRGB.
-        m_ui->Render(drawData, m_context, CurrentFrame(), m_swapChain.CurrentUiRtv());
-    }
-
     void Renderer::EndFrame() {
-        // Render must have made the back buffer writable: EndFrame turns it back
-        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered || m_frameStage == FrameStage::UiRendered,
-                          "EndFrame without Render in frame {}", m_frameNumber);
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "EndFrame without Render in frame {}", m_frameNumber);
         m_frameStage = FrameStage::Idle;
 
-        m_context.Transition(m_swapChain.CurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET,
-                             D3D12_RESOURCE_STATE_PRESENT);
+        // The frame graph has left the back buffer in PRESENT
         m_context.Close();
 
         // Uploads first: this frame may already use them, and the GPU runs lists in submission order

@@ -361,8 +361,7 @@ namespace {
             engine::scene::Extract(scene, lights);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            renderer.Render(frameView, lights, renderList, staticLists);
-            renderer.RenderUi(uiDrawData); // on top of the scene
+            renderer.Render(frameView, lights, renderList, staticLists, uiDrawData); // the UI on top of the scene
             renderer.EndFrame();
             ++framesRendered;
 

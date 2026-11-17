@@ -31,13 +31,13 @@ namespace engine::render {
         UiRenderer(UiRenderer &&) = delete;
         UiRenderer &operator=(UiRenderer &&) = delete;
 
-        // Records `drawData` into `context`, on top of the back buffer that `rtv` views (kFormat, in
-        // RENDER_TARGET state). Leaves the backend's root signature and PSO set.
+        // Records `drawData` into `context`, on top of the bound render target: a back buffer through its kFormat
+        // (UNORM) view, in RENDER_TARGET state, with no barriers still queued. In the renderer, the frame graph's UI
+        // pass binds it and flushes. Leaves the backend's root signature and PSO set.
         // At most once per frame: the backend switches to its next vertex/index buffer on every call, and with a
         // second call it would overwrite one the GPU may still read. Descriptors the backend frees meanwhile
         // (atlas textures it replaces) go to `frame`'s deferred frees.
-        void Render(ImDrawData *drawData, rhi::CommandContext &context, rhi::FrameContext &frame,
-                    D3D12_CPU_DESCRIPTOR_HANDLE rtv);
+        void Render(ImDrawData *drawData, rhi::CommandContext &context, rhi::FrameContext &frame);
 
     private:
         // The backend's descriptor callbacks; InitInfo::UserData is the UiRenderer

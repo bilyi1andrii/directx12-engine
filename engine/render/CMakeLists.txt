@@ -13,11 +13,14 @@ target_include_directories(engine_framegraph PUBLIC "${PROJECT_SOURCE_DIR}/engin
 target_link_libraries(engine_framegraph PUBLIC
         engine_core)
 
-# engine_render: draws the frame with engine_rhi (Renderer, GpuResources, UiRenderer; later FrameGraph, passes)
+# engine_render: draws the frame with engine_rhi (Renderer, GpuResources, FrameGraph and its passes, UiRenderer)
 
 add_library(engine_render STATIC
         DynamicInstances.cpp
         DynamicInstances.h
+        FrameGraph.cpp
+        FrameGraph.h
+        FrameInputs.h
         GpuResources.cpp
         GpuResources.h
         InstanceUpload.h
@@ -26,7 +29,9 @@ add_library(engine_render STATIC
         UiRenderer.cpp
         UiRenderer.h
         passes/OpaquePass.cpp
-        passes/OpaquePass.h)
+        passes/OpaquePass.h
+        passes/UiPass.cpp
+        passes/UiPass.h)
 
 engine_target_defaults(engine_render)
 
@@ -36,8 +41,7 @@ target_include_directories(engine_render PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 # shaders
 target_include_directories(engine_render PRIVATE "${PROJECT_SOURCE_DIR}/shaders")
 
-# PUBLIC: Renderer.h and GpuResources.h use rhi and renderdata types, so users need both. The frame graph's
-# header will use engine_framegraph's types.
+# PUBLIC: Renderer.h and GpuResources.h use rhi and renderdata types, and FrameGraph.h engine_framegraph's
 target_link_libraries(engine_render PUBLIC
         engine_framegraph
         engine_renderdata

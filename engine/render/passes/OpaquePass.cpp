@@ -4,10 +4,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <ranges>
 #include <string_view>
 #include <utility>
 
 #include "core/Assert.h"
+#include "render/FrameInputs.h"
 #include "renderdata/Vertex.h"
 #include "rhi/CommandContext.h"
 #include "rhi/DepthBuffer.h"
@@ -95,13 +97,30 @@ namespace engine::render {
         }
     }
 
+    void OpaquePass::AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
+                           const GpuResources &resources) const {
+        graph.AddPass(
+            "Opaque",
+            [&](PassBuilder &builder) {
+                // The sky: linear values, so through the sRGB view the screen shows about (56, 69, 108) of 255
+                builder.WriteColor(color, ClearColor{0.04f, 0.06f, 0.15f, 1.0f}, colorView);
+                // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
+                builder.WriteDepth(depth, rhi::DepthBuffer::kClearDepth);
+            },
+            [this, &resources](PassContext &context) {
+                const FrameInputs &inputs = context.Inputs();
+                Record(context.Commands(), resources, inputs.drawPath, inputs.drawSets);
+            });
+    }
+
     void OpaquePass::Record(rhi::CommandContext &context, const GpuResources &resources, DrawPath drawPath,
-                            std::span<const InstanceDraw> draws) const {
+                            std::span<const std::span<const InstanceDraw>> drawSets) const {
         context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        // Root constants (b0) are copied into the command list, so every draw keeps its own values
+        // Root constants (b0) are copied into the command list, so every draw keeps its own values.
+        // The PSO and buffers carry over from one set to the next: geometry indices are the same in every set.
         rhi::PipelineHandle currentPipeline;
         uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
-        for (const InstanceDraw &draw : draws) {
+        for (const InstanceDraw &draw : drawSets | std::views::join) {
             const GpuMesh &mesh = resources.Mesh(draw.key.mesh);
             const GpuGeometry &geometry = resources.Geometry(mesh.geometry);
             const MaterialInfo &material = resources.Material(draw.key.material);

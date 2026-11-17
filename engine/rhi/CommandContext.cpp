@@ -81,14 +81,12 @@ namespace engine::rhi {
         m_list->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
     }
 
-    void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv) {
+    void CommandContext::SetRenderTargets(std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> rtvs,
+                                          const D3D12_CPU_DESCRIPTOR_HANDLE *dsv) {
         ENGINE_ASSERT(m_recording);
-        m_list->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
-    }
-
-    void CommandContext::SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
-        ENGINE_ASSERT(m_recording);
-        m_list->OMSetRenderTargets(1, &rtv, FALSE, nullptr); // no DSV: no depth test or write
+        ENGINE_ASSERT(rtvs.size() <= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT);
+        // No DSV: no depth test or write
+        m_list->OMSetRenderTargets(static_cast<UINT>(rtvs.size()), rtvs.data(), FALSE, dsv);
     }
 
     void CommandContext::SetViewportAndScissor(uint32_t width, uint32_t height) {
