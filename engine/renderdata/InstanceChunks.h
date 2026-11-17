@@ -21,6 +21,15 @@ namespace engine::render {
         uint32_t count = 0;        // objects in the range, >= 1
     };
 
+    // One instanced draw: `count` objects with the same key, from element `firstElement` of the instance
+    // buffer at bindless index `instanceBufferIndex`. Static and dynamic objects differ only in that buffer.
+    struct InstanceDraw {
+        BatchKey key;
+        uint32_t instanceBufferIndex = 0;
+        uint32_t firstElement = 0;
+        uint32_t count = 0;
+    };
+
     // Fills `ranges` with the ranges of `buckets`, in order; empty buckets give none. `ranges` is passed in so its
     // memory is reused every frame.
     void SplitIntoChunks(std::span<const BatchBucket> buckets, uint32_t chunkCapacity,

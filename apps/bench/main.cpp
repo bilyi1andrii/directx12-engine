@@ -126,7 +126,7 @@ namespace {
         }
 
         // Destroyed before the renderer, which owns what the cache created
-        engine::assets::AssetCache assets(renderer);
+        engine::assets::AssetCache assets(renderer.Resources());
         const std::expected<const engine::render::Model *, std::string> model = LoadGridModel(options, assets);
         if (!model) {
             return std::unexpected(model.error());
@@ -134,7 +134,7 @@ namespace {
 
         // Only the grid, no spinning cube
         engine::render::RenderList renderList; // empty for a static grid
-        const engine::bench::StressGrid grid(renderer, options.gridMode, options.count, **model);
+        const engine::bench::StressGrid grid(renderer.Resources(), options.gridMode, options.count, **model);
         const std::array path = grid.CameraPath();
         engine::scene::Camera camera;
         camera.fovDegrees = 60.0f; // as in the sandbox

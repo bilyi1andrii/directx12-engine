@@ -27,7 +27,7 @@ namespace engine::render {
     // The default, 0, is the grey fallback texture.
     using TextureHandle = Handle<struct TextureTag>;
 
-    // Objects that never move, uploaded once into GPU memory by Renderer::CreateStaticList.
+    // Objects that never move, uploaded once into GPU memory by GpuResources::CreateStaticList.
     // The index points into the renderer's table.
     using StaticListHandle = Handle<struct StaticListTag>;
 } // namespace engine::render

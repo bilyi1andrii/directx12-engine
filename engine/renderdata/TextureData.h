@@ -15,7 +15,7 @@ namespace engine::render {
         uint64_t slicePitch = 0; // bytes in the whole level
     };
 
-    // A decoded 2D texture with its mips, ready to upload: TextureLoader makes it, Renderer::CreateTexture uploads it
+    // A decoded 2D texture with its mips, ready to upload: TextureLoader makes it, GpuResources::CreateTexture uploads it
     struct TextureData {
         uint32_t dxgiFormat = 0;      // a DXGI_FORMAT value (this layer does not include DXGI headers)
         bool isSrgb = false;          // false if the format has no sRGB version, even for a colour texture

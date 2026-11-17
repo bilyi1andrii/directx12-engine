@@ -1,13 +1,11 @@
 #include "render/Renderer.h"
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <format>
 #include <limits>
-#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -20,6 +18,7 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
+#include "render/InstanceUpload.h"
 #include "render/UiRenderer.h"
 #include "renderdata/LightPacking.h"
 #include "renderdata/Vertex.h"
@@ -36,9 +35,6 @@ namespace engine::render {
                       "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
         // Position of DrawConstants::instanceOffset in b0, in 32-bit values
         constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
-
-        // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
-        constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
 
         // How the GPU reads one Vertex (renderdata/Vertex.h): must match VSInput in vs_mesh.hlsl
         constexpr std::array kVertexLayout{
@@ -108,7 +104,8 @@ namespace engine::render {
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer"),
-          m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders") {
+          m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
+          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -119,9 +116,7 @@ namespace engine::render {
         // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
         try {
-            CreateFallbackTexture();
-            // Material 0, so a default MaterialHandle draws the grey texture
-            m_materials.push_back(MaterialInfo{.albedo = m_unloadedTexture});
+            m_resources.CreateDefaults();
             m_upload.Submit(m_queue);
         } catch (...) {
             // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
@@ -132,110 +127,9 @@ namespace engine::render {
 
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
-        // swap chain (depth buffer, PSO, meshes, static lists) are released before its flush, so wait
+        // swap chain (depth buffer, PSOs, GPU resources) are released before its flush, so wait
         // here (DestroyResources flushes).
         DestroyResources();
-    }
-
-    std::vector<MeshHandle> Renderer::CreateMesh(const MeshData &mesh, std::wstring_view name) {
-        ENGINE_ASSERT_MSG(!mesh.vertices.empty() && !mesh.indices.empty(), "CreateMesh with {} vertices and {} indices",
-                          mesh.vertices.size(), mesh.indices.size());
-
-        // EndFrame submits this batch before the frame, so the meshes can be drawn right away
-        PrepareUpload(std::span(mesh.vertices).size_bytes() + std::span(mesh.indices).size_bytes());
-        const std::wstring prefix(name);
-        const uint32_t geometry = AddGeometry({
-            .vertices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.vertices,
-                                                    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, prefix + L"/VB"),
-            .indices = rhi::Buffer::CreateWithData(m_allocator, m_upload, mesh.indices,
-                                                   D3D12_RESOURCE_STATE_INDEX_BUFFER, prefix + L"/IB"),
-            .vertexStride = sizeof(Vertex),
-            .indexFormat = DXGI_FORMAT_R32_UINT, // MeshData's indices are 32-bit: models can exceed 65536 vertices
-            .vertexFormat = VertexFormat::Mesh,
-        });
-
-        std::vector<MeshHandle> handles;
-        handles.reserve(mesh.submeshes.size());
-        for (const SubmeshData &submesh : mesh.submeshes) {
-            // A range outside the arrays would draw parts of other submeshes, or read past the buffers
-            ENGINE_ASSERT_MSG(submesh.firstIndex <= mesh.indices.size() &&
-                                  submesh.indexCount <= mesh.indices.size() - submesh.firstIndex,
-                              "Submesh indices {}+{} outside the {} indices", submesh.firstIndex, submesh.indexCount,
-                              mesh.indices.size());
-            ENGINE_ASSERT_MSG(submesh.baseVertex >= 0 && static_cast<size_t>(submesh.baseVertex) < mesh.vertices.size(),
-                              "Submesh base vertex {} outside the {} vertices", submesh.baseVertex,
-                              mesh.vertices.size());
-            handles.push_back(AddMesh({
-                .geometry = geometry,
-                .firstIndex = submesh.firstIndex,
-                .indexCount = submesh.indexCount,
-                .baseVertex = submesh.baseVertex,
-            }));
-        }
-        return handles;
-    }
-
-    void Renderer::PrepareUpload(uint64_t bytes) {
-        constexpr uint64_t kUploadBatchBytes = 64ull * 1024 * 1024;
-        if (m_upload.IsRecording() && m_upload.StagingBytes() > 0 &&
-            m_upload.StagingBytes() + bytes > kUploadBatchBytes) {
-            m_upload.Submit(m_queue);
-        }
-        if (!m_upload.IsRecording()) {
-            m_upload.Begin(m_queue);
-        }
-    }
-
-    TextureHandle Renderer::CreateTexture(const TextureData &data, std::wstring_view name) {
-        std::array<rhi::TextureMipData, D3D12_REQ_MIP_LEVELS> mips{};
-        ENGINE_ASSERT_MSG(!data.mips.empty() && data.mips.size() <= mips.size(), "Texture with {} mip levels",
-                          data.mips.size());
-        const std::span<const std::byte> pixels(data.pixels);
-        for (size_t i = 0; i < data.mips.size(); ++i) {
-            const TextureMip &mip = data.mips[i];
-            // The mip must lie inside the pixels (checked in a way that cannot overflow)
-            ENGINE_ASSERT_MSG(mip.offset <= pixels.size() && mip.slicePitch <= pixels.size() - mip.offset,
-                              "Mip {} ({} bytes at offset {}) lies outside the texture's {} bytes", i, mip.slicePitch,
-                              mip.offset, pixels.size());
-            mips[i] = {.width = mip.width,
-                       .height = mip.height,
-                       .rowPitch = mip.rowPitch,
-                       .pixels = pixels.subspan(mip.offset, mip.slicePitch)};
-        }
-
-        // EndFrame submits this batch before the frame
-        PrepareUpload(pixels.size_bytes());
-        rhi::Texture texture =
-            rhi::Texture::Create(m_allocator, m_upload, m_bindlessHeap, static_cast<DXGI_FORMAT>(data.dxgiFormat),
-                                 std::span(mips).first(data.mips.size()), name);
-        const TextureHandle handle{.index = texture.BindlessIndex()};
-        m_textures.push_back(std::move(texture));
-        return handle;
-    }
-
-    MaterialHandle Renderer::CreateMaterial(const MaterialInfo &material) {
-        ENGINE_ASSERT_MSG(std::to_underlying(material.shading) < kShadingCount, "Material with unknown shading {}",
-                          std::to_underlying(material.shading));
-        m_materials.push_back(material);
-        return MaterialHandle{.index = static_cast<uint32_t>(m_materials.size() - 1)};
-    }
-
-    void Renderer::CreateFallbackTexture() {
-        // Before any other texture, so it gets bindless index 0: a default handle then points to a texture
-        m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
-        ENGINE_ASSERT_MSG(m_unloadedTexture.index == 0, "The grey fallback texture got bindless index {}, not 0",
-                          m_unloadedTexture.index);
-    }
-
-    TextureHandle Renderer::CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue, std::wstring_view name) {
-        // sRGB, like all colour textures
-        const TextureData data{
-            .dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
-            .isSrgb = true,
-            .mips = {TextureMip{.width = 1, .height = 1, .offset = 0, .rowPitch = 4, .slicePitch = 4}},
-            .pixels = {std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}},
-        };
-        return CreateTexture(data, name);
     }
 
     void Renderer::DestroyResources() noexcept {
@@ -251,29 +145,9 @@ namespace engine::render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
-        // Destroy hands each resource to a frame slot; the slots free them when the renderer is destroyed
-        for (rhi::Texture &texture : m_textures) {
-            if (texture.IsValid()) {
-                texture.Destroy(CurrentFrame(), m_bindlessHeap);
-            }
-        }
-        m_textures.clear();
-        for (GpuGeometry &geometry : m_geometries) {
-            for (rhi::Buffer *buffer : {&geometry.vertices, &geometry.indices}) {
-                if (buffer->IsValid()) {
-                    buffer->Destroy(CurrentFrame());
-                }
-            }
-        }
-        m_geometries.clear();
-        m_meshes.clear();
-        for (GpuStaticList &staticList : m_staticLists) {
-            if (staticList.instances.IsValid()) {
-                CurrentFrame().DeferFree(m_bindlessHeap, staticList.instanceBufferIndex);
-                staticList.instances.Destroy(CurrentFrame());
-            }
-        }
-        m_staticLists.clear();
+        // Hands every texture, mesh buffer and static list to a frame slot; the slots free them when the renderer
+        // is destroyed
+        m_resources.DestroyAll(CurrentFrame());
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
@@ -331,86 +205,9 @@ namespace engine::render {
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         // Static lists first, then the dynamic objects
         for (const StaticListHandle handle : staticLists) {
-            RecordDraws(StaticList(handle).draws);
+            RecordDraws(m_resources.StaticList(handle).draws);
         }
         RecordDraws(m_dynamicDraws);
-    }
-
-    template <typename BeginChunk>
-    void Renderer::WriteInstances(const RenderList &list, uint32_t chunkCapacity, BeginChunk &&beginChunk,
-                                  std::vector<InstanceDraw> &draws) {
-        SplitIntoChunks(list.Buckets(), chunkCapacity, m_instanceRanges);
-        // Reserve first: once a chunk holds a bindless slot, nothing below may throw
-        draws.reserve(draws.size() + m_instanceRanges.size());
-
-        const std::span<const BatchBucket> buckets = list.Buckets();
-        const uint64_t instanceCount = list.InstanceCount();
-        InstanceChunk chunk{};
-        uint32_t chunksStarted = 0;
-        gpu::InstanceData instance{};
-        for (const InstanceRange &range : m_instanceRanges) {
-            if (range.chunk == chunksStarted) {
-                // First range of a new chunk: start the whole chunk (all but the last chunk are full)
-                const auto elementCount = static_cast<uint32_t>(
-                    std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity));
-                chunk = beginChunk(elementCount);
-                ++chunksStarted;
-            }
-
-            const BatchBucket &bucket = buckets[range.bucket];
-            draws.push_back({.key = bucket.key,
-                             .instanceBufferIndex = chunk.instanceBufferIndex,
-                             .firstElement = range.firstElement,
-                             .count = range.count});
-
-            // Written in order, one element after the other: upload memory is write-combined (see UploadRing)
-            uint64_t offset = uint64_t{range.firstElement} * kInstanceStride;
-            for (uint32_t i = 0; i < range.count; ++i) {
-                const DirectX::XMFLOAT4X4 &world = bucket.worlds[range.firstObject + i];
-                DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
-                chunk.memory.Write(offset, instance);
-                offset += kInstanceStride;
-            }
-        }
-    }
-
-    StaticListHandle Renderer::CreateStaticList(const RenderList &list, std::wstring_view name) {
-        // Reserve first: once the bindless slot is taken, nothing may throw, or the slot would leak
-        m_staticLists.reserve(m_staticLists.size() + 1);
-        // Filled by beginChunk. A Buffer cannot be assigned, so it is constructed in place (emplace).
-        std::optional<rhi::Buffer> instances;
-        uint32_t instanceBufferIndex = 0;
-        std::vector<InstanceDraw> draws;
-        const uint64_t instanceCount = list.InstanceCount();
-        if (instanceCount > 0) {
-            // EndFrame submits this batch before the frame
-            PrepareUpload(instanceCount * kInstanceStride);
-            // A GPU buffer has no page limit: one chunk for all objects
-            const auto beginChunk = [&](uint32_t elementCount) {
-                // GPU-local memory, filled once by a copy like a vertex buffer, so the GPU does not read these
-                // matrices across PCIe every frame. WriteInstances fills the staging memory.
-                InstanceChunk chunk{};
-                instances.emplace(
-                    rhi::Buffer::CreateStaged(m_allocator, m_upload, uint64_t{elementCount} * kInstanceStride,
-                                              D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, name, chunk.memory));
-                // A permanent view: unlike the ring's chunks, this buffer never moves
-                instanceBufferIndex = m_bindlessHeap.Allocate();
-                m_bindlessHeap.CreateStructuredBufferSrv(instanceBufferIndex, instances->Native(), 0, elementCount,
-                                                         kInstanceStride);
-                chunk.instanceBufferIndex = instanceBufferIndex;
-                return chunk;
-            };
-            WriteInstances(list, static_cast<uint32_t>(instanceCount), beginChunk, draws);
-        }
-
-        const StaticListHandle handle{.index = static_cast<uint32_t>(m_staticLists.size())};
-        // No reallocation (reserved above), and moving a Buffer or a vector cannot throw
-        m_staticLists.push_back(GpuStaticList{
-            .instances = instances ? std::move(*instances) : rhi::Buffer{},
-            .instanceBufferIndex = instanceBufferIndex,
-            .draws = std::move(draws),
-        });
-        return handle;
     }
 
     void Renderer::UploadDynamicInstances(const RenderList &list) {
@@ -431,7 +228,7 @@ namespace engine::render {
         // A shader view (SRV) covers one buffer, and every ring page is its own buffer: chunks of at most a page
         m_dynamicDraws.clear();
         WriteInstances(list, static_cast<uint32_t>(frame.Ring().PageSize() / kInstanceStride), beginChunk,
-                       m_dynamicDraws);
+                       m_instanceRanges, m_dynamicDraws);
     }
 
     void Renderer::RecordDraws(std::span<const InstanceDraw> draws) {
@@ -439,9 +236,9 @@ namespace engine::render {
         rhi::PipelineHandle currentPipeline;
         uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
         for (const InstanceDraw &draw : draws) {
-            const GpuMesh &mesh = Mesh(draw.key.mesh);
-            const GpuGeometry &geometry = m_geometries[mesh.geometry];
-            const MaterialInfo &material = Material(draw.key.material);
+            const GpuMesh &mesh = m_resources.Mesh(draw.key.mesh);
+            const GpuGeometry &geometry = m_resources.Geometry(mesh.geometry);
+            const MaterialInfo &material = m_resources.Material(draw.key.material);
             // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the geometry's vertex
             // format and on the material, so it is checked for every draw.
             const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, material);
@@ -477,36 +274,6 @@ namespace engine::render {
                 }
             }
         }
-    }
-
-    const Renderer::GpuMesh &Renderer::Mesh(MeshHandle handle) const {
-        ENGINE_ASSERT_MSG(handle.index < m_meshes.size(), "Mesh handle {} out of range ({} meshes)", handle.index,
-                          m_meshes.size());
-        return m_meshes[handle.index];
-    }
-
-    const MaterialInfo &Renderer::Material(MaterialHandle handle) const {
-        ENGINE_ASSERT_MSG(handle.index < m_materials.size(), "Material handle {} out of range ({} materials)",
-                          handle.index, m_materials.size());
-        return m_materials[handle.index];
-    }
-
-    const Renderer::GpuStaticList &Renderer::StaticList(StaticListHandle handle) const {
-        ENGINE_ASSERT_MSG(handle.index < m_staticLists.size(), "Static list handle {} out of range ({} lists)",
-                          handle.index, m_staticLists.size());
-        return m_staticLists[handle.index];
-    }
-
-    uint32_t Renderer::AddGeometry(GpuGeometry geometry) {
-        m_geometries.push_back(std::move(geometry));
-        return static_cast<uint32_t>(m_geometries.size() - 1);
-    }
-
-    MeshHandle Renderer::AddMesh(const GpuMesh &mesh) {
-        ENGINE_ASSERT_MSG(mesh.geometry < m_geometries.size(), "Mesh of geometry {} out of range ({} geometries)",
-                          mesh.geometry, m_geometries.size());
-        m_meshes.push_back(mesh);
-        return MeshHandle{.index = static_cast<uint32_t>(m_meshes.size() - 1)};
     }
 
     void Renderer::EnableUi() {

@@ -11,7 +11,7 @@
 #include <DirectXMath.h>
 
 #include "common/GridSetup.h"
-#include "render/Renderer.h"
+#include "render/GpuResources.h"
 #include "renderdata/Handles.h"
 #include "renderdata/Lights.h"
 #include "renderdata/Model.h"
@@ -26,7 +26,7 @@ namespace engine::bench {
     class StressGrid {
     public:
         // `count` is copies of the whole model, rounded up to a square. Uploads a static grid.
-        StressGrid(render::Renderer &renderer, apps::GridMode mode, uint32_t count, const render::Model &model);
+        StressGrid(render::GpuResources &resources, apps::GridMode mode, uint32_t count, const render::Model &model);
 
         // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;

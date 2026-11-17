@@ -124,7 +124,7 @@ namespace {
         engine::render::LightSet lights;       // this frame's lights
 
         // Destroyed before the renderer, which owns what the cache created
-        engine::assets::AssetCache assets(renderer);
+        engine::assets::AssetCache assets(renderer.Resources());
         engine::scene::Scene scene;
 
         // The textured grid (--count, --grid)
@@ -156,7 +156,7 @@ namespace {
         if (grid.mode == engine::apps::GridMode::Static) {
             engine::render::RenderList staticObjects;
             engine::scene::Extract(scene, staticObjects, engine::scene::Mobility::Static);
-            staticLists.push_back(renderer.CreateStaticList(staticObjects, L"Grid/Instances"));
+            staticLists.push_back(renderer.Resources().CreateStaticList(staticObjects, L"Grid/Instances"));
         }
 
         std::vector<sandbox::PlacedModel> models;
@@ -352,8 +352,8 @@ namespace {
             for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
                 const engine::scene::Ray ray = pickRayAt(drop.x, drop.y);
                 sandbox::LoadDroppedFile(drop.path,
-                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop), renderer,
-                                         assets, scene, nextModelX, grid, models);
+                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop),
+                                         renderer.Resources(), assets, scene, nextModelX, grid, models);
             }
 
             renderList.Clear();

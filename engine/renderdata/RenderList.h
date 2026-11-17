@@ -39,7 +39,7 @@ namespace engine::render {
 
     // The frame's draws as plain CPU data, without D3D12 types: objects grouped into buckets by BatchKey,
     // buckets in the order their key was first added. Rebuilt every frame for moving objects; objects that never
-    // move go into Renderer::CreateStaticList once.
+    // move go into GpuResources::CreateStaticList once.
     // Transparency comes later.
     //
     // The same list serves both draw paths: the renderer draws a bucket either as one instanced draw or
