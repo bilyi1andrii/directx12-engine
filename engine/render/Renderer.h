@@ -23,6 +23,7 @@
 #include "rhi/UploadContext.h"
 #include "rhi/ValidationStats.h"
 
+#include "render/DynamicInstances.h"
 #include "render/GpuResources.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
@@ -114,9 +115,6 @@ namespace engine::render {
         // texture, mesh buffer and static list
         void DestroyResources() noexcept;
 
-        // Writes the objects of `list` into this frame's upload ring and fills m_dynamicDraws
-        void UploadDynamicInstances(const RenderList &list);
-
         // Records `draws` on the current draw path: one instanced draw each, or one draw per object
         void RecordDraws(std::span<const InstanceDraw> draws);
 
@@ -154,14 +152,12 @@ namespace engine::render {
         // textures are handed to a frame by DestroyResources (after the destructor's flush), so the frames
         // release them, before the allocator goes.
         GpuResources m_resources;
+        // This frame's moving objects; CPU memory only (the instance data is in the frames' upload rings)
+        DynamicInstances m_dynamicInstances;
 
         // The UI's renderer; null until EnableUi. Released after the destructor's flush, before the frames and the
         // bindless heap: its shutdown hands the font texture's descriptor to a frame's deferred frees.
         std::unique_ptr<UiRenderer> m_ui;
-
-        // Rebuilt for every list; members, so their memory is reused
-        std::vector<InstanceRange> m_instanceRanges;
-        std::vector<InstanceDraw> m_dynamicDraws;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;

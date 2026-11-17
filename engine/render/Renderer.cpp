@@ -18,7 +18,6 @@
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
-#include "render/InstanceUpload.h"
 #include "render/UiRenderer.h"
 #include "renderdata/LightPacking.h"
 #include "renderdata/Vertex.h"
@@ -201,34 +200,13 @@ namespace engine::render {
             CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
         m_context.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, frameCb.gpu);
 
-        UploadDynamicInstances(list);
+        m_dynamicInstances.Upload(list, CurrentFrame(), m_bindlessHeap);
         m_context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         // Static lists first, then the dynamic objects
         for (const StaticListHandle handle : staticLists) {
             RecordDraws(m_resources.StaticList(handle).draws);
         }
-        RecordDraws(m_dynamicDraws);
-    }
-
-    void Renderer::UploadDynamicInstances(const RenderList &list) {
-        rhi::FrameContext &frame = CurrentFrame();
-        const auto beginChunk = [&](uint32_t elementCount) {
-            // Aligned to the element size, so the view can start at a whole element
-            InstanceChunk chunk{.memory =
-                                    frame.Ring().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
-            // A fresh bindless slot every frame: the previous frame may still read the old one. It is freed after
-            // this frame's fence.
-            chunk.instanceBufferIndex = m_bindlessHeap.Allocate();
-            frame.DeferFree(m_bindlessHeap, chunk.instanceBufferIndex);
-            m_bindlessHeap.CreateStructuredBufferSrv(chunk.instanceBufferIndex, chunk.memory.resource,
-                                                     chunk.memory.offset / kInstanceStride, elementCount,
-                                                     kInstanceStride);
-            return chunk;
-        };
-        // A shader view (SRV) covers one buffer, and every ring page is its own buffer: chunks of at most a page
-        m_dynamicDraws.clear();
-        WriteInstances(list, static_cast<uint32_t>(frame.Ring().PageSize() / kInstanceStride), beginChunk,
-                       m_instanceRanges, m_dynamicDraws);
+        RecordDraws(m_dynamicInstances.Draws());
     }
 
     void Renderer::RecordDraws(std::span<const InstanceDraw> draws) {

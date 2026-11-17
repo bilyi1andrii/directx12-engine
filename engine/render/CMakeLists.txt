@@ -1,6 +1,8 @@
 # engine_render: draws the frame with engine_rhi (Renderer, GpuResources, UiRenderer; later FrameGraph, passes)
 
 add_library(engine_render STATIC
+        DynamicInstances.cpp
+        DynamicInstances.h
         GpuResources.cpp
         GpuResources.h
         InstanceUpload.h
