@@ -11,6 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <DirectXMath.h>
+
 #include "assets/TextureLoader.h"
 #include "core/Error.h"
 #include "renderdata/GpuUploader.h"
@@ -52,6 +54,8 @@ namespace engine::assets {
 
         // A 1x1 sRGB texture of one colour (values as in an image file), made once per colour
         [[nodiscard]] render::TextureHandle SolidColor(uint8_t red, uint8_t green, uint8_t blue);
+        // The same, from a colour with channels from 0 to 1 (values outside are clamped)
+        [[nodiscard]] render::TextureHandle SolidColor(const DirectX::XMFLOAT3 &color);
 
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();

@@ -228,6 +228,10 @@ namespace engine::assets {
         return handle;
     }
 
+    TextureHandle AssetCache::SolidColor(const DirectX::XMFLOAT3 &color) {
+        return SolidColor(ToByte(color.x), ToByte(color.y), ToByte(color.z));
+    }
+
     TextureHandle AssetCache::CheckerboardTexture() {
         if (!m_checkerboard) {
             if (const std::expected<render::TextureData, core::Error> data = MakeCheckerboard()) {

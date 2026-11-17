@@ -10,7 +10,6 @@
 
 #ifdef __cplusplus
 #include <bit>
-#include <cstddef>
 #include <cstdint>
 
 #include <DirectXMath.h>

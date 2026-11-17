@@ -45,8 +45,8 @@ namespace engine::scene {
     }
 
     render::LocalLight *Scene::Light(ObjectId id) {
-        const auto found = std::ranges::find(m_lightObjects, id);
-        return found != m_lightObjects.end() ? &m_lights[static_cast<size_t>(found - m_lightObjects.begin())] : nullptr;
+        // The const overload's search; the const_cast is safe because this scene is not const
+        return const_cast<render::LocalLight *>(std::as_const(*this).Light(id));
     }
 
     const render::LocalLight *Scene::Light(ObjectId id) const {

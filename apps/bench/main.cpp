@@ -27,6 +27,7 @@
 #include "rhi/AgilitySdk.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
+#include "renderdata/LightPacking.h"
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
@@ -80,13 +81,10 @@ namespace {
         std::string lights;         // how many lights of each kind shine
     };
 
-    // For run.txt: the lights that are switched on, e.g. "1 directional, 2 point, 2 spot"
+    // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
     std::string DescribeLights(const engine::render::LightSet &lights) {
-        const auto enabled = [](const auto &light) {
-            return light.light.enabled;
-        };
-        return std::format("{} directional, {} point, {} spot", lights.environment.directional.enabled ? 1 : 0,
-                           std::ranges::count_if(lights.points, enabled), std::ranges::count_if(lights.spots, enabled));
+        const engine::render::PackedLightCounts counts = engine::render::CountPackedLights(lights);
+        return std::format("{} directional, {} point, {} spot", counts.directional, counts.points, counts.spots);
     }
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.

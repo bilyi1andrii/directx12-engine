@@ -104,6 +104,23 @@ TEST(PackLights, KeepsTheFirstEightPointAndFourSpotLights) {
     EXPECT_EQ(constants.spotLights[3].strength, 3.0f);
 }
 
+// What the bench writes into run.txt: the lights the shaders get, not every light in the set
+TEST(CountPackedLights, CountsEnabledLightsUpToTheLimits) {
+    LightSet lights;
+    lights.environment.directional.enabled = false;
+    lights.points.push_back(Point(1.0f, false));
+    for (uint32_t i = 0; i < 12; ++i) {
+        lights.points.push_back(Point(1.0f));
+    }
+    lights.spots = {Spot(1.0f), Spot(1.0f, false)};
+
+    const engine::render::PackedLightCounts counts = engine::render::CountPackedLights(lights);
+
+    EXPECT_EQ(counts.directional, 0u);
+    EXPECT_EQ(counts.points, engine::gpu::kMaxPointLights);
+    EXPECT_EQ(counts.spots, 1u);
+}
+
 TEST(PackLights, NormalizesDirections) {
     LightSet lights;
     lights.environment.directional.direction = {0.0f, -3.0f, 4.0f};
@@ -144,10 +161,27 @@ TEST(PackLights, InnerCosineIsAlwaysGreaterThanOuter) {
     ASSERT_EQ(constants.spotLightCount, 4u);
     EXPECT_NEAR(constants.spotLights[0].innerCos, std::cos(DirectX::XMConvertToRadians(18.0f)), kTolerance);
     EXPECT_NEAR(constants.spotLights[0].outerCos, std::cos(DirectX::XMConvertToRadians(28.0f)), kTolerance);
-    EXPECT_NEAR(constants.spotLights[1].outerCos, std::cos(DirectX::XMConvertToRadians(20.0f)), kTolerance);
+    // The inner angle shrinks to the outer one, and the gap widens the outer cone
+    EXPECT_NEAR(constants.spotLights[1].innerCos, std::cos(DirectX::XMConvertToRadians(20.0f)), kTolerance);
     for (uint32_t i = 0; i < constants.spotLightCount; ++i) {
         EXPECT_GT(constants.spotLights[i].innerCos, constants.spotLights[i].outerCos) << "spot " << i;
     }
+}
+
+// A cosine above 1 would keep the shader's cone factor below 1 even on the spot's axis
+TEST(PackLights, NarrowConeKeepsFullStrengthOnItsAxis) {
+    LightSet lights;
+    lights.spots = {Spot(1.0f)};
+    lights.spots[0].light.innerAngleDegrees = 0.3f;
+    lights.spots[0].light.outerAngleDegrees = 0.5f;
+
+    FrameConstants constants{};
+    PackLights(lights, constants);
+
+    ASSERT_EQ(constants.spotLightCount, 1u);
+    EXPECT_LE(constants.spotLights[0].innerCos, 1.0f);
+    EXPECT_NEAR(constants.spotLights[0].innerCos, std::cos(DirectX::XMConvertToRadians(0.3f)), kTolerance);
+    EXPECT_GT(constants.spotLights[0].innerCos, constants.spotLights[0].outerCos);
 }
 
 // Its colour and direction stay, so only the strength can switch it off

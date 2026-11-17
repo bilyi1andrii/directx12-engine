@@ -1,8 +1,6 @@
 #include "SandboxLights.h"
 
-#include <algorithm>
 #include <cmath>
-#include <cstdint>
 
 #include <DirectXMath.h>
 
@@ -43,11 +41,7 @@ namespace sandbox {
         // Unlit, so the sphere shows the light's own colour whatever shines on it
         [[nodiscard]] engine::render::MaterialHandle MarkerMaterial(engine::assets::AssetCache &cache,
                                                                     const XMFLOAT3 &color) {
-            const auto toByte = [](float value) {
-                return static_cast<uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
-            };
-            return cache.Material(cache.SolidColor(toByte(color.x), toByte(color.y), toByte(color.z)),
-                                  engine::render::Shading::Unlit);
+            return cache.Material(cache.SolidColor(color), engine::render::Shading::Unlit);
         }
     } // namespace
 

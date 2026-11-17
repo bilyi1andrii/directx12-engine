@@ -66,18 +66,28 @@ namespace engine::render {
             constexpr float kMinCosGap = 1e-4f;
             const float outerDegrees = std::clamp(spot.light.outerAngleDegrees, 0.0f, 90.0f);
             const float innerDegrees = std::clamp(spot.light.innerAngleDegrees, 0.0f, outerDegrees);
-            const float outerCos = std::cos(DirectX::XMConvertToRadians(outerDegrees));
             const float innerCos = std::cos(DirectX::XMConvertToRadians(innerDegrees));
+            // The gap widens the outer cone, not the inner one: innerCos above 1 would dim the spot's centre
+            const float outerCos = std::min(std::cos(DirectX::XMConvertToRadians(outerDegrees)), innerCos - kMinCosGap);
 
             gpu::SpotLightData &data = constants.spotLights[spotCount++];
             data.position = spot.position;
             data.strength = spot.light.strength;
             data.direction = UnitDirection(spot.direction);
-            data.innerCos = std::max(innerCos, outerCos + kMinCosGap);
+            data.innerCos = innerCos;
             data.color = spot.light.color;
             data.outerCos = outerCos;
             data.attenuation = spot.light.attenuation;
         }
         constants.spotLightCount = spotCount;
+    }
+
+    PackedLightCounts CountPackedLights(const LightSet &lights) {
+        // Packing for real keeps the counts in step with PackLights' rules
+        gpu::FrameConstants constants{};
+        PackLights(lights, constants);
+        return {.directional = lights.environment.directional.enabled ? 1u : 0u,
+                .points = constants.pointLightCount,
+                .spots = constants.spotLightCount};
     }
 } // namespace engine::render
