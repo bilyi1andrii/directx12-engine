@@ -1,6 +1,7 @@
 #include "StressGrid.h"
 
 #include "core/Log.h"
+#include "render/GpuResources.h"
 #include "renderdata/GridLayout.h"
 
 using engine::apps::kGridHeight;
@@ -13,7 +14,8 @@ namespace engine::bench {
         constexpr float kGridObjectSize = 2.0f;
     } // namespace
 
-    StressGrid::StressGrid(render::Renderer &renderer, apps::GridMode mode, uint32_t count, const render::Model &model)
+    StressGrid::StressGrid(render::GpuResources &resources, apps::GridMode mode, uint32_t count,
+                           const render::Model &model)
         : m_mode(mode), m_side(apps::GridSide(count)), m_parts(model.parts),
           m_base(render::FitToCell(model.bounds, kGridObjectSize, {0.0f, kGridHeight, 0.0f})) {
         core::LogInfo("Grid: {} x {} = {} copies of {} parts, {}", m_side, m_side, ObjectCount(), m_parts.size(),
@@ -22,7 +24,7 @@ namespace engine::bench {
             render::RenderList gridList;
             render::SubmitGrid(gridList, m_parts, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
             // gridList can go: the matrices are in GPU memory now
-            m_staticList = renderer.CreateStaticList(gridList, L"Grid/Instances");
+            m_staticList = resources.CreateStaticList(gridList, L"Grid/Instances");
         }
     }
 

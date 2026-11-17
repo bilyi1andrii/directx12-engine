@@ -11,12 +11,15 @@
 #include <DirectXMath.h>
 
 #include "common/GridSetup.h"
-#include "render/Renderer.h"
 #include "renderdata/Handles.h"
 #include "renderdata/Lights.h"
 #include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 #include "scene/CameraPath.h"
+
+namespace engine::render {
+    class GpuResources;
+} // namespace engine::render
 
 namespace engine::bench {
     // Length of the grid's camera path in frames, the same as the bench's default --frames
@@ -26,7 +29,7 @@ namespace engine::bench {
     class StressGrid {
     public:
         // `count` is copies of the whole model, rounded up to a square. Uploads a static grid.
-        StressGrid(render::Renderer &renderer, apps::GridMode mode, uint32_t count, const render::Model &model);
+        StressGrid(render::GpuResources &resources, apps::GridMode mode, uint32_t count, const render::Model &model);
 
         // Call every frame after list.Clear(): adds the grid in dynamic mode, does nothing in static mode
         void Submit(render::RenderList &list) const;

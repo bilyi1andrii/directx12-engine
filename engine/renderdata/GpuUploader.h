@@ -10,8 +10,8 @@
 #include "renderdata/TextureData.h"
 
 namespace engine::render {
-    // What asset loading needs from the renderer. Renderer implements it; AssetCache sees only this, so assets
-    // does not depend on engine_render and tests can pass a fake without a GPU.
+    // What asset loading needs from the renderer. GpuResources (engine_render) implements it. AssetCache sees only
+    // this, so assets does not depend on engine_render and tests can pass a fake without a GPU.
     class GpuUploader {
     public:
         virtual ~GpuUploader() = default;
