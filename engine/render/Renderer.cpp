@@ -15,6 +15,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "render/FrameInputs.h"
+#include "rhi/DepthFormat.h"
 #include "render/UiRenderer.h"
 #include "render/passes/UiPass.h"
 #include "renderdata/LightPacking.h"
@@ -59,7 +60,7 @@ namespace engine::render {
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
-          m_depth(m_device.Native(), m_allocator, m_dsvAllocator, width, height, L"Depth buffer"),
+          m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
           m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
           m_graph(m_pipelines.RootSignature()) {
@@ -83,7 +84,7 @@ namespace engine::render {
 
     Renderer::~Renderer() {
         // The destructor body runs before any member is destroyed. Members declared after the
-        // swap chain (depth buffer, PSOs, GPU resources) are released before its flush, so wait
+        // swap chain (the frame graph's textures, PSOs, GPU resources) are released before its flush, so wait
         // here (DestroyResources flushes).
         DestroyResources();
     }
@@ -104,6 +105,7 @@ namespace engine::render {
         // Hands every texture, mesh buffer and static list to a frame slot; the slots free them when the renderer
         // is destroyed
         m_resources.DestroyAll(CurrentFrame());
+        m_transients.DestroyAll(CurrentFrame());
     }
 
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
@@ -118,11 +120,9 @@ namespace engine::render {
         // Frees the staging memory of a finished upload batch
         m_upload.ReleaseCompleted(m_queue);
 
-        // After WaitAndReset: objects a resize defers into this slot must survive until this
-        // frame's fence, not be dropped by the reset
-        if (m_swapChain.Resize(width, height)) {
-            m_depth.Resize(m_swapChain.Width(), m_swapChain.Height(), frame);
-        }
+        // Targets of the back buffer's size follow in Render: a new size rebuilds the frame graph, which takes new
+        // textures from the pool and hands the old ones to this frame slot
+        m_swapChain.Resize(width, height);
 
         m_context.Begin(frame.CommandAllocator());
         // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
@@ -164,11 +164,6 @@ namespace engine::render {
                           .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
                           .width = m_swapChain.Width(),
                           .height = m_swapChain.Height()},
-            ImportBinding{.texture = m_sceneDepth,
-                          .resource = m_depth.Native(),
-                          .views = {m_depth.Dsv()},
-                          .width = m_depth.Width(),
-                          .height = m_depth.Height()},
         };
         const FrameInputs inputs{
             .frameConstants = frameCb.gpu, .drawPath = m_settings.drawPath, .drawSets = m_drawSets, .ui = ui};
@@ -178,15 +173,18 @@ namespace engine::render {
     void Renderer::BuildGraph() {
         m_graph.Reset();
         m_backBuffer = m_graph.Import("BackBuffer", fg::Access::Present, fg::Access::Present);
-        // The depth buffer stays in DEPTH_WRITE (nothing samples it), so the graph never changes its state
-        m_sceneDepth = m_graph.Import("SceneDepth", fg::Access::DepthWrite, fg::Access::DepthWrite);
+        const FgTexture sceneDepth = m_graph.CreateTexture("SceneDepth", {.width = m_swapChain.Width(),
+                                                                          .height = m_swapChain.Height(),
+                                                                          .format = rhi::kDepthFormat,
+                                                                          .target = TransientTextureDesc::Target::Depth,
+                                                                          .shaderRead = false});
 
-        m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, m_sceneDepth, m_resources);
+        m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
         if (m_ui) {
             // Last: on top of the scene
             AddUiPass(m_graph, m_backBuffer, kBackBufferUnormView, *m_ui);
         }
-        m_graph.Compile();
+        m_graph.Compile(m_transients, CurrentFrame());
     }
 
     void Renderer::EnableUi() {

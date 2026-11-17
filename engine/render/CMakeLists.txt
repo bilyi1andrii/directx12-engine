@@ -26,6 +26,8 @@ add_library(engine_render STATIC
         InstanceUpload.h
         Renderer.cpp
         Renderer.h
+        TransientTexturePool.cpp
+        TransientTexturePool.h
         UiRenderer.cpp
         UiRenderer.h
         passes/OpaquePass.cpp

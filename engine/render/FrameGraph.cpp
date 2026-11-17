@@ -48,6 +48,19 @@ namespace engine::render {
         return {m_desc.AddImport(start, end)};
     }
 
+    FgTexture FrameGraph::CreateTexture(std::string_view name, const TransientTextureDesc &desc) {
+        ENGINE_ASSERT_MSG(!m_isCompiled && !m_executing, "CreateTexture of {} after Compile", name);
+        uint32_t descId = 0;
+        while (descId < m_transientDescs.size() && m_transientDescs[descId] != desc) {
+            ++descId;
+        }
+        if (descId == m_transientDescs.size()) {
+            m_transientDescs.push_back(desc);
+        }
+        m_textureNames.emplace_back(name);
+        return {m_desc.AddTransient(descId)};
+    }
+
     void FrameGraph::AddPass(std::string_view name, const std::function<void(PassBuilder &)> &setup,
                              ExecuteFn execute) {
         ENGINE_ASSERT_MSG(!m_isCompiled && !m_executing, "AddPass of {} after Compile", name);
@@ -69,10 +82,11 @@ namespace engine::render {
         m_setupUses.push_back({.texture = texture.index, .access = access});
     }
 
-    void FrameGraph::Compile() {
+    void FrameGraph::Compile(TransientTexturePool &pool, rhi::FrameContext &frame) {
         ENGINE_ASSERT_MSG(!m_isCompiled, "Compile called twice without Reset");
         m_compiled = fg::Compile(m_desc);
         m_gpuBindings.assign(m_compiled.gpuTextures.size(), ImportBinding{});
+        TakeTransients(pool, frame);
         m_isCompiled = true;
 
 #ifdef _DEBUG
@@ -101,6 +115,12 @@ namespace engine::render {
                               "Execute got a binding for a texture that was not imported");
             m_gpuBindings[m_compiled.textures[binding.texture.index].gpuTexture] = binding;
         }
+
+        // Pooled textures that a previous graph left in another state. Flushed with the first pass's barriers.
+        for (const StateFix &fix : m_stateFixes) {
+            commands.Transition(fix.resource, fix.before, fix.after);
+        }
+        m_stateFixes.clear();
 
         for (uint32_t passIndex = 0; passIndex < m_passes.size(); ++passIndex) {
             if (!m_compiled.passes[passIndex].kept) {
@@ -137,10 +157,54 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(!m_executing, "Reset during Execute");
         m_desc.Clear();
         m_textureNames.clear();
+        m_transientDescs.clear();
         m_passes.clear();
         m_compiled = {};
         m_gpuBindings.clear();
+        // The pool already counts these textures in their new state, so the fixes must be made before a new graph
+        ENGINE_ASSERT_MSG(m_stateFixes.empty(), "Reset between Compile and Execute");
         m_isCompiled = false;
+    }
+
+    void FrameGraph::TakeTransients(TransientTexturePool &pool, rhi::FrameContext &frame) {
+        // The name of each transient GPU texture: that of the first graph texture that uses it
+        std::vector<std::string_view> names(m_compiled.gpuTextures.size());
+        for (size_t i = 0; i < m_compiled.textures.size(); ++i) {
+            const uint32_t gpu = m_compiled.textures[i].gpuTexture;
+            if (gpu != fg::kNoIndex && names[gpu].empty()) {
+                names[gpu] = m_textureNames[i];
+            }
+        }
+
+        m_poolRequests.clear();
+        for (size_t gpu = 0; gpu < m_compiled.gpuTextures.size(); ++gpu) {
+            const fg::CompiledGraph::GpuTexture &texture = m_compiled.gpuTextures[gpu];
+            if (!texture.imported) {
+                m_poolRequests.push_back({.desc = m_transientDescs[texture.descId],
+                                          .state = ToState(texture.restAccess),
+                                          .name = names[gpu]});
+            }
+        }
+        pool.Take(m_poolRequests, frame, m_poolTextures);
+
+        m_stateFixes.clear();
+        size_t taken = 0;
+        for (size_t gpu = 0; gpu < m_compiled.gpuTextures.size(); ++gpu) {
+            if (m_compiled.gpuTextures[gpu].imported) {
+                continue;
+            }
+            const TransientTexturePool::Texture &texture = m_poolTextures[taken];
+            const D3D12_RESOURCE_STATES state = m_poolRequests[taken].state;
+            ++taken;
+            m_gpuBindings[gpu] = {.texture = {},
+                                  .resource = texture.resource,
+                                  .views = {texture.view},
+                                  .width = texture.width,
+                                  .height = texture.height};
+            if (texture.currentState != state) {
+                m_stateFixes.push_back({.resource = texture.resource, .before = texture.currentState, .after = state});
+            }
+        }
     }
 
     void FrameGraph::BindTargetsAndClear(const Pass &pass, rhi::CommandContext &commands) const {

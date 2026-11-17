@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "render/FrameGraphCompiler.h"
+#include "render/TransientTexturePool.h"
 #include "rhi/RhiCommon.h"
 
 namespace engine::rhi {
@@ -84,9 +85,9 @@ namespace engine::render {
     // graph works out the barriers between passes and which passes can be skipped, then records the passes in the
     // order they were added.
     //
-    // Built once and executed every frame: Import and AddPass, then Compile, then Execute once per frame. Reset and
-    // build again when the passes change. Execute callbacks are kept until Reset, so they must not capture data of
-    // one frame; they read it through PassContext::Inputs().
+    // Built once and executed every frame: Import, CreateTexture and AddPass, then Compile, then Execute once per
+    // frame. Reset and build again when the passes or texture sizes change. Execute callbacks are kept until Reset,
+    // so they must not capture data of one frame; they read it through PassContext::Inputs().
     //
     // Not copyable or movable: pass callbacks may keep references to it.
     class FrameGraph {
@@ -105,20 +106,29 @@ namespace engine::render {
         // `end`. Its resource is given to every Execute.
         [[nodiscard]] FgTexture Import(std::string_view name, fg::Access start, fg::Access end);
 
+        // A texture that lives only inside the frame. Compile takes it from the pool; transients whose passes never
+        // overlap may share one texture. Its contents are undefined until a pass writes or clears it.
+        // `name` is ASCII and names the GPU texture in debuggers ("FG/<name>").
+        [[nodiscard]] FgTexture CreateTexture(std::string_view name, const TransientTextureDesc &desc);
+
         // Adds a pass that runs after the ones added before it. `setup` runs at once and declares the textures;
         // `execute` runs in every Execute, unless nothing uses what the pass writes.
         void AddPass(std::string_view name, const std::function<void(PassBuilder &)> &setup, ExecuteFn execute);
 
-        // Works out which passes run and the barriers. Call once after the last AddPass.
-        void Compile();
+        // Works out which passes run and the barriers, and takes the transient textures from `pool`. The pool's
+        // textures this graph does not use are destroyed once the GPU has finished `frame`. Call once after the
+        // last AddPass, inside a frame.
+        void Compile(TransientTexturePool &pool, rhi::FrameContext &frame);
         [[nodiscard]] bool IsCompiled() const noexcept { return m_isCompiled; }
 
         // Records the passes into `commands`, with this frame's imported textures (one binding per Import) and
-        // inputs. Ends with every imported texture in its end state.
+        // inputs. Ends with every imported texture in its end state, and every transient in the state the next
+        // frame starts from.
         void Execute(rhi::CommandContext &commands, rhi::FrameContext &frame, std::span<const ImportBinding> imports,
                      const FrameInputs &inputs);
 
-        // Removes every pass and texture; the graph can be built again
+        // Removes every pass and texture; the graph can be built again. After a Compile, Execute must run once before
+        // Reset (asserted): the first Execute moves pooled textures into the states the pool now reports.
         void Reset();
 
     private:
@@ -139,6 +149,15 @@ namespace engine::render {
             std::vector<ColorTarget> colors;
             std::optional<DepthTarget> depth;
         };
+        // A pooled texture that is not yet in the state the compiled graph expects at the start of a frame
+        struct StateFix {
+            ID3D12Resource *resource = nullptr;
+            D3D12_RESOURCE_STATES before = D3D12_RESOURCE_STATE_COMMON;
+            D3D12_RESOURCE_STATES after = D3D12_RESOURCE_STATE_COMMON;
+        };
+
+        // Takes a GPU texture from `pool` for each transient GPU texture of m_compiled
+        void TakeTransients(TransientTexturePool &pool, rhi::FrameContext &frame);
 
         // For PassBuilder
         void AddUse(uint32_t pass, FgTexture texture, fg::Access access);
@@ -149,13 +168,21 @@ namespace engine::render {
         ID3D12RootSignature *m_rootSignature;
         fg::GraphDesc m_desc;
         std::vector<std::string> m_textureNames; // by FgTexture::index
+        // Each different description of a transient, once; fg::GraphDesc::Texture::descId indexes it
+        std::vector<TransientTextureDesc> m_transientDescs;
         std::vector<Pass> m_passes;
         std::vector<fg::TextureUse> m_setupUses; // the uses of the pass being set up
         fg::CompiledGraph m_compiled;
         bool m_isCompiled = false;
         bool m_executing = false;
-        // This frame's binding of each GPU texture (fg::CompiledGraph::gpuTextures), filled by Execute
+        // The binding of each GPU texture (fg::CompiledGraph::gpuTextures): transients' from Compile, imports' from
+        // each Execute
         std::vector<ImportBinding> m_gpuBindings;
+        // Made at the start of the first Execute after Compile, then cleared
+        std::vector<StateFix> m_stateFixes;
+        // Scratch for TakeTransients
+        std::vector<TransientTexturePool::Request> m_poolRequests;
+        std::vector<TransientTexturePool::Texture> m_poolTextures;
     };
 } // namespace engine::render
 

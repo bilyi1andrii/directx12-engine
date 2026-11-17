@@ -12,7 +12,7 @@
 #include "render/FrameInputs.h"
 #include "renderdata/Vertex.h"
 #include "rhi/CommandContext.h"
-#include "rhi/DepthBuffer.h"
+#include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"
 
 #include "common/root_signature.hlsli"
@@ -91,7 +91,7 @@ namespace engine::render {
                 .inputLayout = kVertexLayout,
                 .cull = variant.doubleSided ? rhi::CullMode::None : rhi::CullMode::Back,
                 .renderTargetFormats = kBackBufferTargets,
-                .depthFormat = rhi::DepthBuffer::kFormat,
+                .depthFormat = rhi::kDepthFormat,
                 .name = variant.name,
             });
         }
@@ -105,7 +105,7 @@ namespace engine::render {
                 // The sky: linear values, so through the sRGB view the screen shows about (56, 69, 108) of 255
                 builder.WriteColor(color, ClearColor{0.04f, 0.06f, 0.15f, 1.0f}, colorView);
                 // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
-                builder.WriteDepth(depth, rhi::DepthBuffer::kClearDepth);
+                builder.WriteDepth(depth, rhi::kClearDepth);
             },
             [this, &resources](PassContext &context) {
                 const FrameInputs &inputs = context.Inputs();

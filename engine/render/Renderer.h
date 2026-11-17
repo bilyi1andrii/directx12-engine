@@ -12,7 +12,6 @@
 #include "rhi/BindlessHeap.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
-#include "rhi/DepthBuffer.h"
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
@@ -24,6 +23,7 @@
 #include "render/DynamicInstances.h"
 #include "render/FrameGraph.h"
 #include "render/GpuResources.h"
+#include "render/TransientTexturePool.h"
 #include "render/passes/OpaquePass.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
@@ -44,7 +44,8 @@ namespace engine::render {
     // destructor logs why (and the DRED info in Debug builds).
     //
     // The frame is recorded by a frame graph (FrameGraph), built on the first frame and again when the back
-    // buffer's size changes or the UI is enabled.
+    // buffer's size changes or the UI is enabled. The scene depth is one of the graph's textures, the size of the
+    // back buffer.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
     // Asset loading creates meshes, textures and materials through Resources().
@@ -117,7 +118,7 @@ namespace engine::render {
         void BuildGraph();
 
         // Shutdown only: logs why the device was removed (if it was), waits for the GPU, then destroys every
-        // texture, mesh buffer and static list
+        // texture (the frame graph's too), mesh buffer and static list
         void DestroyResources() noexcept;
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
@@ -137,12 +138,14 @@ namespace engine::render {
         rhi::CommandQueue m_queue;
         // Back buffers and other render targets; 64 slots cost a few KB of CPU memory
         rhi::DescriptorAllocator m_rtvAllocator;
-        // The main depth buffer, with room for shadow maps
+        // Scene depth and shadow maps
         rhi::DescriptorAllocator m_dsvAllocator;
         // After the queue and the allocator: its destructor flushes the queue and returns its RTVs
         rhi::SwapChain m_swapChain;
-        // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
-        rhi::DepthBuffer m_depth;
+        // The frame graph's textures (scene depth). After the allocators and the bindless heap, whose slots its
+        // textures hold. DestroyResources hands its textures to a frame, which releases them before the allocator
+        // goes.
+        TransientTexturePool m_transients;
 
         // The global root signature and every PSO; the passes keep handles into it
         rhi::PipelineCache m_pipelines;
@@ -165,7 +168,6 @@ namespace engine::render {
         FrameGraph m_graph;
         std::optional<GraphKey> m_graphKey; // what m_graph was built for; empty before the first frame
         FgTexture m_backBuffer;
-        FgTexture m_sceneDepth;
         // This frame's opaque draws: the static lists' and the moving objects'. Kept so its memory is reused.
         std::vector<std::span<const InstanceDraw>> m_drawSets;
 
