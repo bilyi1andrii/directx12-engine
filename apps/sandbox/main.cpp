@@ -361,15 +361,14 @@ namespace {
             engine::scene::Extract(scene, lights);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            renderer.Render(frameView, lights, renderList, staticLists);
-            renderer.RenderUi(uiDrawData); // on top of the scene
+            renderer.Render(frameView, lights, renderList, staticLists, uiDrawData); // the UI on top of the scene
             renderer.EndFrame();
             ++framesRendered;
 
             if (smokeTestFrames) {
                 const uint32_t frames = *smokeTestFrames;
-                // Two fullscreen toggles exercise the resize path: flush, ResizeBuffers, new RTVs and
-                // the deferred release of the old depth buffer
+                // Two fullscreen toggles exercise the resize path: flush, ResizeBuffers, new RTVs, a rebuilt
+                // frame graph and the deferred release of its old depth texture
                 if (frames >= 3 && (framesRendered == frames / 3 || framesRendered == 2 * frames / 3)) {
                     window.ToggleFullscreen();
                 }

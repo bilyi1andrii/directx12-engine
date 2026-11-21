@@ -14,6 +14,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
+#include "rhi/DepthFormat.h"
 
 namespace engine::rhi {
     using core::ThrowIfFailed;
@@ -146,8 +147,7 @@ namespace engine::rhi {
         rasterizer.CullMode = desc.cull == CullMode::None ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-        // Reversed depth: a nearer pixel has the greater depth
-        depthStencil.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+        depthStencil.DepthFunc = kDepthComparison;
         if (desc.depthFormat == DXGI_FORMAT_UNKNOWN) {
             depthStencil.DepthEnable = FALSE;
         }

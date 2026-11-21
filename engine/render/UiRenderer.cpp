@@ -43,12 +43,11 @@ namespace engine::render {
         ImGui_ImplDX12_Shutdown();
     }
 
-    void UiRenderer::Render(ImDrawData *drawData, rhi::CommandContext &context, rhi::FrameContext &frame,
-                            D3D12_CPU_DESCRIPTOR_HANDLE rtv) {
+    void UiRenderer::Render(ImDrawData *drawData, rhi::CommandContext &context, rhi::FrameContext &frame) {
         m_frame = &frame;
-        context.SetRenderTarget(rtv);
-        // The backend records straight into the native command list, past CommandContext's batched barriers
-        context.FlushBarriers();
+        // The backend records straight into the native command list, past CommandContext's batched barriers.
+        // None may be waiting (asserted): the caller flushes them first.
+        ENGINE_ASSERT(!context.HasPendingBarriers());
         // Also creates or updates the font texture first if ImGui asks for it (startup, new glyphs)
         ImGui_ImplDX12_RenderDrawData(drawData, context.Native());
     }

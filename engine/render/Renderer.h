@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -11,7 +12,6 @@
 #include "rhi/BindlessHeap.h"
 #include "rhi/CommandContext.h"
 #include "rhi/CommandQueue.h"
-#include "rhi/DepthBuffer.h"
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
@@ -21,7 +21,9 @@
 #include "rhi/ValidationStats.h"
 
 #include "render/DynamicInstances.h"
+#include "render/FrameGraph.h"
 #include "render/GpuResources.h"
+#include "render/TransientTexturePool.h"
 #include "render/passes/OpaquePass.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
@@ -37,9 +39,13 @@ namespace engine::render {
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
-    // Per frame: BeginFrame(width, height, settings) -> Render(view, lights, list, staticLists) -> [RenderUi(drawData)]
-    // -> EndFrame(), each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU
-    // was lost, the destructor logs why (and the DRED info in Debug builds).
+    // Per frame: BeginFrame(width, height, settings) -> Render(view, lights, list, staticLists, ui) -> EndFrame(),
+    // each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU was lost, the
+    // destructor logs why (and the DRED info in Debug builds).
+    //
+    // The frame is recorded by a frame graph (FrameGraph), built on the first frame and again when the back
+    // buffer's size changes or the UI is enabled. The scene depth is one of the graph's textures, the size of the
+    // back buffer.
     //
     // Not copyable or movable (the swap chain and descriptors keep references to members).
     // Asset loading creates meshes, textures and materials through Resources().
@@ -67,9 +73,9 @@ namespace engine::render {
         }
 
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
-        // and lit by `lights`
+        // and lit by `lights`, then the UI's draw data `ui` on top (needs EnableUi; null draws no UI)
         void Render(const FrameView &view, const LightSet &lights, const RenderList &list,
-                    std::span<const StaticListHandle> staticLists = {});
+                    std::span<const StaticListHandle> staticLists = {}, ImDrawData *ui = nullptr);
 
         // The meshes, textures, materials and static lists the renderer draws. Pass it to AssetCache as the
         // GpuUploader. Everything created through it lives as long as the renderer; new resources are uploaded
@@ -79,9 +85,6 @@ namespace engine::render {
         // Starts the debug UI's renderer (ImGui's DirectX 12 backend). Call once, after the ImGui context exists
         // (ui::DebugUI); the context must outlive the renderer. Apps without UI (the bench) never call it.
         void EnableUi();
-
-        // Draws the UI on top of the frame: after Render, before EndFrame, at most once per frame. Needs EnableUi.
-        void RenderUi(ImDrawData *drawData);
 
         // Submits the frame, presents it (with this frame's RendererSettings::vsync) and remembers the fence value
         // that marks its end
@@ -98,13 +101,24 @@ namespace engine::render {
             Idle, // before BeginFrame, or after EndFrame
             Begun,
             Rendered,
-            UiRendered,
+        };
+
+        // What the frame graph's passes depend on. When it changes, the graph is built again.
+        struct GraphKey {
+            uint32_t width = 0;
+            uint32_t height = 0;
+            bool ui = false;
+
+            friend bool operator==(const GraphKey &, const GraphKey &) = default;
         };
 
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
+        // Adds the passes to m_graph and compiles it
+        void BuildGraph();
+
         // Shutdown only: logs why the device was removed (if it was), waits for the GPU, then destroys every
-        // texture, mesh buffer and static list
+        // texture (the frame graph's too), mesh buffer and static list
         void DestroyResources() noexcept;
 
         // Members are destroyed in reverse order. The device is first, so it goes last and its
@@ -124,12 +138,14 @@ namespace engine::render {
         rhi::CommandQueue m_queue;
         // Back buffers and other render targets; 64 slots cost a few KB of CPU memory
         rhi::DescriptorAllocator m_rtvAllocator;
-        // The main depth buffer, with room for shadow maps
+        // Scene depth and shadow maps
         rhi::DescriptorAllocator m_dsvAllocator;
         // After the queue and the allocator: its destructor flushes the queue and returns its RTVs
         rhi::SwapChain m_swapChain;
-        // Same size as the back buffers; after the DSV allocator, so its DSV is returned first
-        rhi::DepthBuffer m_depth;
+        // The frame graph's textures (scene depth). After the allocators and the bindless heap, whose slots its
+        // textures hold. DestroyResources hands its textures to a frame, which releases them before the allocator
+        // goes.
+        TransientTexturePool m_transients;
 
         // The global root signature and every PSO; the passes keep handles into it
         rhi::PipelineCache m_pipelines;
@@ -146,6 +162,14 @@ namespace engine::render {
         // The UI's renderer; null until EnableUi. Released after the destructor's flush, before the frames and the
         // bindless heap: its shutdown hands the font texture's descriptor to a frame's deferred frees.
         std::unique_ptr<UiRenderer> m_ui;
+
+        // After everything its passes keep references to (the opaque pass, the resources, the UI's renderer), so it
+        // is destroyed first
+        FrameGraph m_graph;
+        std::optional<GraphKey> m_graphKey; // what m_graph was built for; empty before the first frame
+        FgTexture m_backBuffer;
+        // This frame's opaque draws: the static lists' and the moving objects'. Kept so its memory is reused.
+        std::vector<std::span<const InstanceDraw>> m_drawSets;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;

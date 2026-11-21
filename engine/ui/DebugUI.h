@@ -26,7 +26,7 @@ namespace engine::ui {
 
     // The debug UI (Dear ImGui). Owns the ImGui context and its Win32 platform backend (mouse, keyboard, cursor
     // shapes, display size) and builds the windows every frame. Drawing them is the renderer's job: pass Render()'s
-    // result to Renderer::RenderUi.
+    // result to Renderer::Render.
     //
     // Per frame: NewFrame() -> [TransformGizmo()] -> Show*() -> Render().
     //

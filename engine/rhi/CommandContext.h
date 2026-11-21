@@ -36,6 +36,8 @@ namespace engine::rhi {
                         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
         // Records all queued barriers
         void FlushBarriers();
+        // True while barriers are queued but not recorded yet
+        [[nodiscard]] bool HasPendingBarriers() const noexcept { return m_pendingBarrierCount != 0; }
 
         void ClearRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::span<const float, 4> color);
 
@@ -50,9 +52,10 @@ namespace engine::rhi {
         void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION &dst, const D3D12_TEXTURE_COPY_LOCATION &src);
 
         // Pipeline setup. These record state only; barriers are flushed at the next draw or clear.
-        void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, D3D12_CPU_DESCRIPTOR_HANDLE dsv);
-        // Without a depth buffer (the UI); the PSO's DSVFormat must be DXGI_FORMAT_UNKNOWN
-        void SetRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv);
+        // Up to 8 colour targets and an optional depth target. Without a depth target (`dsv` null), the PSO's
+        // DSVFormat must be DXGI_FORMAT_UNKNOWN.
+        void SetRenderTargets(std::span<const D3D12_CPU_DESCRIPTOR_HANDLE> rtvs,
+                              const D3D12_CPU_DESCRIPTOR_HANDLE *dsv);
         // Viewport and scissor covering the whole width x height target
         void SetViewportAndScissor(uint32_t width, uint32_t height);
         // Binds the shader-visible descriptor heap (BindlessHeap).
@@ -86,6 +89,11 @@ namespace engine::rhi {
         void DrawIndexedInstanced(uint32_t indexCount, uint32_t instanceCount, uint32_t startIndex = 0,
                                   int32_t baseVertex = 0);
 
+        // Starts and ends a named region of commands. GPU debuggers (PIX, RenderDoc, Nsight) show the regions as a
+        // tree, so a capture reads as passes instead of one long list of draws.
+        void BeginEvent(const char *name);
+        void EndEvent();
+
         // Flushes barriers and ends recording; the list can then be executed
         void Close();
 
@@ -100,6 +108,23 @@ namespace engine::rhi {
         std::array<D3D12_RESOURCE_BARRIER, kMaxPendingBarriers> m_pendingBarriers{};
         uint32_t m_pendingBarrierCount = 0;
         bool m_recording = false;
+    };
+
+    // A named region of commands from construction to destruction (CommandContext::BeginEvent / EndEvent)
+    class ScopedGpuEvent {
+    public:
+        ScopedGpuEvent(CommandContext &context, const char *name) : m_context(context) {
+            m_context.BeginEvent(name);
+        }
+        ~ScopedGpuEvent() { m_context.EndEvent(); }
+
+        ScopedGpuEvent(const ScopedGpuEvent &) = delete;
+        ScopedGpuEvent &operator=(const ScopedGpuEvent &) = delete;
+        ScopedGpuEvent(ScopedGpuEvent &&) = delete;
+        ScopedGpuEvent &operator=(ScopedGpuEvent &&) = delete;
+
+    private:
+        CommandContext &m_context;
     };
 } // namespace engine::rhi
 
