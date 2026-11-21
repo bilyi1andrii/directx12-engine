@@ -19,8 +19,8 @@ set(SHADER_VARIANTS
 set(SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 set(COMPILED_SHADERS)
 
-# Compiles SHADER (a path) into <SHADER_OUTPUT_DIR>/<OUT_NAME>.cso, with DEFINE (NAME=VALUE) if it is not empty.
-# Appends the .cso to COMPILED_SHADERS.
+# Compiles one shader file into <OUT_NAME>.cso in the shader output folder, with an optional NAME=VALUE define, and
+# adds the result to what compile_shaders builds.
 function(compile_shader SHADER OUT_NAME DEFINE)
     get_filename_component(NAME_WE "${SHADER}" NAME_WE)
 

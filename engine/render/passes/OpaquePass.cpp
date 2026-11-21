@@ -29,8 +29,8 @@ namespace engine::render {
         static_assert(rhi::BindlessHeap::kDefaultCapacity <= (1u << 24),
                       "DrawConstants::alphaInfo holds a bindless index in 24 bits");
 
-        // DrawConstants::alphaInfo of `material`: the opacity map's bindless index in the top 24 bits, the alpha
-        // cutoff in the low 8
+        // The material's mask and alpha cutoff, packed into one root constant (layout: DrawConstants in
+        // shared_types.hlsli)
         [[nodiscard]] uint32_t PackAlphaInfo(const MaterialInfo &material) {
             ENGINE_ASSERT_MSG(material.opacityMap.index < (1u << 24), "Opacity map index {} does not fit in 24 bits",
                               material.opacityMap.index);
@@ -86,7 +86,7 @@ namespace engine::render {
         // shader. A shader that may discard pixels stops the GPU from testing depth before it runs, so solid
         // surfaces keep the build without it.
         struct Variant {
-            PipelineKey key; // every variant uses the Mesh vertex format (vs_mesh)
+            PipelineKey key; // all variants draw meshes in the one vertex format there is
             std::wstring_view pixelShader;
             std::wstring_view name;
         };
@@ -180,8 +180,8 @@ namespace engine::render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        // Blend materials are drawn solid here until there is a transparent pass. The unlit shader has no alpha-test
-        // build: CreateMaterial rejects unlit Mask materials in Debug, and a Release build draws them solid.
+        // Transparent materials are drawn solid here until there is a transparent pass. The unlit shader has no
+        // alpha-test build, so an unlit cut-out material is drawn solid too (Debug builds reject it when it is made).
         const PipelineKey key{.format = format,
                               .shading = material.shading,
                               .doubleSided = material.doubleSided,

@@ -1,8 +1,8 @@
 // Lit pixel shader: the texture's colour, lit by the frame's lights (Blinn-Phong). No shadows.
 // The lights are the ambient light, one directional light, and the point and spot lights.
 // The maths runs on linear colours. Bright areas clip to white, because there is no tonemapper yet.
-// Built a second time with ALPHA_TEST defined (ps_light_alpha_test.cso, shaders/CMakeLists.txt): that variant leaves
-// holes where the material's alpha is below its cutoff (leaves, chains).
+// A second build with ALPHA_TEST defined cuts holes where the material's alpha is below its cutoff (leaves, chains).
+// shaders/CMakeLists.txt makes that build.
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -82,7 +82,7 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     const float3 albedo = albedoSample.rgb;
 
 #ifdef ALPHA_TEST
-    // alphaInfo: the opacity map's bindless index in the top 24 bits, the cutoff (0-255) in the low 8
+    // Unpacks the mask and the cutoff from one root constant (layout: DrawConstants in shared_types.hlsli)
     Texture2D<float4> opacityTexture = ResourceDescriptorHeap[g_draw.alphaInfo >> 8];
     const float alpha = albedoSample.a * opacityTexture.Sample(g_anisotropicWrap, input.uv).r;
     const float cutoff = (g_draw.alphaInfo & 0xFF) / 255.0f;

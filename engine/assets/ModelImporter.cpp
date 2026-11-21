@@ -158,7 +158,7 @@ namespace engine::assets {
                 if (!IsSet(desc.albedo) && !IsSet(desc.metallic) && !IsSet(desc.roughness)) {
                     ApplyNonPbrRules(material, desc);
                 }
-                // After every texture slot: the rules look at the opacity map, which ApplyNonPbrRules may find
+                // Last: the alpha mode depends on the opacity map, which the non-PBR rules may only find by name
                 ReadAlphaMode(material, desc);
                 return desc;
             }

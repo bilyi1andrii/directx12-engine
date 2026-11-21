@@ -31,8 +31,8 @@ namespace engine::assets {
             return static_cast<uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
         }
 
-        // How a texture's debug name says what it was read as. One image read as colour and as a mask is two
-        // textures, and PIX should tell them apart.
+        // A word for what a texture was read as. One image read as colour and as a mask becomes two textures, and
+        // their debug names should tell them apart.
         [[nodiscard]] std::wstring_view UsageName(TextureUsage usage) noexcept {
             switch (usage) {
             case TextureUsage::Diffuse:
@@ -191,21 +191,22 @@ namespace engine::assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials keep the defaults, so they share a handle whatever their file says about alpha.
-        // Blend materials get the map too: the transparent pass multiplies their alpha by it.
+        // Opaque materials ignore alpha. They keep the default alpha settings, so equal-looking opaque materials stay
+        // one material whatever their file says about alpha. Blend materials load the mask too, for the transparent
+        // pass to come.
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
-            // The grey texture is sRGB 100, which the shader reads as about 0.13: far below any usual cutoff, so the
-            // whole surface would be cut out
+            // A mask that failed to load comes back as the grey fallback texture. Grey is dark enough to cut out the
+            // whole surface, so the material is drawn without a mask instead.
             if (mask == m_gpu->UnloadedTexture()) {
                 core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
                                  "without one.",
                                  material.name, core::ToUtf8(modelName));
                 mask.reset();
             }
-            // White multiplies the albedo's alpha by 1
+            // A white mask leaves the albedo's alpha as it is
             info.opacityMap = mask ? *mask : SolidColor(255, 255, 255);
         }
         return Material(info);
@@ -250,8 +251,8 @@ namespace engine::assets {
     }
 
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
-        // Every field in three 32-bit words with no padding, hashed as one string of bytes. The struct itself has
-        // padding bytes of any value, so it cannot be hashed directly.
+        // Copies every field into a small array without gaps and hashes its bytes. The struct itself has padding
+        // bytes of unknown value, so hashing it directly would give equal materials different hashes.
         const std::array<uint32_t, 3> words{
             material.albedo.index,
             material.opacityMap.index,

@@ -25,9 +25,10 @@
 
 namespace engine::assets {
     // Loads each model and texture file once and keeps the GPU handles.
-    // From a model's materials it uses the albedo texture, `doubleSided`, and the alpha mode with its cutoff and
-    // opacity map. A material without a texture gets a 1x1 texture of its base colour; black becomes grey.
-    // A texture that fails to load becomes grey, with a warning. An opacity map that fails to load is left out (white).
+    // From a model's materials it uses the albedo texture, two-sidedness, and how the surface uses alpha (cut-out
+    // or transparent, with its cutoff and mask). A material without a texture gets a 1x1 texture of its base colour;
+    // black becomes grey. A texture that fails to load becomes grey, with a warning. A mask that fails to load is
+    // left out, with a warning.
     // Needs a core::ComScope on this thread. Not thread-safe. Nothing is unloaded; the renderer must outlive it.
     class AssetCache {
     public:
@@ -61,7 +62,7 @@ namespace engine::assets {
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
 
-        // The material `material` describes. Each distinct MaterialInfo is created once, then reused.
+        // The material with these settings. Each distinct combination is created once, then reused.
         [[nodiscard]] render::MaterialHandle Material(const render::MaterialInfo &material);
         // The opaque material with this texture, shading and culling
         [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,
@@ -73,8 +74,7 @@ namespace engine::assets {
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
-        // A model's embedded images decoded so far, by image index and usage (one image read as colour and as data
-        // is two textures)
+        // A model's embedded images decoded so far. One image read as colour and as data is two textures.
         using EmbeddedTextures = std::map<std::pair<uint32_t, TextureUsage>, render::TextureHandle>;
 
         struct MaterialInfoHash {
@@ -86,8 +86,8 @@ namespace engine::assets {
                                                       const render::MaterialDesc &material, EmbeddedTextures &embedded,
                                                       std::wstring_view modelName);
 
-        // The texture `source` points to, read as `usage`, or nullopt if the material names none. A file or image
-        // that fails to load gives the grey texture, with a warning.
+        // The texture a material slot points to, read as the given kind of data, or nothing if the slot is empty. A
+        // file or image that fails to load gives the grey texture, with a warning.
         [[nodiscard]] std::optional<render::TextureHandle>
         MaterialTexture(const render::ModelData &model, const render::TextureSource &source, TextureUsage usage,
                         EmbeddedTextures &embedded, std::wstring_view modelName);

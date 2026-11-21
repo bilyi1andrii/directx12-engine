@@ -23,11 +23,12 @@ namespace engine::render {
 
         // Only lit materials may cut holes or be transparent
         AlphaMode alphaMode = AlphaMode::Opaque;
-        // Mask: a pixel whose alpha is below alphaCutoff / 255 is not drawn. 128 is about 0.5.
+        // Mask: a pixel whose alpha is below this is not drawn. Stored as a byte, the form the shader receives, where
+        // 0 to 255 stands for 0 to 1. The default is one half.
         uint8_t alphaCutoff = 128;
-        // Mask and Blend: the alpha is the albedo's alpha times this texture's red channel. Must be set for them: a
-        // material without a separate mask uses a white texture (AssetCache does). The default, the grey fallback,
-        // would cut out the whole surface. Not read for opaque materials.
+        // Mask and Blend: the surface's alpha is the albedo's alpha times this mask. They must set it: without a
+        // separate mask, use a white texture. The default, the grey fallback, is dark enough to cut out the whole
+        // surface. Not read for opaque materials.
         TextureHandle opacityMap;
 
         bool operator==(const MaterialInfo &) const = default;

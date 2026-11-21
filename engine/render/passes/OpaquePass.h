@@ -55,7 +55,7 @@ namespace engine::render {
             bool doubleSided = false;
             bool alphaTest = false;
 
-            // A different number for every combination, from 0 to kPipelineKeyCount - 1
+            // A different slot in the PSO array for every combination
             [[nodiscard]] constexpr uint32_t Index() const noexcept {
                 const uint32_t formatAndShading =
                     std::to_underlying(format) * static_cast<uint32_t>(kShadingCount) + std::to_underlying(shading);
@@ -67,7 +67,7 @@ namespace engine::render {
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 
         const rhi::PipelineCache &m_pipelines;
-        // By PipelineKey::Index(), filled by the constructor. Unlit materials have no alpha-test PSO.
+        // One slot per key, filled by the constructor. Unlit materials have no alpha-test PSO.
         std::array<rhi::PipelineHandle, kPipelineKeyCount> m_pipelinesByKey;
     };
 } // namespace engine::render

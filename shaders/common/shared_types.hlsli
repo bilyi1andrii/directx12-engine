@@ -27,8 +27,7 @@ struct DrawConstants
     uint instanceOffset;      // element of the draw's first object in its InstanceData buffer
     uint materialIndex;       // for now: bindless index of the albedo texture
     uint instanceBufferIndex; // bindless index of the draw's StructuredBuffer<InstanceData>
-    // Alpha-tested materials: the opacity map's bindless index in the top 24 bits, the alpha cutoff (0-255) in the
-    // low 8. The alpha is the albedo's alpha times the map's red channel.
+    // Cut-out materials: the bindless index of the mask in the top 24 bits, the alpha cutoff as a byte in the low 8
     uint alphaInfo;
 };
 
