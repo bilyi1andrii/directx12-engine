@@ -5,11 +5,12 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
-#include <vector>
+#include <utility>
 
 #include <DirectXMath.h>
 
@@ -24,9 +25,9 @@
 
 namespace engine::assets {
     // Loads each model and texture file once and keeps the GPU handles.
-    // From a model's materials it uses only the albedo texture and `doubleSided` for now.
-    // A material without a texture gets a 1x1 texture of its base colour; black becomes grey.
-    // A texture that fails to load becomes grey, with a warning.
+    // From a model's materials it uses the albedo texture, `doubleSided`, and the alpha mode with its cutoff and
+    // opacity map. A material without a texture gets a 1x1 texture of its base colour; black becomes grey.
+    // A texture that fails to load becomes grey, with a warning. An opacity map that fails to load is left out (white).
     // Needs a core::ComScope on this thread. Not thread-safe. Nothing is unloaded; the renderer must outlive it.
     class AssetCache {
     public:
@@ -60,7 +61,9 @@ namespace engine::assets {
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
 
-        // The material with this texture, shading and culling. Each combination is created once, then reused.
+        // The material `material` describes. Each distinct MaterialInfo is created once, then reused.
+        [[nodiscard]] render::MaterialHandle Material(const render::MaterialInfo &material);
+        // The opaque material with this texture, shading and culling
         [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,
                                                       render::Shading shading = render::Shading::Lit,
                                                       bool doubleSided = false);
@@ -70,11 +73,24 @@ namespace engine::assets {
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
-        // The handle for a model's material. `embedded` holds the model's embedded images decoded so far.
+        // A model's embedded images decoded so far, by image index and usage (one image read as colour and as data
+        // is two textures)
+        using EmbeddedTextures = std::map<std::pair<uint32_t, TextureUsage>, render::TextureHandle>;
+
+        struct MaterialInfoHash {
+            [[nodiscard]] size_t operator()(const render::MaterialInfo &material) const noexcept;
+        };
+
+        // The handle for a model's material
         [[nodiscard]] render::MaterialHandle Material(const render::ModelData &model,
-                                                      const render::MaterialDesc &material,
-                                                      std::vector<std::optional<render::TextureHandle>> &embedded,
+                                                      const render::MaterialDesc &material, EmbeddedTextures &embedded,
                                                       std::wstring_view modelName);
+
+        // The texture `source` points to, read as `usage`, or nullopt if the material names none. A file or image
+        // that fails to load gives the grey texture, with a warning.
+        [[nodiscard]] std::optional<render::TextureHandle>
+        MaterialTexture(const render::ModelData &model, const render::TextureSource &source, TextureUsage usage,
+                        EmbeddedTextures &embedded, std::wstring_view modelName);
 
         // A 1x1 sRGB texture of `material`'s base colour, made once per colour
         [[nodiscard]] render::TextureHandle SolidColor(const render::MaterialDesc &material);
@@ -95,8 +111,7 @@ namespace engine::assets {
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         // By RGBA8 value
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
-        // By albedo index, shading and doubleSided, packed into one integer by Material
-        std::unordered_map<uint64_t, render::MaterialHandle> m_materials;
+        std::unordered_map<render::MaterialInfo, render::MaterialHandle, MaterialInfoHash> m_materials;
         std::optional<render::TextureHandle> m_checkerboard;
         size_t m_createdTextures = 0;
     };

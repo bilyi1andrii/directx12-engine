@@ -16,6 +16,7 @@
 using engine::assets::AssetCache;
 using engine::assets::TextureUsage;
 using engine::core::ErrorCode;
+using engine::render::AlphaMode;
 using engine::render::MaterialHandle;
 using engine::render::MaterialInfo;
 using engine::render::MeshData;
@@ -301,6 +302,90 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     EXPECT_NE(lit, otherTexture);
     EXPECT_EQ(gpu.Material(unlit), (MaterialInfo{.albedo = texture, .shading = Shading::Unlit}));
     EXPECT_EQ(gpu.Material(twoSided), (MaterialInfo{.albedo = texture, .doubleSided = true}));
+}
+
+// Every field of MaterialInfo tells materials apart, the alpha settings included
+TEST(AssetCache, MaterialsDifferingInAlphaGetTheirOwnHandle) {
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+    const MaterialInfo mask{
+        .albedo = TextureHandle{.index = 7}, .alphaMode = AlphaMode::Mask, .opacityMap = TextureHandle{.index = 9}};
+
+    const MaterialHandle handle = cache.Material(mask);
+    MaterialInfo otherCutoff = mask;
+    otherCutoff.alphaCutoff = 77;
+    MaterialInfo otherMap = mask;
+    otherMap.opacityMap = TextureHandle{.index = 10};
+
+    EXPECT_EQ(cache.Material(mask), handle);
+    EXPECT_NE(cache.Material(otherCutoff), handle);
+    EXPECT_NE(cache.Material(otherMap), handle);
+    EXPECT_NE(cache.Material(TextureHandle{.index = 7}), handle);
+    EXPECT_EQ(gpu.Material(handle), mask);
+}
+
+// A Mask material gets its opacity map, read as data (not sRGB), and its cutoff. An opaque one keeps the defaults.
+TEST(AssetCache, MaskMaterialGetsItsOpacityMapAndCutoff) {
+    const TempFile albedo(L"engine_test_cache_leaf.tga", Tga2x2());
+    const TempFile mask(L"engine_test_cache_leaf_mask.tga", Tga2x2());
+    const TempFile mtl(L"engine_test_cache.mtl", Bytes(Mtl("map_Kd engine_test_cache_leaf.tga\n"
+                                                           "map_d engine_test_cache_leaf_mask.tga",
+                                                           "map_Kd engine_test_cache_leaf.tga")));
+    const TempFile obj(L"engine_test_cache_mask.obj", Bytes(kTwoMaterialsObj));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &model = Load(cache, obj.Path());
+
+    ASSERT_EQ(model.parts.size(), 2u);
+    const MaterialInfo &leaf = gpu.Material(model.parts[0].material);
+    EXPECT_EQ(leaf.alphaMode, AlphaMode::Mask);
+    EXPECT_EQ(leaf.alphaCutoff, 128);
+    EXPECT_NE(leaf.opacityMap, leaf.albedo);
+    EXPECT_NE(leaf.opacityMap.index, FakeUploader::kUnloaded);
+    ASSERT_EQ(gpu.textures.size(), 2u);
+    EXPECT_TRUE(gpu.textures[leaf.albedo.index - 1].isSrgb);
+    EXPECT_FALSE(gpu.textures[leaf.opacityMap.index - 1].isSrgb) << "a mask is data, not colour";
+
+    const MaterialInfo &solid = gpu.Material(model.parts[1].material);
+    EXPECT_EQ(solid, MaterialInfo{.albedo = leaf.albedo});
+}
+
+// glTF keeps its cut-out in the base colour's alpha: the mask is white, so the alpha stays as it is
+TEST(AssetCache, MaskWithoutOpacityMapUsesWhite) {
+    std::string text(kEmbeddedTextureGltf);
+    const std::string_view material = R"("materials": [{)";
+    text.replace(text.find(material), material.size(), R"("materials": [{"alphaMode": "MASK", "alphaCutoff": 0.3, )");
+    const TempFile gltf(L"engine_test_cache_mask.gltf", Bytes(text));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &model = Load(cache, gltf.Path());
+
+    ASSERT_EQ(model.parts.size(), 1u);
+    const MaterialInfo &leaf = gpu.Material(model.parts[0].material);
+    EXPECT_EQ(leaf.alphaMode, AlphaMode::Mask);
+    EXPECT_EQ(leaf.alphaCutoff, 77) << "0.3 * 255, rounded";
+    const size_t textures = gpu.textures.size();
+    EXPECT_EQ(leaf.opacityMap, cache.SolidColor(255, 255, 255));
+    EXPECT_EQ(gpu.textures.size(), textures) << "the white texture was made for the material";
+}
+
+// A mask file that is missing would cut out the whole surface through the grey texture: it is left out instead
+TEST(AssetCache, OpacityMapThatFailsToLoadIsLeftOut) {
+    const TempFile mtl(L"engine_test_cache.mtl",
+                       Bytes(Mtl("map_d engine_test_cache_none_mask.png", "map_d engine_test_cache_none_mask.png")));
+    const TempFile obj(L"engine_test_cache_bad_mask.obj", Bytes(kTwoMaterialsObj));
+    FakeUploader gpu;
+    AssetCache cache(gpu);
+
+    const Model &model = Load(cache, obj.Path());
+
+    ASSERT_FALSE(model.parts.empty());
+    const MaterialInfo &leaf = gpu.Material(model.parts[0].material);
+    EXPECT_EQ(leaf.alphaMode, AlphaMode::Mask);
+    EXPECT_NE(leaf.opacityMap.index, FakeUploader::kUnloaded);
+    EXPECT_EQ(leaf.opacityMap, cache.SolidColor(255, 255, 255));
 }
 
 // glTF's "doubleSided" reaches the renderer; a material without it stays one-sided

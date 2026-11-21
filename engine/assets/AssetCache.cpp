@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <cstddef>
+#include <cstdint>
 #include <format>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <variant>
@@ -91,7 +94,7 @@ namespace engine::assets {
 
         // Only the materials a part uses get textures; each embedded image is decoded once
         std::vector<std::optional<MaterialHandle>> materials(data->materials.size());
-        std::vector<std::optional<TextureHandle>> embedded(data->embeddedTextures.size());
+        EmbeddedTextures embedded;
         const size_t texturesBefore = TextureCount();
 
         render::Model model;
@@ -165,41 +168,81 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(const render::ModelData &model, const render::MaterialDesc &material,
-                                        std::vector<std::optional<TextureHandle>> &embedded,
-                                        std::wstring_view modelName) {
-        TextureHandle albedo;
-        if (const auto *file = std::get_if<std::filesystem::path>(&material.albedo)) {
-            albedo = LoadTexture(*file, TextureUsage::Diffuse);
-        } else if (const auto *inFile = std::get_if<render::EmbeddedTexture>(&material.albedo)) {
-            std::optional<TextureHandle> &texture = embedded[inFile->index];
-            if (!texture) {
-                const render::EmbeddedTextureData &image = model.embeddedTextures[inFile->index];
-                if (const auto data = ImportTextureFromMemory(image.bytes, image.formatHint, TextureUsage::Diffuse)) {
-                    texture = CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
-                } else {
-                    core::LogWarning("AssetCache: {} of {}. Using the grey texture.", data.error().message,
-                                     core::ToUtf8(modelName));
-                    texture = m_gpu->UnloadedTexture();
-                }
+                                        EmbeddedTextures &embedded, std::wstring_view modelName) {
+        const std::optional<TextureHandle> albedo =
+            MaterialTexture(model, material.albedo, TextureUsage::Diffuse, embedded, modelName);
+        render::MaterialInfo info{
+            .albedo = albedo ? *albedo : SolidColor(material),
+            .shading = render::Shading::Lit,
+            .doubleSided = material.doubleSided,
+            .alphaMode = material.alphaMode,
+        };
+        // Opaque materials keep the defaults, so they share a handle whatever their file says about alpha
+        if (material.alphaMode != render::AlphaMode::Opaque) {
+            info.alphaCutoff = ToByte(material.alphaCutoff);
+            std::optional<TextureHandle> mask =
+                MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
+            // The grey texture would be a mask of about 0.4 everywhere, which the cutoff removes entirely
+            if (mask == m_gpu->UnloadedTexture()) {
+                core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
+                                 "without one.",
+                                 material.name, core::ToUtf8(modelName));
+                mask.reset();
             }
-            albedo = *texture;
-        } else {
-            albedo = SolidColor(material);
+            // White multiplies the albedo's alpha by 1
+            info.opacityMap = mask ? *mask : SolidColor(255, 255, 255);
         }
-        return Material(albedo, render::Shading::Lit, material.doubleSided);
+        return Material(info);
+    }
+
+    std::optional<TextureHandle> AssetCache::MaterialTexture(const render::ModelData &model,
+                                                             const render::TextureSource &source, TextureUsage usage,
+                                                             EmbeddedTextures &embedded, std::wstring_view modelName) {
+        if (const auto *file = std::get_if<std::filesystem::path>(&source)) {
+            return LoadTexture(*file, usage);
+        }
+        const auto *inFile = std::get_if<render::EmbeddedTexture>(&source);
+        if (inFile == nullptr) {
+            return std::nullopt;
+        }
+        const auto [it, added] = embedded.try_emplace({inFile->index, usage});
+        if (added) {
+            const render::EmbeddedTextureData &image = model.embeddedTextures[inFile->index];
+            if (const auto data = ImportTextureFromMemory(image.bytes, image.formatHint, usage)) {
+                it->second = CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
+            } else {
+                core::LogWarning("AssetCache: {} of {}. Using the grey texture.", data.error().message,
+                                 core::ToUtf8(modelName));
+                it->second = m_gpu->UnloadedTexture();
+            }
+        }
+        return it->second;
+    }
+
+    MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
+        if (const auto it = m_materials.find(material); it != m_materials.end()) {
+            return it->second;
+        }
+        const MaterialHandle handle = m_gpu->CreateMaterial(material);
+        m_materials.emplace(material, handle);
+        return handle;
     }
 
     MaterialHandle AssetCache::Material(TextureHandle albedo, render::Shading shading, bool doubleSided) {
-        // Each value gets its own bits: the index in 0-31, shading in 32-39, doubleSided in bit 40
-        const uint64_t key =
-            albedo.index | (uint64_t{std::to_underlying(shading)} << 32) | (uint64_t{doubleSided} << 40);
-        if (const auto it = m_materials.find(key); it != m_materials.end()) {
-            return it->second;
-        }
-        const MaterialHandle handle =
-            m_gpu->CreateMaterial({.albedo = albedo, .shading = shading, .doubleSided = doubleSided});
-        m_materials.emplace(key, handle);
-        return handle;
+        return Material(render::MaterialInfo{.albedo = albedo, .shading = shading, .doubleSided = doubleSided});
+    }
+
+    size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
+        // The two texture indices fill one 64-bit value, the four small fields another
+        const uint64_t textures = material.albedo.index | (uint64_t{material.opacityMap.index} << 32);
+        const uint64_t settings =
+            uint64_t{std::to_underlying(material.shading)} | (uint64_t{material.doubleSided} << 8) |
+            (uint64_t{std::to_underlying(material.alphaMode)} << 16) | (uint64_t{material.alphaCutoff} << 24);
+        const std::hash<uint64_t> hash;
+        // Mixes the second hash in (the boost::hash_combine recipe), so swapped values hash differently
+        size_t seed = hash(textures);
+        seed ^= hash(settings) + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2);
+        return seed;
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {
