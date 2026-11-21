@@ -45,7 +45,7 @@ namespace engine::render {
             return constants;
         }
 
-        // The back buffer's two render-target views, as numbered in its ImportBinding. The scene draws through
+        // The back buffer's two render-target views, as numbered in its TextureBinding. The scene draws through
         // the sRGB view; the UI through the UNORM one, because ImGui's colours are already sRGB.
         constexpr uint32_t kBackBufferSrgbView = 0;
         constexpr uint32_t kBackBufferUnormView = 1;
@@ -159,7 +159,7 @@ namespace engine::render {
         }
 
         const std::array imports{
-            ImportBinding{.texture = m_backBuffer,
+            TextureBinding{.texture = m_backBuffer,
                           .resource = m_swapChain.CurrentBackBuffer(),
                           .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
                           .width = m_swapChain.Width(),

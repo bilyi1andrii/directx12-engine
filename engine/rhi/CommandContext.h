@@ -90,8 +90,8 @@ namespace engine::rhi {
                                   int32_t baseVertex = 0);
 
         // Starts and ends a named region of commands. GPU debuggers (PIX, RenderDoc, Nsight) show the regions as a
-        // tree, so a capture reads as passes instead of one long list of draws. `name` must be null-terminated.
-        void BeginEvent(std::string_view name);
+        // tree, so a capture reads as passes instead of one long list of draws.
+        void BeginEvent(const char *name);
         void EndEvent();
 
         // Flushes barriers and ends recording; the list can then be executed
@@ -113,7 +113,7 @@ namespace engine::rhi {
     // A named region of commands from construction to destruction (CommandContext::BeginEvent / EndEvent)
     class ScopedGpuEvent {
     public:
-        ScopedGpuEvent(CommandContext &context, std::string_view name) : m_context(context) {
+        ScopedGpuEvent(CommandContext &context, const char *name) : m_context(context) {
             m_context.BeginEvent(name);
         }
         ~ScopedGpuEvent() { m_context.EndEvent(); }

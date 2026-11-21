@@ -6,6 +6,7 @@
 #include "core/Log.h"
 #include "render/FrameInputs.h"
 #include "rhi/CommandContext.h"
+#include "rhi/DepthFormat.h"
 #include "rhi/FrameContext.h"
 
 #include "common/root_signature.hlsli"
@@ -30,8 +31,15 @@ namespace engine::render {
     } // namespace
 
     void PassBuilder::WriteColor(FgTexture texture, std::optional<ClearColor> clear, uint32_t view) {
-        ENGINE_ASSERT_MSG(view < ImportBinding{}.views.size(), "View {} does not exist", view);
         m_graph.AddUse(m_pass, texture, fg::Access::ColorWrite);
+        // Imported textures are not checked: the graph knows their views only when Execute binds them
+        [[maybe_unused]] const TransientTextureDesc *desc = m_graph.TransientDescOf(texture);
+        ENGINE_ASSERT_MSG(view < TextureBinding{}.views.size() && (desc == nullptr || view == 0),
+                          "Pass {} writes view {} of texture {}, which has no such view", m_graph.m_passes[m_pass].name,
+                          view, m_graph.m_textureNames[texture.index]);
+        ENGINE_ASSERT_MSG(desc == nullptr || desc->target == TransientTextureDesc::Target::Color,
+                          "Pass {} writes colour into texture {}, a depth texture", m_graph.m_passes[m_pass].name,
+                          m_graph.m_textureNames[texture.index]);
         m_graph.m_passes[m_pass].colors.push_back({.texture = texture, .view = view, .clear = clear});
     }
 
@@ -39,13 +47,21 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(!m_graph.m_passes[m_pass].depth, "Pass {} writes two depth textures",
                           m_graph.m_passes[m_pass].name);
         m_graph.AddUse(m_pass, texture, fg::Access::DepthWrite);
+        [[maybe_unused]] const TransientTextureDesc *desc = m_graph.TransientDescOf(texture);
+        ENGINE_ASSERT_MSG(desc == nullptr || desc->target == TransientTextureDesc::Target::Depth,
+                          "Pass {} writes depth into texture {}, a colour texture", m_graph.m_passes[m_pass].name,
+                          m_graph.m_textureNames[texture.index]);
+        // The pool creates every depth texture with kClearDepth as its fast clear value
+        ENGINE_ASSERT_MSG(desc == nullptr || !clear || *clear == rhi::kClearDepth,
+                          "Pass {} clears texture {} to depth {}; transients clear fast only to rhi::kClearDepth",
+                          m_graph.m_passes[m_pass].name, m_graph.m_textureNames[texture.index], clear.value_or(0.0f));
         m_graph.m_passes[m_pass].depth = FrameGraph::DepthTarget{.texture = texture, .clear = clear};
     }
 
     void PassBuilder::Read(FgTexture texture) {
         m_graph.AddUse(m_pass, texture, fg::Access::ShaderRead);
-        [[maybe_unused]] const fg::GraphDesc::Texture &desc = m_graph.m_desc.textures[texture.index];
-        ENGINE_ASSERT_MSG(!desc.imported && m_graph.m_transientDescs[desc.descId].shaderRead,
+        [[maybe_unused]] const TransientTextureDesc *desc = m_graph.TransientDescOf(texture);
+        ENGINE_ASSERT_MSG(desc != nullptr && desc->shaderRead,
                           "Pass {} reads texture {}, which has no shader view (a transient with shaderRead)",
                           m_graph.m_passes[m_pass].name, m_graph.m_textureNames[texture.index]);
     }
@@ -105,7 +121,7 @@ namespace engine::render {
     void FrameGraph::Compile(TransientTexturePool &pool, rhi::FrameContext &frame) {
         ENGINE_ASSERT_MSG(!m_isCompiled, "Compile called twice without Reset");
         m_compiled = fg::Compile(m_desc);
-        m_gpuBindings.assign(m_compiled.gpuTextures.size(), ImportBinding{});
+        m_gpuBindings.assign(m_compiled.gpuTextures.size(), TextureBinding{});
         m_gpuShaderIndices.assign(m_compiled.gpuTextures.size(), TransientTexturePool::kNoSrv);
         AcquireTransientTextures(pool, frame);
         m_isCompiled = true;
@@ -120,17 +136,19 @@ namespace engine::render {
     }
 
     void FrameGraph::Execute(rhi::CommandContext &commands, rhi::FrameContext &frame,
-                             std::span<const ImportBinding> imports, const FrameInputs &inputs) {
+                             std::span<const TextureBinding> imports, const FrameInputs &inputs) {
         ENGINE_ASSERT_MSG(m_isCompiled, "Execute before Compile");
         m_executing = true;
 
+#ifdef _DEBUG
         uint32_t importCount = 0;
         for (const fg::GraphDesc::Texture &texture : m_desc.textures) {
             importCount += texture.imported ? 1 : 0;
         }
         ENGINE_ASSERT_MSG(imports.size() == importCount, "Execute got {} imported textures, the graph has {}",
                           imports.size(), importCount);
-        for (const ImportBinding &binding : imports) {
+#endif
+        for (const TextureBinding &binding : imports) {
             ENGINE_ASSERT_MSG(binding.texture.index < m_desc.textures.size() &&
                                   m_desc.textures[binding.texture.index].imported,
                               "Execute got a binding for a texture that was not imported");
@@ -157,7 +175,7 @@ namespace engine::render {
             commands.FlushBarriers();
 
             // Everything the pass records shows up under its name in PIX
-            const rhi::ScopedGpuEvent event(commands, pass.name);
+            const rhi::ScopedGpuEvent event(commands, pass.name.c_str());
             // TODO: ScopedGpuTimer(commands, profiler, pass.name) once the GPU profiler exists
             BindTargetsAndClear(pass, commands);
             // Setting a root signature clears every root argument, so the frame constants are bound again for each
@@ -254,7 +272,7 @@ namespace engine::render {
         std::array<D3D12_CPU_DESCRIPTOR_HANDLE, D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT> rtvs{};
         uint32_t width = 0;
         uint32_t height = 0;
-        const auto matchSize = [&](const ImportBinding &binding) {
+        const auto matchSize = [&](const TextureBinding &binding) {
             ENGINE_ASSERT_MSG(width == 0 || (binding.width == width && binding.height == height),
                               "Pass {} has targets of different sizes", pass.name);
             width = binding.width;
@@ -263,7 +281,7 @@ namespace engine::render {
 
         for (size_t i = 0; i < pass.colors.size(); ++i) {
             const ColorTarget &target = pass.colors[i];
-            const ImportBinding &binding = BindingOf(target.texture);
+            const TextureBinding &binding = BindingOf(target.texture);
             rtvs[i] = binding.views[target.view];
             matchSize(binding);
             if (target.clear) {
@@ -272,7 +290,7 @@ namespace engine::render {
         }
         D3D12_CPU_DESCRIPTOR_HANDLE dsv{};
         if (pass.depth) {
-            const ImportBinding &binding = BindingOf(pass.depth->texture);
+            const TextureBinding &binding = BindingOf(pass.depth->texture);
             dsv = binding.views[0];
             matchSize(binding);
             if (pass.depth->clear) {
@@ -286,7 +304,12 @@ namespace engine::render {
         }
     }
 
-    const ImportBinding &FrameGraph::BindingOf(FgTexture texture) const {
+    const TextureBinding &FrameGraph::BindingOf(FgTexture texture) const {
         return m_gpuBindings[m_compiled.textures[texture.index].gpuTexture];
+    }
+
+    const TransientTextureDesc *FrameGraph::TransientDescOf(FgTexture texture) const {
+        const fg::GraphDesc::Texture &desc = m_desc.textures[texture.index];
+        return desc.imported ? nullptr : &m_transientDescs[desc.descId];
     }
 } // namespace engine::render

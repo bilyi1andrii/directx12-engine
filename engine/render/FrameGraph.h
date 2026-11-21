@@ -30,13 +30,14 @@ namespace engine::render {
         [[nodiscard]] bool IsValid() const noexcept { return index != fg::kNoIndex; }
     };
 
-    // An imported texture's resource and views for one frame. The back buffer changes every frame, so Execute
-    // takes these anew each time; the graph only keeps the texture's states.
-    struct ImportBinding {
-        FgTexture texture;
+    // The GPU resource behind a graph texture, with its views and size: what the graph binds for a pass.
+    // Imported textures get theirs from every Execute, because the back buffer changes every frame.
+    // Transients get theirs from the pool in Compile.
+    struct TextureBinding {
+        FgTexture texture; // which imported texture this is; unused for transients
         ID3D12Resource *resource = nullptr;
         // Render-target views of the resource, picked by PassBuilder::WriteColor's `view`; for a depth texture,
-        // its depth-stencil view at [0]
+        // its depth-stencil view at [0]. A transient has one view, at [0].
         std::array<D3D12_CPU_DESCRIPTOR_HANDLE, 2> views{};
         uint32_t width = 0;
         uint32_t height = 0;
@@ -49,7 +50,7 @@ namespace engine::render {
     class PassBuilder {
     public:
         // Draws into `texture`. With `clear`, the graph clears it first; std::nullopt keeps the contents.
-        // `view` picks one of the texture's views (ImportBinding::views).
+        // `view` picks one of the texture's views (TextureBinding::views).
         void WriteColor(FgTexture texture, std::optional<ClearColor> clear, uint32_t view = 0);
         // Depth test and depth write into `texture`. With `clear`, the graph clears it to that depth first.
         void WriteDepth(FgTexture texture, std::optional<float> clear);
@@ -133,7 +134,7 @@ namespace engine::render {
         // Records the passes into `commands`, with this frame's imported textures (one binding per Import) and
         // inputs. Ends with every imported texture in its end state, and every transient in the state the next
         // frame starts from.
-        void Execute(rhi::CommandContext &commands, rhi::FrameContext &frame, std::span<const ImportBinding> imports,
+        void Execute(rhi::CommandContext &commands, rhi::FrameContext &frame, std::span<const TextureBinding> imports,
                      const FrameInputs &inputs);
 
         // Removes every pass and texture; the graph can be built again. After a Compile, Execute must run once before
@@ -173,7 +174,9 @@ namespace engine::render {
         void AddUse(uint32_t pass, FgTexture texture, fg::Access access);
 
         void BindTargetsAndClear(const Pass &pass, rhi::CommandContext &commands) const;
-        [[nodiscard]] const ImportBinding &BindingOf(FgTexture texture) const;
+        [[nodiscard]] const TextureBinding &BindingOf(FgTexture texture) const;
+        // The description of a transient; nullptr for an imported texture
+        [[nodiscard]] const TransientTextureDesc *TransientDescOf(FgTexture texture) const;
 
         ID3D12RootSignature *m_rootSignature;
         fg::GraphDesc m_desc;
@@ -187,7 +190,7 @@ namespace engine::render {
         bool m_executing = false;
         // The binding of each GPU texture (fg::CompiledGraph::gpuTextures): transients' from Compile, imports' from
         // each Execute
-        std::vector<ImportBinding> m_gpuBindings;
+        std::vector<TextureBinding> m_gpuBindings;
         // The bindless index of each GPU texture's shader view; TransientTexturePool::kNoSrv if it has none
         std::vector<uint32_t> m_gpuShaderIndices;
         // Made at the start of the first Execute after Compile, then cleared

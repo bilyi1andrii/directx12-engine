@@ -21,7 +21,7 @@ namespace engine::render {
     }
 
     void TransientTexturePool::Acquire(std::span<const Request> requests, rhi::FrameContext &frame,
-                                    std::vector<Texture> &textures) {
+                                       std::vector<Texture> &textures) {
         textures.clear();
         m_acquired.assign(m_entries.size(), false);
         for (const Request &request : requests) {
@@ -77,6 +77,8 @@ namespace engine::render {
 
         // A depth texture that shaders also sample is created without a type (TYPELESS): its depth view reads it
         // as depth, its shader view as a plain float
+        static_assert(rhi::kDepthFormat == DXGI_FORMAT_D32_FLOAT,
+                      "The typeless and shader-view formats below are those of D32_FLOAT: change them with the format");
         const DXGI_FORMAT resourceFormat = depth && desc.shaderRead ? DXGI_FORMAT_R32_TYPELESS : desc.format;
         const DXGI_FORMAT srvFormat = depth ? DXGI_FORMAT_R32_FLOAT : desc.format;
 
