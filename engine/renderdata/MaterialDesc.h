@@ -34,6 +34,7 @@ namespace engine::render {
         float roughnessFactor = 1.0f;                        // multiplies the roughness texture
         DirectX::XMFLOAT3 emissiveFactor{0.0f, 0.0f, 0.0f};
 
+        // From the file (glTF), else Blend for opacity below 1, else Mask when there is an opacity map
         AlphaMode alphaMode = AlphaMode::Opaque;
         float alphaCutoff = 0.5f; // for AlphaMode::Mask
         bool doubleSided = false; // draw back faces too (leaves, curtains)
@@ -42,6 +43,7 @@ namespace engine::render {
         TextureSource normal;
         TextureSource emissive;
         TextureSource height;
+        // A separate mask, read from the red channel. Not set when the file names the albedo: its alpha is the mask.
         TextureSource opacityMap;
         // Either two separate textures, or one packed texture (glTF: roughness in green, metallic in blue).
         // When packed, both point to the same texture.

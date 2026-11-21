@@ -90,6 +90,22 @@ namespace {
     }
 
     constexpr std::span<const std::byte> kEmpty;
+
+    // Imports a one-triangle OBJ in the temp folder whose material `engine_test_leaf` has the lines `mtl`, and returns
+    // that material. Texture files the test needs must exist before the call.
+    [[nodiscard]] MaterialDesc ImportLeafMaterial(std::string_view mtl) {
+        const TempFile mtlFile(L"engine_test_leaf.mtl",
+                               Bytes(std::string("newmtl engine_test_leaf\n") + std::string(mtl)));
+        const TempFile obj(L"engine_test_leaf.obj", Bytes(std::string("mtllib engine_test_leaf.mtl\n"
+                                                                      "usemtl engine_test_leaf\n") +
+                                                          std::string(kTriangleObj)));
+        const auto result = ImportModel(obj.Path());
+        if (!result) {
+            ADD_FAILURE() << result.error().message;
+            return {};
+        }
+        return MaterialOfFirstSubmesh(*result);
+    }
 } // namespace
 
 TEST(ImportModel, MissingFileReturnsFileNotFound) {
@@ -278,6 +294,58 @@ TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
     EXPECT_TRUE(std::holds_alternative<std::monostate>(material.metallic)) << "no engine_test_brick_m file";
     EXPECT_FALSE(material.packedMetallicRoughness);
     EXPECT_TRUE(result->embeddedTextures.empty());
+}
+
+// An OBJ material without an opacity map and fully opaque draws as a solid surface
+TEST(ImportModel, ObjMaterialWithoutOpacityMapIsOpaque) {
+    const MaterialDesc material = ImportLeafMaterial("d 1\n"
+                                                     "map_Kd engine_test_leaf_albedo.png\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Opaque);
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(material.opacityMap));
+}
+
+// An opacity map (map_d) cuts holes where it is dark, at the default cutoff
+TEST(ImportModel, ObjOpacityMapMakesMask) {
+    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n"
+                                                     "map_d engine_test_leaf_mask.png\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
+    EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f);
+    EXPECT_EQ(FileOf(material.opacityMap), Normalized(engine::tests::MissingFile(L"engine_test_leaf_mask.png")));
+}
+
+// A see-through material stays transparent even with a mask
+TEST(ImportModel, ObjOpacityMapWithOpacityBelowOneIsBlend) {
+    const MaterialDesc material = ImportLeafMaterial("d 0.5\n"
+                                                     "map_Kd engine_test_leaf_albedo.png\n"
+                                                     "map_d engine_test_leaf_mask.png\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Blend);
+}
+
+// A <material>_d image next to the model is an opacity map too, without map_d in the file
+TEST(ImportModel, ObjOpacityMapFoundByNameMakesMask) {
+    const TempFile mask(L"engine_test_leaf_d.png", kEmpty);
+
+    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
+    EXPECT_EQ(FileOf(material.opacityMap), Normalized(mask.Path()));
+}
+
+// Blender writes the albedo file as the opacity map: the albedo's alpha is the mask, with no second texture. The two
+// spellings differ in letter case and still name one file.
+TEST(ImportModel, ObjOpacityMapThatIsTheAlbedoMakesMaskWithoutSeparateMap) {
+    const TempFile albedo(L"engine_test_leaf_albedo.png", kEmpty);
+
+    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n"
+                                                     "map_d ENGINE_TEST_LEAF_ALBEDO.PNG\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
+    EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f);
+    EXPECT_EQ(FileOf(material.albedo), Normalized(albedo.Path()));
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(material.opacityMap));
 }
 
 // A glTF material: the file's factors and alpha mode, metallic and roughness packed in one texture, and an image

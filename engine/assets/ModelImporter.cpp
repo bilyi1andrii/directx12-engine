@@ -158,6 +158,8 @@ namespace engine::assets {
                 if (!IsSet(desc.albedo) && !IsSet(desc.metallic) && !IsSet(desc.roughness)) {
                     ApplyNonPbrRules(material, desc);
                 }
+                // After every texture slot: the rules look at the opacity map, which ApplyNonPbrRules may find
+                ReadAlphaMode(material, desc);
                 return desc;
             }
 
@@ -184,6 +186,21 @@ namespace engine::assets {
                     desc.emissiveFactor = {emissive.r, emissive.g, emissive.b};
                 }
 
+                int twoSided = 0;
+                if (material.Get(AI_MATKEY_TWOSIDED, twoSided) == AI_SUCCESS) {
+                    desc.doubleSided = twoSided != 0;
+                }
+            }
+
+            // The alpha mode a glTF file states, with its cutoff. Other formats state none, so it comes from the
+            // opacity: below 1 is transparent, and an opacity map cuts holes at the default cutoff.
+            static void ReadAlphaMode(const aiMaterial &material, MaterialDesc &desc) {
+                const bool hasOpacityMap = IsSet(desc.opacityMap);
+                // Blender writes the albedo file as the opacity map too: the alpha is in the albedo itself
+                if (hasOpacityMap && desc.opacityMap == desc.albedo) {
+                    desc.opacityMap = {};
+                }
+
                 aiString alphaMode;
                 if (material.Get(AI_MATKEY_GLTF_ALPHAMODE, alphaMode) == AI_SUCCESS) {
                     const std::string_view mode = alphaMode.C_Str();
@@ -193,11 +210,8 @@ namespace engine::assets {
                     material.Get(AI_MATKEY_GLTF_ALPHACUTOFF, desc.alphaCutoff);
                 } else if (desc.baseColor.w < 1.0f) {
                     desc.alphaMode = AlphaMode::Blend;
-                }
-
-                int twoSided = 0;
-                if (material.Get(AI_MATKEY_TWOSIDED, twoSided) == AI_SUCCESS) {
-                    desc.doubleSided = twoSided != 0;
+                } else if (hasOpacityMap) {
+                    desc.alphaMode = AlphaMode::Mask;
                 }
             }
 
