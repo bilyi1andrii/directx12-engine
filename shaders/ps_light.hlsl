@@ -1,6 +1,8 @@
 // Lit pixel shader: the texture's colour, lit by the frame's lights (Blinn-Phong). No shadows.
 // The lights are the ambient light, one directional light, and the point and spot lights.
 // The maths runs on linear colours. Bright areas clip to white, because there is no tonemapper yet.
+// Built a second time with ALPHA_TEST defined (ps_light_alpha_test.cso, shaders/CMakeLists.txt): that variant leaves
+// holes where the material's alpha is below its cutoff (leaves, chains).
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -74,9 +76,19 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 {
     // For now the material index is the bindless slot of the albedo texture
     Texture2D<float4> albedoTexture = ResourceDescriptorHeap[g_draw.materialIndex];
-    // The texture is sRGB, so sampling returns linear colour.
+    // The texture is sRGB, so sampling returns linear colour. Alpha is never sRGB-encoded.
     // The sRGB render target converts the result back to sRGB when it is written.
-    const float3 albedo = albedoTexture.Sample(g_anisotropicWrap, input.uv).rgb;
+    const float4 albedoSample = albedoTexture.Sample(g_anisotropicWrap, input.uv);
+    const float3 albedo = albedoSample.rgb;
+
+#ifdef ALPHA_TEST
+    // alphaInfo: the opacity map's bindless index in the top 24 bits, the cutoff (0-255) in the low 8
+    Texture2D<float4> opacityTexture = ResourceDescriptorHeap[g_draw.alphaInfo >> 8];
+    const float alpha = albedoSample.a * opacityTexture.Sample(g_anisotropicWrap, input.uv).r;
+    const float cutoff = (g_draw.alphaInfo & 0xFF) / 255.0f;
+    // A pixel below the cutoff is a hole: clip discards it, so it writes neither colour nor depth
+    clip(alpha - cutoff);
+#endif
 
     // Blending the three vertex normals across the triangle makes the normal shorter than 1
     float3 N = normalize(input.normal);

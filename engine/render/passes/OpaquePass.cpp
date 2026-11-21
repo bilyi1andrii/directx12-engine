@@ -11,6 +11,7 @@
 #include "core/Assert.h"
 #include "render/FrameInputs.h"
 #include "renderdata/Vertex.h"
+#include "rhi/BindlessHeap.h"
 #include "rhi/CommandContext.h"
 #include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"
@@ -24,6 +25,17 @@ namespace engine::render {
                       "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
         // Position of DrawConstants::instanceOffset in b0, in 32-bit values
         constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
+
+        static_assert(rhi::BindlessHeap::kDefaultCapacity <= (1u << 24),
+                      "DrawConstants::alphaInfo holds a bindless index in 24 bits");
+
+        // DrawConstants::alphaInfo of `material`: the opacity map's bindless index in the top 24 bits, the alpha
+        // cutoff in the low 8
+        [[nodiscard]] uint32_t PackAlphaInfo(const MaterialInfo &material) {
+            ENGINE_ASSERT_MSG(material.opacityMap.index < (1u << 24), "Opacity map index {} does not fit in 24 bits",
+                              material.opacityMap.index);
+            return (material.opacityMap.index << 8) | material.alphaCutoff;
+        }
 
         // How the GPU reads one Vertex (renderdata/Vertex.h): must match VSInput in vs_mesh.hlsl
         constexpr std::array kVertexLayout{
@@ -66,30 +78,36 @@ namespace engine::render {
         };
     } // namespace
 
-    OpaquePass::OpaquePass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines), m_pipelinesByFormat{} {
+    OpaquePass::OpaquePass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines), m_pipelinesByKey{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
         // A PSO fixes the pixel shader and the cull mode; a command list cannot change them between draws.
-        // So each combination a material can ask for gets its own PSO.
+        // So each combination a material can ask for gets its own PSO. The alpha test is a second build of the lit
+        // shader. A shader that may discard pixels stops the GPU from testing depth before it runs, so solid
+        // surfaces keep the build without it.
         struct Variant {
-            Shading shading;
-            bool doubleSided;
+            PipelineKey key; // every variant uses the Mesh vertex format (vs_mesh)
             std::wstring_view pixelShader;
             std::wstring_view name;
         };
         constexpr std::array kVariants{
-            Variant{Shading::Lit, false, L"ps_light.cso", L"Lit PSO"},
-            Variant{Shading::Lit, true, L"ps_light.cso", L"Lit two-sided PSO"},
-            Variant{Shading::Unlit, false, L"ps_unlit.cso", L"Unlit PSO"},
-            Variant{Shading::Unlit, true, L"ps_unlit.cso", L"Unlit two-sided PSO"},
+            Variant{{.shading = Shading::Lit}, L"ps_light.cso", L"Lit PSO"},
+            Variant{{.shading = Shading::Lit, .doubleSided = true}, L"ps_light.cso", L"Lit two-sided PSO"},
+            Variant{{.shading = Shading::Lit, .alphaTest = true}, L"ps_light_alpha_test.cso", L"Lit alpha-test PSO"},
+            Variant{{.shading = Shading::Lit, .doubleSided = true, .alphaTest = true},
+                    L"ps_light_alpha_test.cso",
+                    L"Lit two-sided alpha-test PSO"},
+            Variant{{.shading = Shading::Unlit}, L"ps_unlit.cso", L"Unlit PSO"},
+            Variant{{.shading = Shading::Unlit, .doubleSided = true}, L"ps_unlit.cso", L"Unlit two-sided PSO"},
         };
-        ShadingPipelines &meshPipelines = m_pipelinesByFormat[std::to_underlying(VertexFormat::Mesh)];
         for (const Variant &variant : kVariants) {
-            meshPipelines[std::to_underlying(variant.shading)][variant.doubleSided ? 1 : 0] = pipelines.Get({
+            rhi::PipelineHandle &slot = m_pipelinesByKey[variant.key.Index()];
+            ENGINE_ASSERT_MSG(!slot.IsValid(), "Two PSO variants share index {}", variant.key.Index());
+            slot = pipelines.Get({
                 .vertexShader = L"vs_mesh.cso",
                 .pixelShader = variant.pixelShader,
                 .inputLayout = kVertexLayout,
-                .cull = variant.doubleSided ? rhi::CullMode::None : rhi::CullMode::Back,
+                .cull = variant.key.doubleSided ? rhi::CullMode::None : rhi::CullMode::Back,
                 .renderTargetFormats = kBackBufferTargets,
                 .depthFormat = rhi::kDepthFormat,
                 .name = variant.name,
@@ -141,7 +159,8 @@ namespace engine::render {
             // Every draw reads indexCount indices from firstIndex on, and the GPU adds baseVertex to each
             gpu::DrawConstants constants{.instanceOffset = draw.firstElement,
                                          .materialIndex = material.albedo.index,
-                                         .instanceBufferIndex = draw.instanceBufferIndex};
+                                         .instanceBufferIndex = draw.instanceBufferIndex,
+                                         .alphaInfo = PackAlphaInfo(material)};
             if (drawPath == DrawPath::Instanced) {
                 // One draw for all `count` objects: object i reads element instanceOffset + SV_InstanceID (= i)
                 context.SetGraphicsRootConstants(gpu::kRootDrawConstants, constants);
@@ -161,11 +180,14 @@ namespace engine::render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        const rhi::PipelineHandle pipeline =
-            m_pipelinesByFormat[std::to_underlying(format)][std::to_underlying(material.shading)]
-                               [material.doubleSided ? 1 : 0];
-        ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}, shading {}", std::to_underlying(format),
-                          std::to_underlying(material.shading));
+        // Blend materials are drawn solid here until there is a transparent pass
+        const PipelineKey key{.format = format,
+                              .shading = material.shading,
+                              .doubleSided = material.doubleSided,
+                              .alphaTest = material.alphaMode == AlphaMode::Mask};
+        const rhi::PipelineHandle pipeline = m_pipelinesByKey[key.Index()];
+        ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}, shading {}, alpha test {}",
+                          std::to_underlying(format), std::to_underlying(material.shading), key.alphaTest);
         return pipeline;
     }
 } // namespace engine::render
