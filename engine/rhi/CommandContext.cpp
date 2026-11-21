@@ -166,6 +166,20 @@ namespace engine::rhi {
         m_list->DrawIndexedInstanced(indexCount, instanceCount, startIndex, baseVertex, 0);
     }
 
+    void CommandContext::BeginEvent(std::string_view name) {
+        ENGINE_ASSERT(m_recording);
+        ENGINE_ASSERT_MSG(name.data()[name.size()] == '\0', "Event name {} is not null-terminated", name);
+        // Metadata 1 marks the data as an 8-bit string, the format PIX reads without its event runtime
+        // (WINPIX_EVENT_ANSI_VERSION in pix3.h). The size includes the terminating null.
+        constexpr UINT kAnsiString = 1;
+        m_list->BeginEvent(kAnsiString, name.data(), static_cast<UINT>(name.size() + 1));
+    }
+
+    void CommandContext::EndEvent() {
+        ENGINE_ASSERT(m_recording);
+        m_list->EndEvent();
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();

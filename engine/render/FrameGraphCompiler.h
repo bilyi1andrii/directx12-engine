@@ -8,7 +8,7 @@
 
 // The CPU-only part of the frame graph: from the passes and the textures they use, it works out which passes run,
 // which transient textures can share one GPU texture, and the state changes (barriers) between passes.
-// It knows no D3D12 types, so it can be unit-tested without a GPU. FrameGraph turns its result into D3D12 calls.
+// It knows no D3D12 types: FrameGraph turns its result into D3D12 calls.
 namespace engine::render::fg {
     // How a pass uses a texture. FrameGraph maps each value to one D3D12 resource state.
     enum class Access : uint8_t {

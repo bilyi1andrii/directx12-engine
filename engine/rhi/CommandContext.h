@@ -89,6 +89,11 @@ namespace engine::rhi {
         void DrawIndexedInstanced(uint32_t indexCount, uint32_t instanceCount, uint32_t startIndex = 0,
                                   int32_t baseVertex = 0);
 
+        // Starts and ends a named region of commands. GPU debuggers (PIX, RenderDoc, Nsight) show the regions as a
+        // tree, so a capture reads as passes instead of one long list of draws. `name` must be null-terminated.
+        void BeginEvent(std::string_view name);
+        void EndEvent();
+
         // Flushes barriers and ends recording; the list can then be executed
         void Close();
 
@@ -103,6 +108,23 @@ namespace engine::rhi {
         std::array<D3D12_RESOURCE_BARRIER, kMaxPendingBarriers> m_pendingBarriers{};
         uint32_t m_pendingBarrierCount = 0;
         bool m_recording = false;
+    };
+
+    // A named region of commands from construction to destruction (CommandContext::BeginEvent / EndEvent)
+    class ScopedGpuEvent {
+    public:
+        ScopedGpuEvent(CommandContext &context, std::string_view name) : m_context(context) {
+            m_context.BeginEvent(name);
+        }
+        ~ScopedGpuEvent() { m_context.EndEvent(); }
+
+        ScopedGpuEvent(const ScopedGpuEvent &) = delete;
+        ScopedGpuEvent &operator=(const ScopedGpuEvent &) = delete;
+        ScopedGpuEvent(ScopedGpuEvent &&) = delete;
+        ScopedGpuEvent &operator=(ScopedGpuEvent &&) = delete;
+
+    private:
+        CommandContext &m_context;
     };
 } // namespace engine::rhi
 

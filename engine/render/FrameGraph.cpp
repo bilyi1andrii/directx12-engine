@@ -156,6 +156,8 @@ namespace engine::render {
             // A callback may record straight into the native command list (ImGui does), past the batched barriers
             commands.FlushBarriers();
 
+            // Everything the pass records shows up under its name in PIX
+            const rhi::ScopedGpuEvent event(commands, pass.name);
             // TODO: ScopedGpuTimer(commands, profiler, pass.name) once the GPU profiler exists
             BindTargetsAndClear(pass, commands);
             // Setting a root signature clears every root argument, so the frame constants are bound again for each
@@ -198,9 +200,10 @@ namespace engine::render {
             }
         }
 
-        // The colour the first running pass clears each GPU texture to: the pool creates it with that optimized
-        // clear value. Transients that share a texture and clear it to different colours make the later clears
-        // slower (the debug layer warns).
+        // A texture clears fastest to the colour given when it is created (its optimized clear value).
+        // Each texture gets the colour of the first pass that clears it.
+        // If two transients share a texture and clear it to different colours, the later clear is slower,
+        // and the debug layer warns.
         std::vector<std::optional<ClearColor>> clearColors(m_compiled.gpuTextures.size());
         for (size_t pass = 0; pass < m_passes.size(); ++pass) {
             if (!m_compiled.passes[pass].kept) {
