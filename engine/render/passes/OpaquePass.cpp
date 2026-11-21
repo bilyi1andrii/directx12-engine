@@ -180,11 +180,12 @@ namespace engine::render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        // Blend materials are drawn solid here until there is a transparent pass
+        // Blend materials are drawn solid here until there is a transparent pass. The unlit shader has no alpha-test
+        // build: CreateMaterial rejects unlit Mask materials in Debug, and a Release build draws them solid.
         const PipelineKey key{.format = format,
                               .shading = material.shading,
                               .doubleSided = material.doubleSided,
-                              .alphaTest = material.alphaMode == AlphaMode::Mask};
+                              .alphaTest = material.shading == Shading::Lit && material.alphaMode == AlphaMode::Mask};
         const rhi::PipelineHandle pipeline = m_pipelinesByKey[key.Index()];
         ENGINE_ASSERT_MSG(pipeline.IsValid(), "No PSO for vertex format {}, shading {}, alpha test {}",
                           std::to_underlying(format), std::to_underlying(material.shading), key.alphaTest);

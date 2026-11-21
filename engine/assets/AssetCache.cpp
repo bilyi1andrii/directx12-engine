@@ -6,8 +6,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <format>
-#include <functional>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -28,6 +29,19 @@ namespace engine::assets {
 
         [[nodiscard]] uint8_t ToByte(float value) noexcept {
             return static_cast<uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
+
+        // How a texture's debug name says what it was read as. One image read as colour and as a mask is two
+        // textures, and PIX should tell them apart.
+        [[nodiscard]] std::wstring_view UsageName(TextureUsage usage) noexcept {
+            switch (usage) {
+            case TextureUsage::Diffuse:
+                return L"colour";
+            case TextureUsage::Opacity:
+                return L"opacity";
+            default:
+                return IsSrgbUsage(usage) ? L"colour" : L"data";
+            }
         }
 
         // The box around every placed submesh, in model space
@@ -177,12 +191,14 @@ namespace engine::assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials keep the defaults, so they share a handle whatever their file says about alpha
+        // Opaque materials keep the defaults, so they share a handle whatever their file says about alpha.
+        // Blend materials get the map too: the transparent pass multiplies their alpha by it.
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
-            // The grey texture would be a mask of about 0.4 everywhere, which the cutoff removes entirely
+            // The grey texture is sRGB 100, which the shader reads as about 0.13: far below any usual cutoff, so the
+            // whole surface would be cut out
             if (mask == m_gpu->UnloadedTexture()) {
                 core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
                                  "without one.",
@@ -209,7 +225,8 @@ namespace engine::assets {
         if (added) {
             const render::EmbeddedTextureData &image = model.embeddedTextures[inFile->index];
             if (const auto data = ImportTextureFromMemory(image.bytes, image.formatHint, usage)) {
-                it->second = CreateTexture(*data, std::format(L"{}/Embedded {}", modelName, inFile->index));
+                it->second = CreateTexture(
+                    *data, std::format(L"{}/Embedded {} ({})", modelName, inFile->index, UsageName(usage)));
             } else {
                 core::LogWarning("AssetCache: {} of {}. Using the grey texture.", data.error().message,
                                  core::ToUtf8(modelName));
@@ -233,16 +250,16 @@ namespace engine::assets {
     }
 
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
-        // The two texture indices fill one 64-bit value, the four small fields another
-        const uint64_t textures = material.albedo.index | (uint64_t{material.opacityMap.index} << 32);
-        const uint64_t settings =
-            uint64_t{std::to_underlying(material.shading)} | (uint64_t{material.doubleSided} << 8) |
-            (uint64_t{std::to_underlying(material.alphaMode)} << 16) | (uint64_t{material.alphaCutoff} << 24);
-        const std::hash<uint64_t> hash;
-        // Mixes the second hash in (the boost::hash_combine recipe), so swapped values hash differently
-        size_t seed = hash(textures);
-        seed ^= hash(settings) + 0x9e3779b97f4a7c15ull + (seed << 6) + (seed >> 2);
-        return seed;
+        // Every field in three 32-bit words with no padding, hashed as one string of bytes. The struct itself has
+        // padding bytes of any value, so it cannot be hashed directly.
+        const std::array<uint32_t, 3> words{
+            material.albedo.index,
+            material.opacityMap.index,
+            uint32_t{std::to_underlying(material.shading)} | (uint32_t{material.doubleSided} << 8) |
+                (uint32_t{std::to_underlying(material.alphaMode)} << 16) | (uint32_t{material.alphaCutoff} << 24),
+        };
+        return std::hash<std::string_view>{}(
+            std::string_view(reinterpret_cast<const char *>(words.data()), sizeof(words)));
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {

@@ -25,8 +25,9 @@ namespace engine::render {
         AlphaMode alphaMode = AlphaMode::Opaque;
         // Mask: a pixel whose alpha is below alphaCutoff / 255 is not drawn. 128 is about 0.5.
         uint8_t alphaCutoff = 128;
-        // Mask and Blend: the alpha is the albedo's alpha times this texture's red channel. A material without a
-        // separate mask uses a white texture. Not read for opaque materials.
+        // Mask and Blend: the alpha is the albedo's alpha times this texture's red channel. Must be set for them: a
+        // material without a separate mask uses a white texture (AssetCache does). The default, the grey fallback,
+        // would cut out the whole surface. Not read for opaque materials.
         TextureHandle opacityMap;
 
         bool operator==(const MaterialInfo &) const = default;

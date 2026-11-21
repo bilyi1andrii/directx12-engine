@@ -112,6 +112,9 @@ namespace engine::render {
         // The unlit shader has no alpha-test or blended variant
         ENGINE_ASSERT_MSG(material.shading == Shading::Lit || material.alphaMode == AlphaMode::Opaque,
                           "Unlit material with alpha mode {}", std::to_underlying(material.alphaMode));
+        ENGINE_ASSERT_MSG(material.alphaMode == AlphaMode::Opaque || material.opacityMap != m_unloadedTexture,
+                          "Material with alpha mode {} has the grey texture as its opacity map: use a white one",
+                          std::to_underlying(material.alphaMode));
         m_materials.push_back(material);
         return MaterialHandle{.index = static_cast<uint32_t>(m_materials.size() - 1)};
     }
