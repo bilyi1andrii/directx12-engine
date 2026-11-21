@@ -107,7 +107,7 @@ namespace engine::render {
         m_compiled = fg::Compile(m_desc);
         m_gpuBindings.assign(m_compiled.gpuTextures.size(), ImportBinding{});
         m_gpuShaderIndices.assign(m_compiled.gpuTextures.size(), TransientTexturePool::kNoSrv);
-        TakeTransients(pool, frame);
+        AcquireTransientTextures(pool, frame);
         m_isCompiled = true;
 
 #ifdef _DEBUG
@@ -188,7 +188,7 @@ namespace engine::render {
         m_isCompiled = false;
     }
 
-    void FrameGraph::TakeTransients(TransientTexturePool &pool, rhi::FrameContext &frame) {
+    void FrameGraph::AcquireTransientTextures(TransientTexturePool &pool, rhi::FrameContext &frame) {
         // The name of each transient GPU texture: that of the first graph texture that uses it
         std::vector<std::string_view> names(m_compiled.gpuTextures.size());
         for (size_t i = 0; i < m_compiled.textures.size(); ++i) {
@@ -224,17 +224,17 @@ namespace engine::render {
                                           .name = names[gpu]});
             }
         }
-        pool.Take(m_poolRequests, frame, m_poolTextures);
+        pool.Acquire(m_poolRequests, frame, m_poolTextures);
 
         m_stateFixes.clear();
-        size_t taken = 0;
+        size_t acquired = 0;
         for (size_t gpu = 0; gpu < m_compiled.gpuTextures.size(); ++gpu) {
             if (m_compiled.gpuTextures[gpu].imported) {
                 continue;
             }
-            const TransientTexturePool::Texture &texture = m_poolTextures[taken];
-            const D3D12_RESOURCE_STATES state = m_poolRequests[taken].state;
-            ++taken;
+            const TransientTexturePool::Texture &texture = m_poolTextures[acquired];
+            const D3D12_RESOURCE_STATES state = m_poolRequests[acquired].state;
+            ++acquired;
             m_gpuBindings[gpu] = {.texture = {},
                                   .resource = texture.resource,
                                   .views = {texture.view},

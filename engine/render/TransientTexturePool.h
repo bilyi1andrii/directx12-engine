@@ -73,11 +73,11 @@ namespace engine::render {
         TransientTexturePool(TransientTexturePool &&) = delete;
         TransientTexturePool &operator=(TransientTexturePool &&) = delete;
 
-        // Gives one texture per request (into `textures`, in order): a pool texture of the same description and
-        // clear colour, or a new one created in the request's state. Each texture goes to at most one request. Textures no request
-        // took are destroyed once the GPU has finished `frame`. Afterwards the pool counts each texture as being in
-        // its request's state: the caller makes that true before the texture's first use.
-        void Take(std::span<const Request> requests, rhi::FrameContext &frame, std::vector<Texture> &textures);
+        // Gives one texture per request (into `textures`, in order): a free pool texture of the same description and
+        // clear colour, or a new one created in the request's state. Each texture goes to at most one request.
+        // Textures no request acquired are destroyed once the GPU has finished `frame`. Afterwards the pool counts
+        // each texture as being in its request's state: the caller makes that true before the texture's first use.
+        void Acquire(std::span<const Request> requests, rhi::FrameContext &frame, std::vector<Texture> &textures);
 
         // Destroys every texture once the GPU has finished `frame`. Call before destruction.
         void DestroyAll(rhi::FrameContext &frame) noexcept;
@@ -101,7 +101,7 @@ namespace engine::render {
         rhi::DescriptorAllocator &m_dsvAllocator;
         rhi::BindlessHeap &m_heap;
         std::vector<Entry> m_entries;
-        std::vector<bool> m_taken; // scratch for Take
+        std::vector<bool> m_acquired; // scratch for Acquire
     };
 } // namespace engine::render
 

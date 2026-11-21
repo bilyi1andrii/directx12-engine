@@ -102,7 +102,6 @@ namespace engine::render {
         graph.AddPass(
             "Opaque",
             [&](PassBuilder &builder) {
-                // The sky: linear values, so through the sRGB view the screen shows about (56, 69, 108) of 255
                 builder.WriteColor(color, ClearColor{0.04f, 0.06f, 0.15f, 1.0f}, colorView);
                 // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
                 builder.WriteDepth(depth, rhi::kClearDepth);

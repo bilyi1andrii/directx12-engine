@@ -120,7 +120,7 @@ namespace engine::render {
         // Frees the staging memory of a finished upload batch
         m_upload.ReleaseCompleted(m_queue);
 
-        // Targets of the back buffer's size follow in Render: a new size rebuilds the frame graph, which takes new
+        // Targets of the back buffer's size follow in Render: a new size rebuilds the frame graph, which acquires new
         // textures from the pool and hands the old ones to this frame slot
         m_swapChain.Resize(width, height);
 

@@ -20,21 +20,21 @@ namespace engine::render {
         ENGINE_ASSERT_MSG(m_entries.empty(), "TransientTexturePool destroyed without DestroyAll");
     }
 
-    void TransientTexturePool::Take(std::span<const Request> requests, rhi::FrameContext &frame,
+    void TransientTexturePool::Acquire(std::span<const Request> requests, rhi::FrameContext &frame,
                                     std::vector<Texture> &textures) {
         textures.clear();
-        m_taken.assign(m_entries.size(), false);
+        m_acquired.assign(m_entries.size(), false);
         for (const Request &request : requests) {
             size_t index = 0;
-            while (index < m_entries.size() && (m_taken[index] || m_entries[index].desc != request.desc ||
+            while (index < m_entries.size() && (m_acquired[index] || m_entries[index].desc != request.desc ||
                                                 m_entries[index].clearColor != request.clearColor)) {
                 ++index;
             }
             if (index == m_entries.size()) {
                 m_entries.push_back(Create(request));
-                m_taken.push_back(false);
+                m_acquired.push_back(false);
             }
-            m_taken[index] = true;
+            m_acquired[index] = true;
 
             Entry &entry = m_entries[index];
             textures.push_back({.resource = entry.allocation->GetResource(),
@@ -49,7 +49,7 @@ namespace engine::render {
         // Textures the new graph does not use. Frames still in flight may use them, so they go only after `frame`.
         size_t kept = 0;
         for (size_t i = 0; i < m_entries.size(); ++i) {
-            if (m_taken[i]) {
+            if (m_acquired[i]) {
                 if (kept != i) {
                     m_entries[kept] = std::move(m_entries[i]);
                 }

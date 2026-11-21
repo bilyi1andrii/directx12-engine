@@ -115,7 +115,7 @@ namespace engine::render {
         // `end`. Its resource is given to every Execute.
         [[nodiscard]] FgTexture Import(std::string_view name, fg::Access start, fg::Access end);
 
-        // A texture that lives only inside the frame. Compile takes it from the pool; transients whose passes never
+        // A texture that lives only inside the frame. Compile acquires it from the pool; transients whose passes never
         // overlap may share one texture. Its contents are undefined until a pass writes or clears it.
         // `name` is ASCII and names the GPU texture in debuggers ("FG/<name>").
         [[nodiscard]] FgTexture CreateTexture(std::string_view name, const TransientTextureDesc &desc);
@@ -124,7 +124,7 @@ namespace engine::render {
         // `execute` runs in every Execute, unless nothing uses what the pass writes.
         void AddPass(std::string_view name, const std::function<void(PassBuilder &)> &setup, ExecuteFn execute);
 
-        // Works out which passes run and the barriers, and takes the transient textures from `pool`. The pool's
+        // Works out which passes run and the barriers, and acquires the transient textures from `pool`. The pool's
         // textures this graph does not use are destroyed once the GPU has finished `frame`. Call once after the
         // last AddPass, inside a frame.
         void Compile(TransientTexturePool &pool, rhi::FrameContext &frame);
@@ -166,8 +166,8 @@ namespace engine::render {
             D3D12_RESOURCE_STATES after = D3D12_RESOURCE_STATE_COMMON;
         };
 
-        // Takes a GPU texture from `pool` for each transient GPU texture of m_compiled
-        void TakeTransients(TransientTexturePool &pool, rhi::FrameContext &frame);
+        // Acquires a GPU texture from `pool` for each transient GPU texture of m_compiled
+        void AcquireTransientTextures(TransientTexturePool &pool, rhi::FrameContext &frame);
 
         // For PassBuilder
         void AddUse(uint32_t pass, FgTexture texture, fg::Access access);
@@ -192,7 +192,7 @@ namespace engine::render {
         std::vector<uint32_t> m_gpuShaderIndices;
         // Made at the start of the first Execute after Compile, then cleared
         std::vector<StateFix> m_stateFixes;
-        // Scratch for TakeTransients
+        // Scratch for AcquireTransientTextures
         std::vector<TransientTexturePool::Request> m_poolRequests;
         std::vector<TransientTexturePool::Texture> m_poolTextures;
     };
