@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -90,6 +91,22 @@ namespace {
     }
 
     constexpr std::span<const std::byte> kEmpty;
+
+    // Imports a one-triangle OBJ in the temp folder whose material `engine_test_leaf` has the lines `mtl`, and returns
+    // that material. Texture files the test needs must exist before the call.
+    [[nodiscard]] MaterialDesc ImportLeafMaterial(std::string_view mtl) {
+        const TempFile mtlFile(L"engine_test_leaf.mtl",
+                               Bytes(std::string("newmtl engine_test_leaf\n") + std::string(mtl)));
+        const TempFile obj(L"engine_test_leaf.obj", Bytes(std::string("mtllib engine_test_leaf.mtl\n"
+                                                                      "usemtl engine_test_leaf\n") +
+                                                          std::string(kTriangleObj)));
+        const auto result = ImportModel(obj.Path());
+        if (!result) {
+            ADD_FAILURE() << result.error().message;
+            return {};
+        }
+        return MaterialOfFirstSubmesh(*result);
+    }
 } // namespace
 
 TEST(ImportModel, MissingFileReturnsFileNotFound) {
@@ -278,6 +295,53 @@ TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
     EXPECT_TRUE(std::holds_alternative<std::monostate>(material.metallic)) << "no engine_test_brick_m file";
     EXPECT_FALSE(material.packedMetallicRoughness);
     EXPECT_TRUE(result->embeddedTextures.empty());
+}
+
+// The alpha mode of an OBJ material: an opacity map (map_d, or a <material>_d image next to the model) cuts holes at
+// the default cutoff, and opacity below 1 is transparent even with a map
+TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
+    struct Case {
+        std::string_view mtl;
+        std::wstring_view fileByName; // created next to the model, or none
+        AlphaMode alphaMode;
+        std::wstring_view opacityMap; // the file the material should name, or none
+    };
+    constexpr Case kCases[] = {
+        {"map_Kd engine_test_leaf_albedo.png\n", L"", AlphaMode::Opaque, L""},
+        {"map_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Mask,
+         L"engine_test_leaf_mask.png"},
+        {"d 0.5\nmap_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Blend,
+         L"engine_test_leaf_mask.png"},
+        {"map_Kd engine_test_leaf_albedo.png\n", L"engine_test_leaf_d.png", AlphaMode::Mask, L"engine_test_leaf_d.png"},
+    };
+    for (const Case &test : kCases) {
+        std::optional<TempFile> byName;
+        if (!test.fileByName.empty()) {
+            byName.emplace(test.fileByName, kEmpty);
+        }
+
+        const MaterialDesc material = ImportLeafMaterial(test.mtl);
+
+        EXPECT_EQ(material.alphaMode, test.alphaMode) << test.mtl;
+        EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f) << test.mtl;
+        EXPECT_EQ(FileOf(material.opacityMap),
+                  test.opacityMap.empty() ? std::wstring{} : Normalized(MissingFile(test.opacityMap)))
+            << test.mtl;
+    }
+}
+
+// Blender writes the albedo file as the opacity map: the albedo's alpha is the mask, with no second texture. The two
+// spellings differ in letter case and still name one file.
+TEST(ImportModel, ObjOpacityMapThatIsTheAlbedoMakesMaskWithoutSeparateMap) {
+    const TempFile albedo(L"engine_test_leaf_albedo.png", kEmpty);
+
+    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n"
+                                                     "map_d ENGINE_TEST_LEAF_ALBEDO.PNG\n");
+
+    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
+    EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f);
+    EXPECT_EQ(FileOf(material.albedo), Normalized(albedo.Path()));
+    EXPECT_TRUE(std::holds_alternative<std::monostate>(material.opacityMap));
 }
 
 // A glTF material: the file's factors and alpha mode, metallic and roughness packed in one texture, and an image

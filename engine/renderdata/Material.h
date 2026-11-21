@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include "renderdata/Handles.h"
+#include "renderdata/MaterialDesc.h"
 
 namespace engine::render {
     enum class Shading : uint8_t {
@@ -19,6 +20,16 @@ namespace engine::render {
         TextureHandle albedo; // default: the grey fallback texture
         Shading shading = Shading::Lit;
         bool doubleSided = false; // draw back faces too (leaves, curtains)
+
+        // Only lit materials may cut holes or be transparent
+        AlphaMode alphaMode = AlphaMode::Opaque;
+        // Mask: a pixel whose alpha is below this is not drawn. Stored as a byte, the form the shader receives, where
+        // 0 to 255 stands for 0 to 1. The default is one half.
+        uint8_t alphaCutoff = 128;
+        // Mask and Blend: the surface's alpha is the albedo's alpha times this mask. They must set it: without a
+        // separate mask, use a white texture. The default, the grey fallback, is dark enough to cut out the whole
+        // surface. Not read for opaque materials.
+        TextureHandle opacityMap;
 
         bool operator==(const MaterialInfo &) const = default;
     };

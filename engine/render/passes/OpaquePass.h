@@ -2,6 +2,7 @@
 #define D3D12_ENGINE_OPAQUEPASS_H
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <utility>
@@ -18,8 +19,9 @@ namespace engine::rhi {
 } // namespace engine::rhi
 
 namespace engine::render {
-    // Draws solid surfaces into the bound colour and depth targets, with depth test and depth write on.
-    // Owns one PSO per vertex format, shading and cull mode, created up front so no frame waits for a PSO.
+    // Draws solid surfaces into the bound colour and depth targets, with depth test and depth write on. Mask
+    // materials get holes where their alpha is below the cutoff (alpha test).
+    // Owns one PSO per vertex format, shading, cull mode and alpha test, created up front so no frame waits for a PSO.
     //
     // Record only sets PSOs, buffers and root constants (b0) and draws. The caller binds the render targets,
     // viewport, root signature and frame constants (b1) first; in a frame graph, the graph does.
@@ -46,12 +48,27 @@ namespace engine::render {
                     std::span<const std::span<const InstanceDraw>> drawSets) const;
 
     private:
+        // Everything that picks one of the pass's PSOs
+        struct PipelineKey {
+            VertexFormat format = VertexFormat::Mesh;
+            Shading shading = Shading::Lit;
+            bool doubleSided = false;
+            bool alphaTest = false;
+
+            // A different slot in the PSO array for every combination
+            [[nodiscard]] constexpr uint32_t Index() const noexcept {
+                const uint32_t formatAndShading =
+                    std::to_underlying(format) * static_cast<uint32_t>(kShadingCount) + std::to_underlying(shading);
+                return (formatAndShading * 2 + (doubleSided ? 1 : 0)) * 2 + (alphaTest ? 1 : 0);
+            }
+        };
+        static constexpr size_t kPipelineKeyCount = std::to_underlying(VertexFormat::Count) * kShadingCount * 2 * 2;
+
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 
         const rhi::PipelineCache &m_pipelines;
-        // PSOs by [vertex format][shading][doubleSided ? 1 : 0], all filled by the constructor
-        using ShadingPipelines = std::array<std::array<rhi::PipelineHandle, 2>, kShadingCount>;
-        std::array<ShadingPipelines, std::to_underlying(VertexFormat::Count)> m_pipelinesByFormat;
+        // One slot per key, filled by the constructor. Unlit materials have no alpha-test PSO.
+        std::array<rhi::PipelineHandle, kPipelineKeyCount> m_pipelinesByKey;
     };
 } // namespace engine::render
 

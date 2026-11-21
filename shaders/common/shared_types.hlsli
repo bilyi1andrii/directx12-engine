@@ -27,6 +27,8 @@ struct DrawConstants
     uint instanceOffset;      // element of the draw's first object in its InstanceData buffer
     uint materialIndex;       // for now: bindless index of the albedo texture
     uint instanceBufferIndex; // bindless index of the draw's StructuredBuffer<InstanceData>
+    // Cut-out materials: the bindless index of the mask in the top 24 bits, the alpha cutoff as a byte in the low 8
+    uint alphaInfo;
 };
 
 // How many point and spot lights one frame can have. The CPU keeps the first ones and drops the rest.

@@ -3,7 +3,7 @@
 // parameter indices.
 //
 // Its parameters:
-//   [0] b0: 4 root constants, set per draw (instanceOffset, materialIndex, instanceBufferIndex, 1 spare)
+//   [0] b0: 4 root constants, set per draw (instanceOffset, materialIndex, instanceBufferIndex, alphaInfo)
 //   [1] b1: root CBV with FrameConstants, from the UploadRing
 //   [2] b2: root CBV with PassConstants, from the UploadRing
 //
