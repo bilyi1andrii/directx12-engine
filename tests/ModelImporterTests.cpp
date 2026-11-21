@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <format>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -296,42 +297,37 @@ TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
     EXPECT_TRUE(result->embeddedTextures.empty());
 }
 
-// An OBJ material without an opacity map and fully opaque draws as a solid surface
-TEST(ImportModel, ObjMaterialWithoutOpacityMapIsOpaque) {
-    const MaterialDesc material = ImportLeafMaterial("d 1\n"
-                                                     "map_Kd engine_test_leaf_albedo.png\n");
+// The alpha mode of an OBJ material: an opacity map (map_d, or a <material>_d image next to the model) cuts holes at
+// the default cutoff, and opacity below 1 is transparent even with a map
+TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
+    struct Case {
+        std::string_view mtl;
+        std::wstring_view fileByName; // created next to the model, or none
+        AlphaMode alphaMode;
+        std::wstring_view opacityMap; // the file the material should name, or none
+    };
+    constexpr Case kCases[] = {
+        {"map_Kd engine_test_leaf_albedo.png\n", L"", AlphaMode::Opaque, L""},
+        {"map_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Mask,
+         L"engine_test_leaf_mask.png"},
+        {"d 0.5\nmap_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Blend,
+         L"engine_test_leaf_mask.png"},
+        {"map_Kd engine_test_leaf_albedo.png\n", L"engine_test_leaf_d.png", AlphaMode::Mask, L"engine_test_leaf_d.png"},
+    };
+    for (const Case &test : kCases) {
+        std::optional<TempFile> byName;
+        if (!test.fileByName.empty()) {
+            byName.emplace(test.fileByName, kEmpty);
+        }
 
-    EXPECT_EQ(material.alphaMode, AlphaMode::Opaque);
-    EXPECT_TRUE(std::holds_alternative<std::monostate>(material.opacityMap));
-}
+        const MaterialDesc material = ImportLeafMaterial(test.mtl);
 
-// An opacity map (map_d) cuts holes where it is dark, at the default cutoff
-TEST(ImportModel, ObjOpacityMapMakesMask) {
-    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n"
-                                                     "map_d engine_test_leaf_mask.png\n");
-
-    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
-    EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f);
-    EXPECT_EQ(FileOf(material.opacityMap), Normalized(engine::tests::MissingFile(L"engine_test_leaf_mask.png")));
-}
-
-// A see-through material stays transparent even with a mask
-TEST(ImportModel, ObjOpacityMapWithOpacityBelowOneIsBlend) {
-    const MaterialDesc material = ImportLeafMaterial("d 0.5\n"
-                                                     "map_Kd engine_test_leaf_albedo.png\n"
-                                                     "map_d engine_test_leaf_mask.png\n");
-
-    EXPECT_EQ(material.alphaMode, AlphaMode::Blend);
-}
-
-// A <material>_d image next to the model is an opacity map too, without map_d in the file
-TEST(ImportModel, ObjOpacityMapFoundByNameMakesMask) {
-    const TempFile mask(L"engine_test_leaf_d.png", kEmpty);
-
-    const MaterialDesc material = ImportLeafMaterial("map_Kd engine_test_leaf_albedo.png\n");
-
-    EXPECT_EQ(material.alphaMode, AlphaMode::Mask);
-    EXPECT_EQ(FileOf(material.opacityMap), Normalized(mask.Path()));
+        EXPECT_EQ(material.alphaMode, test.alphaMode) << test.mtl;
+        EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f) << test.mtl;
+        EXPECT_EQ(FileOf(material.opacityMap),
+                  test.opacityMap.empty() ? std::wstring{} : Normalized(MissingFile(test.opacityMap)))
+            << test.mtl;
+    }
 }
 
 // Blender writes the albedo file as the opacity map: the albedo's alpha is the mask, with no second texture. The two
