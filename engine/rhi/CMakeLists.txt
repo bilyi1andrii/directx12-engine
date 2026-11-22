@@ -30,6 +30,8 @@ add_library(engine_rhi STATIC
         FrameContext.cpp
         FrameContext.h
         GpuCopyable.h
+        GpuProfiler.cpp
+        GpuProfiler.h
         PipelineCache.cpp
         PipelineCache.h
         RhiCommon.h
@@ -51,6 +53,7 @@ target_include_directories(engine_rhi PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 # PUBLIC: rhi headers include <directx/d3d12.h> and <dxgi1_6.h>, so users need the same headers and libraries
 target_link_libraries(engine_rhi PUBLIC
         engine_core
+        engine_gputimes
         Microsoft::DirectX-Headers      # <directx/d3d12.h>, <directx/d3dx12.h> matching the Agility SDK
         Microsoft::DirectX-Guids        # IIDs for interfaces newer than the Windows SDK's dxguid.lib
         GPUOpen::D3D12MemoryAllocator   # <D3D12MemAlloc.h>, included by rhi/Allocator.h

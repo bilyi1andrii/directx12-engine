@@ -1,0 +1,79 @@
+#ifndef D3D12_ENGINE_GPUPROFILER_H
+#define D3D12_ENGINE_GPUPROFILER_H
+
+#include <array>
+#include <cstdint>
+#include <optional>
+#include <string_view>
+
+#include "rhi/Allocator.h"
+#include "rhi/FrameContext.h"
+#include "rhi/GpuTimes.h"
+#include "rhi/RhiCommon.h"
+
+namespace engine::rhi {
+    class CommandContext;
+    class GpuProfiler {
+    public:
+        GpuProfiler(NativeDevice *device, Allocator &allocator, uint64_t ticksPerSecond);
+
+        GpuProfiler(const GpuProfiler &) = delete;
+        GpuProfiler &operator=(const GpuProfiler &) = delete;
+        GpuProfiler(GpuProfiler &&) = delete;
+        GpuProfiler &operator=(GpuProfiler &&) = delete;
+
+        [[nodiscard]] uint32_t RegisterScope(std::string_view name) { return m_names.Register(name); }
+
+        void BeginFrame(CommandContext &commands, uint64_t frame);
+
+        // Starts timing scope `scopeId` and returns its index in this frame, for EndScope.
+        [[nodiscard]] uint32_t BeginScope(CommandContext &commands, uint32_t scopeId);
+        void EndScope(CommandContext &commands, uint32_t scopeIndex);
+
+        void EndFrame(CommandContext &commands);
+
+        [[nodiscard]] const std::optional<GpuFrameTimes> &Latest() const noexcept { return m_latest; }
+
+    private:
+        struct SlotRecord {
+            uint64_t frame = 0;
+            bool resolved = false;
+            std::array<uint32_t, kMaxGpuScopes> scopeIds{};
+            uint32_t scopeCount = 0;
+        };
+
+        [[nodiscard]] uint32_t FirstQuery() const noexcept { return m_slot * timestamp::kPerFrame; }
+
+        void ReadSlot(const SlotRecord &record);
+
+        ComPtr<ID3D12QueryHeap> m_queryHeap;
+        Allocation m_readback;
+        uint64_t m_ticksPerSecond = 0;
+        GpuScopeNames m_names;
+        std::array<SlotRecord, kFramesInFlight> m_slots{};
+        uint32_t m_slot = 0;
+        uint32_t m_openScopes = 0;
+        bool m_recording = false;
+        std::optional<GpuFrameTimes> m_latest;
+    };
+
+    // Times the commands recorded between its construction and its destruction as one scope of the current frame
+    class ScopedGpuTimer {
+    public:
+        ScopedGpuTimer(CommandContext &commands, GpuProfiler &profiler, uint32_t scopeId)
+            : m_commands(commands), m_profiler(profiler), m_scope(profiler.BeginScope(commands, scopeId)) {}
+        ~ScopedGpuTimer() { m_profiler.EndScope(m_commands, m_scope); }
+
+        ScopedGpuTimer(const ScopedGpuTimer &) = delete;
+        ScopedGpuTimer &operator=(const ScopedGpuTimer &) = delete;
+        ScopedGpuTimer(ScopedGpuTimer &&) = delete;
+        ScopedGpuTimer &operator=(ScopedGpuTimer &&) = delete;
+
+    private:
+        CommandContext &m_commands;
+        GpuProfiler &m_profiler;
+        uint32_t m_scope;
+    };
+} // namespace engine::rhi
+
+#endif // D3D12_ENGINE_GPUPROFILER_H

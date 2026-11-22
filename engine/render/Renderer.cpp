@@ -5,6 +5,7 @@
 #include <exception>
 #include <format>
 #include <memory>
+#include <optional>
 #include <span>
 
 #include <DirectXMath.h>
@@ -57,6 +58,7 @@ namespace engine::render {
           m_upload(m_device.Native(), m_allocator, L"Upload"),
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
+          m_profiler(m_device.Native(), m_allocator, m_queue.TimestampFrequency()),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
@@ -127,6 +129,11 @@ namespace engine::render {
         m_context.Begin(frame.CommandAllocator());
         // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
+        m_profiler.BeginFrame(m_context, m_frameNumber);
+
+        if (const std::optional<rhi::GpuFrameTimes> &times = m_profiler.Latest(); times && m_frameNumber % 120 == 0) {
+            core::LogInfo("GPU frame {}: {:.3f} ms", times->frame, times->totalMs);
+        }
     }
 
     void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
@@ -160,10 +167,10 @@ namespace engine::render {
 
         const std::array imports{
             TextureBinding{.texture = m_backBuffer,
-                          .resource = m_swapChain.CurrentBackBuffer(),
-                          .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
-                          .width = m_swapChain.Width(),
-                          .height = m_swapChain.Height()},
+                           .resource = m_swapChain.CurrentBackBuffer(),
+                           .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
+                           .width = m_swapChain.Width(),
+                           .height = m_swapChain.Height()},
         };
         const FrameInputs inputs{
             .frameConstants = frameCb.gpu, .drawPath = m_settings.drawPath, .drawSets = m_drawSets, .ui = ui};
@@ -197,6 +204,7 @@ namespace engine::render {
         m_frameStage = FrameStage::Idle;
 
         // The frame graph has left the back buffer in PRESENT
+        m_profiler.EndFrame(m_context);
         m_context.Close();
 
         // Uploads first: this frame may already use them, and the GPU runs lists in submission order
