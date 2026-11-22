@@ -17,6 +17,7 @@
 namespace engine::rhi {
     class CommandContext;
     class FrameContext;
+    class GpuProfiler;
 } // namespace engine::rhi
 
 namespace engine::render {
@@ -105,7 +106,8 @@ namespace engine::render {
         using ExecuteFn = std::function<void(PassContext &)>;
 
         // `rootSignature` is bound before every pass and must outlive the graph
-        explicit FrameGraph(ID3D12RootSignature *rootSignature) : m_rootSignature(rootSignature) {}
+        FrameGraph(ID3D12RootSignature *rootSignature, rhi::GpuProfiler &profiler)
+            : m_rootSignature(rootSignature), m_profiler(profiler) {}
 
         FrameGraph(const FrameGraph &) = delete;
         FrameGraph &operator=(const FrameGraph &) = delete;
@@ -156,6 +158,7 @@ namespace engine::render {
         };
         struct Pass {
             std::string name;
+            uint32_t timerId = 0;
             ExecuteFn execute;
             std::vector<ColorTarget> colors;
             std::optional<DepthTarget> depth;
@@ -179,6 +182,7 @@ namespace engine::render {
         [[nodiscard]] const TransientTextureDesc *TransientDescOf(FgTexture texture) const;
 
         ID3D12RootSignature *m_rootSignature;
+        rhi::GpuProfiler &m_profiler;
         fg::GraphDesc m_desc;
         std::vector<std::string> m_textureNames; // by FgTexture::index
         // Each different description of a transient, once; fg::GraphDesc::Texture::descId indexes it

@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 
 #include <DirectXMath.h>
 #include <directx/d3dx12.h>
@@ -65,7 +66,7 @@ namespace engine::render {
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
           m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
-          m_graph(m_pipelines.RootSignature()) {
+          m_graph(m_pipelines.RootSignature(), m_profiler) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -132,7 +133,11 @@ namespace engine::render {
         m_profiler.BeginFrame(m_context, m_frameNumber);
 
         if (const std::optional<rhi::GpuFrameTimes> &times = m_profiler.Latest(); times && m_frameNumber % 120 == 0) {
-            core::LogInfo("GPU frame {}: {:.3f} ms", times->frame, times->totalMs);
+            std::string passes;
+            for (const rhi::GpuScopeTime &pass : times->Scopes()) {
+                passes += std::format(", {} {:.3f}", pass.name, pass.ms);
+            }
+            core::LogInfo("GPU frame {}: {:.3f} ms{}", times->frame, times->totalMs, passes);
         }
     }
 
