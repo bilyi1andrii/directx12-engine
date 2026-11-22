@@ -39,9 +39,10 @@ data.
 - Moving objects uploaded every frame, static objects uploaded once to GPU memory
 - Models from glTF, OBJ and FBX files (Assimp), textures with generated mips (DirectXTex)
 - Fly camera, mouse selection, a move/rotate/scale gizmo and an ImGui overlay with statistics and settings
+- GPU time of every frame and every render pass, from timestamp queries, shown live and written by the benchmark
 - Loading models and images by dropping them on the window
 - The sandbox's scene saved to JSON on exit and restored at the next start
-- A benchmark with a scripted camera that writes per-frame timings to CSV
+- A benchmark with a scripted camera that writes per-frame CPU and GPU timings to CSV
 - Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
 
 There are no shadows or tonemapping yet, so very bright areas clip to white.
@@ -85,6 +86,9 @@ Two point lights and two spot lights shine on the scene, each shown as a small s
 to select its light, move it with the gizmo, and turn a spot light with the gizmo's rotate mode. The Lights window in
 the bottom-right corner edits the ambient, specular and directional light, and the selected light's colour, strength,
 fade-out and cone. Lights are not saved.
+
+The Renderer window in the top-left corner shows the frame rate, the CPU time spent building and recording the frame,
+and the GPU time of the frame and of each render pass, averaged over one second.
 
 The scene is saved to `saves/sandbox.json` when the window closes and restored at the next start.
 
@@ -131,12 +135,12 @@ borderless fullscreen with vsync off, and closes by itself. Use the
 | `--out DIR` | Results folder (default `results`) |
 
 Each run writes to `<out>/dx12/<name>/<date-time>/`, where `<name>` is `cube` or the model's folder and file name.
-`frames.csv` holds the CPU times of every frame (GPU times are coming), and `run.txt` holds the settings, the size of
-the scene, the lights, the GPU and the driver. Pressing Esc stops the run and writes nothing.
+`frames.csv` holds the CPU times of every frame, the GPU time of the frame and of each render pass
+(`gpu_total_ms`, `gpu_opaque_ms`, ...), and `run.txt` holds the settings, the size of the scene, the lights, the GPU,
+the driver and the medians. Pressing Esc stops the run and writes nothing.
 
 ## Next Steps
 
-- GPU timings
 - Frame graph, shadows and transparency
 - HDR and tonemapping
 - PBR materials
