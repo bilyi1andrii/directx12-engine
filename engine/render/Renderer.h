@@ -93,6 +93,8 @@ namespace engine::render {
 
         [[nodiscard]] const std::optional<rhi::GpuFrameTimes> &GpuTimes() const noexcept { return m_profiler.Latest(); }
 
+        [[nodiscard]] std::vector<rhi::GpuFrameTimes> FinishGpuTimes();
+
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
         // For benchmark results
         [[nodiscard]] const std::string &AdapterName() const noexcept { return m_device.AdapterName(); }

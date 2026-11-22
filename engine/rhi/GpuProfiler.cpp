@@ -1,5 +1,6 @@
 #include "rhi/GpuProfiler.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <format>
@@ -38,12 +39,12 @@ namespace engine::rhi {
         m_slot = static_cast<uint32_t>(frame % kFramesInFlight);
         SlotRecord &record = m_slots[m_slot];
         if (record.resolved) {
-            ReadSlot(record);
+            m_latest = ReadSlot(m_slot, record);
         }
 
         record = {.frame = frame};
         m_recording = true;
-        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery() + timestamp::kFrameBegin);
+        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::kFrameBegin);
     }
 
     uint32_t GpuProfiler::BeginScope(CommandContext &commands, uint32_t scopeId) {
@@ -56,7 +57,7 @@ namespace engine::rhi {
         const uint32_t scope = record.scopeCount++;
         record.scopeIds[scope] = scopeId;
         ++m_openScopes;
-        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery() + timestamp::ScopeBegin(scope));
+        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::ScopeBegin(scope));
         return scope;
     }
 
@@ -64,7 +65,7 @@ namespace engine::rhi {
         ENGINE_ASSERT_MSG(m_recording && m_openScopes > 0 && scopeIndex < m_slots[m_slot].scopeCount,
                           "GpuProfiler::EndScope of scope {}, which did not begin", scopeIndex);
         --m_openScopes;
-        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery() + timestamp::ScopeEnd(scopeIndex));
+        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::ScopeEnd(scopeIndex));
     }
 
     void GpuProfiler::EndFrame(CommandContext &commands) {
@@ -72,16 +73,33 @@ namespace engine::rhi {
         ENGINE_ASSERT_MSG(m_openScopes == 0, "{} GPU scopes still open at the end of the frame", m_openScopes);
         SlotRecord &record = m_slots[m_slot];
 
-        commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery() + timestamp::kFrameEnd);
-        commands.ResolveTimestamps(m_queryHeap.Get(), FirstQuery(), timestamp::Count(record.scopeCount),
-                                   m_readback->GetResource(), uint64_t{FirstQuery()} * sizeof(uint64_t));
+        const uint32_t first = FirstQuery(m_slot);
+        commands.WriteTimestamp(m_queryHeap.Get(), first + timestamp::kFrameEnd);
+        commands.ResolveTimestamps(m_queryHeap.Get(), first, timestamp::Count(record.scopeCount),
+                                   m_readback->GetResource(), uint64_t{first} * sizeof(uint64_t));
         record.resolved = true;
         m_recording = false;
     }
 
-    void GpuProfiler::ReadSlot(const SlotRecord &record) {
+    std::vector<GpuFrameTimes> GpuProfiler::ReadRemaining() {
+        ENGINE_ASSERT_MSG(!m_recording, "GpuProfiler::ReadRemaining during a frame");
+        std::vector<GpuFrameTimes> remaining;
+        for (uint32_t slot = 0; slot < kFramesInFlight; ++slot) {
+            if (SlotRecord &record = m_slots[slot]; record.resolved) {
+                remaining.push_back(ReadSlot(slot, record));
+                record.resolved = false;
+            }
+        }
+        std::ranges::sort(remaining, {}, &GpuFrameTimes::frame);
+        if (!remaining.empty()) {
+            m_latest = remaining.back();
+        }
+        return remaining;
+    }
+
+    GpuFrameTimes GpuProfiler::ReadSlot(uint32_t slot, const SlotRecord &record) const {
         const uint32_t count = timestamp::Count(record.scopeCount);
-        const size_t begin = size_t{FirstQuery()} * sizeof(uint64_t);
+        const size_t begin = size_t{FirstQuery(slot)} * sizeof(uint64_t);
         const size_t size = size_t{count} * sizeof(uint64_t);
 
         ID3D12Resource *buffer = m_readback->GetResource();
@@ -97,7 +115,7 @@ namespace engine::rhi {
         for (uint32_t scope = 0; scope < record.scopeCount; ++scope) {
             names[scope] = m_names.Name(record.scopeIds[scope]);
         }
-        m_latest = MakeGpuFrameTimes(record.frame, std::span(ticks).first(count),
-                                     std::span(names).first(record.scopeCount), m_ticksPerSecond);
+        return MakeGpuFrameTimes(record.frame, std::span(ticks).first(count), std::span(names).first(record.scopeCount),
+                                 m_ticksPerSecond);
     }
 } // namespace engine::rhi

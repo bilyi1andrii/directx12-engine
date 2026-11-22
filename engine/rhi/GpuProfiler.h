@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "rhi/Allocator.h"
 #include "rhi/FrameContext.h"
@@ -34,6 +35,8 @@ namespace engine::rhi {
 
         [[nodiscard]] const std::optional<GpuFrameTimes> &Latest() const noexcept { return m_latest; }
 
+        [[nodiscard]] std::vector<GpuFrameTimes> ReadRemaining();
+
     private:
         struct SlotRecord {
             uint64_t frame = 0;
@@ -42,9 +45,9 @@ namespace engine::rhi {
             uint32_t scopeCount = 0;
         };
 
-        [[nodiscard]] uint32_t FirstQuery() const noexcept { return m_slot * timestamp::kPerFrame; }
+        [[nodiscard]] static uint32_t FirstQuery(uint32_t slot) noexcept { return slot * timestamp::kPerFrame; }
 
-        void ReadSlot(const SlotRecord &record);
+        [[nodiscard]] GpuFrameTimes ReadSlot(uint32_t slot, const SlotRecord &record) const;
 
         ComPtr<ID3D12QueryHeap> m_queryHeap;
         Allocation m_readback;

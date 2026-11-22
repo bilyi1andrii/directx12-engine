@@ -194,6 +194,12 @@ namespace engine::render {
         m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
     }
 
+    std::vector<rhi::GpuFrameTimes> Renderer::FinishGpuTimes() {
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "FinishGpuTimes inside frame {}", m_frameNumber);
+        m_queue.Flush();
+        return m_profiler.ReadRemaining();
+    }
+
     void Renderer::EndFrame() {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "EndFrame without Render in frame {}", m_frameNumber);
         m_frameStage = FrameStage::Idle;
