@@ -16,6 +16,7 @@ add_library(engine_renderdata STATIC
         Material.h
         MaterialDesc.h
         MeshData.h
+        Model.cpp
         Model.h
         ModelData.h
         RendererSettings.h

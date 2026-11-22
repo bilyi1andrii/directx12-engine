@@ -18,6 +18,11 @@ namespace engine::render {
         float viewDepth = 0.0f;           // ViewDepth of the object's position
     };
 
+    // The point a transparent object is sorted by: the middle of its mesh's bounds (`meshCenter`, in mesh space)
+    // placed by `world` (row-vector convention). Parts of one model share their world's origin, but not this point.
+    [[nodiscard]] DirectX::XMFLOAT3 SortPoint(const DirectX::XMFLOAT4X4 &world,
+                                              const DirectX::XMFLOAT3 &meshCenter) noexcept;
+
     // How far `position` (world space) lies in front of the camera, measured along the direction it looks: the
     // view-space z. Negative behind the camera. `view` is world -> view, row-vector convention (FrameView::view).
     [[nodiscard]] float ViewDepth(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT3 &position) noexcept;

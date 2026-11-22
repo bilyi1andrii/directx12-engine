@@ -10,20 +10,24 @@
 #include "renderdata/TransparentDraws.h"
 
 using engine::render::SortBackToFront;
+using engine::render::SortPoint;
 using engine::render::TransparentDraw;
 using engine::render::ViewDepth;
 
 namespace {
     struct Object {
-        DirectX::XMFLOAT3 position;
-        float depth; // expected ViewDepth
+        DirectX::XMFLOAT3 position; // where its world matrix puts its origin
+        float depth;                // expected ViewDepth of its sort point
         uint32_t instanceBuffer = 0;
         uint32_t element = 0;
+        DirectX::XMFLOAT3 meshCenter{}; // in mesh space
+        float turnDegrees = 0.0f;       // about the Y axis, before moving it to `position`
     };
 } // namespace
 
-// Each object's depth is measured along the camera's direction, also for a camera on an axis or tilted, and for
-// objects behind it. The farthest is drawn first; at equal depths the instance buffer, then the element decides.
+// Each object is sorted by the middle of its mesh, placed by its world matrix. Its depth is measured along the
+// camera's direction, also for a camera on an axis or tilted, and for objects behind it. The farthest is drawn first;
+// at equal depths the instance buffer, then the element decides.
 TEST(TransparentDraws, SortBackToFrontByViewDepth) {
     struct Case {
         std::string_view name;
@@ -61,6 +65,21 @@ TEST(TransparentDraws, SortBackToFrontByViewDepth) {
          {0.0f, 0.0f, 1.0f},
          {{{1.0f, 0.0f, 5.0f}, 5.0f, 2, 0}, {{-1.0f, 0.0f, 5.0f}, 5.0f, 1, 7}, {{0.0f, 2.0f, 5.0f}, 5.0f, 1, 3}},
          {2, 1, 0}},
+        // Three parts of one model, one behind the other, seen from the side of the first: by their origin they
+        // would tie and keep their order
+        {"parts of one model at one origin",
+         {0.0f, 0.0f, -10.0f},
+         {0.0f, 0.0f, 0.0f},
+         {{{0.0f, 0.0f, 0.0f}, 10.0f, 0, 0, {1.0f, 1.0f, 0.0f}},
+          {{0.0f, 0.0f, 0.0f}, 10.5f, 0, 1, {1.5f, 1.5f, 0.5f}},
+          {{0.0f, 0.0f, 0.0f}, 11.0f, 0, 2, {2.0f, 2.0f, 1.0f}}},
+         {2, 1, 0}},
+        // A quarter turn moves the mesh's middle from its +X side towards the camera
+        {"a turned object",
+         {0.0f, 0.0f, 0.0f},
+         {0.0f, 0.0f, 1.0f},
+         {{{0.0f, 0.0f, 5.0f}, 4.0f, 0, 0, {1.0f, 0.0f, 0.0f}, 90.0f}, {{0.0f, 0.0f, 4.5f}, 4.5f, 0, 1}},
+         {1, 0}},
     };
     for (const Case &test : kCases) {
         using namespace DirectX;
@@ -69,7 +88,10 @@ TEST(TransparentDraws, SortBackToFrontByViewDepth) {
                                                 XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)));
         std::vector<TransparentDraw> draws;
         for (const Object &object : test.objects) {
-            const float depth = ViewDepth(view, object.position);
+            XMFLOAT4X4 world{};
+            XMStoreFloat4x4(&world, XMMatrixRotationY(XMConvertToRadians(object.turnDegrees)) *
+                                        XMMatrixTranslation(object.position.x, object.position.y, object.position.z));
+            const float depth = ViewDepth(view, SortPoint(world, object.meshCenter));
             EXPECT_NEAR(depth, object.depth, 1e-4f) << test.name;
             draws.push_back(
                 {.instanceBufferIndex = object.instanceBuffer, .element = object.element, .viewDepth = depth});

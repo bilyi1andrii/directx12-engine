@@ -42,8 +42,9 @@ namespace engine::render {
         void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
                    const GpuResources &resources) const;
 
-        // Records every draw of `drawSets`, in order. The draws read meshes and materials from `resources`.
-        // On the instanced path each draw is one DrawIndexedInstanced; otherwise one DrawIndexed per object.
+        // Records every draw of `drawSets`, in order, except those with a transparent (Blend) material. The draws read
+        // meshes and materials from `resources`. On the instanced path each draw is one DrawIndexedInstanced;
+        // otherwise one DrawIndexed per object.
         void Record(rhi::CommandContext &context, const GpuResources &resources, DrawPath drawPath,
                     std::span<const std::span<const InstanceDraw>> drawSets) const;
 

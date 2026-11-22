@@ -63,7 +63,7 @@ namespace engine::render {
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
           m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
-          m_graph(m_pipelines.RootSignature()) {
+          m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature()) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -152,6 +152,20 @@ namespace engine::render {
         }
         m_drawSets.emplace_back(m_dynamicInstances.Draws());
 
+        // Transparent objects of both kinds in one order. Each one's depth is computed once, here.
+        m_transparentDraws.clear();
+        for (const StaticListHandle handle : staticLists) {
+            const GpuStaticList &staticList = m_resources.StaticList(handle);
+            for (const StaticTransparentObject &object : staticList.transparent) {
+                m_transparentDraws.push_back({.key = object.key,
+                                              .instanceBufferIndex = staticList.instanceBufferIndex,
+                                              .element = object.element,
+                                              .viewDepth = ViewDepth(view.view, object.position)});
+            }
+        }
+        m_dynamicInstances.AppendTransparent(list, m_resources, view.view, m_transparentDraws);
+        SortBackToFront(m_transparentDraws);
+
         const GraphKey key{.width = m_swapChain.Width(), .height = m_swapChain.Height(), .ui = m_ui != nullptr};
         if (m_graphKey != key) {
             BuildGraph();
@@ -160,13 +174,16 @@ namespace engine::render {
 
         const std::array imports{
             TextureBinding{.texture = m_backBuffer,
-                          .resource = m_swapChain.CurrentBackBuffer(),
-                          .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
-                          .width = m_swapChain.Width(),
-                          .height = m_swapChain.Height()},
+                           .resource = m_swapChain.CurrentBackBuffer(),
+                           .views = {m_swapChain.CurrentRtv(), m_swapChain.CurrentUiRtv()},
+                           .width = m_swapChain.Width(),
+                           .height = m_swapChain.Height()},
         };
-        const FrameInputs inputs{
-            .frameConstants = frameCb.gpu, .drawPath = m_settings.drawPath, .drawSets = m_drawSets, .ui = ui};
+        const FrameInputs inputs{.frameConstants = frameCb.gpu,
+                                 .drawPath = m_settings.drawPath,
+                                 .drawSets = m_drawSets,
+                                 .transparentDraws = m_transparentDraws,
+                                 .ui = ui};
         m_graph.Execute(m_context, CurrentFrame(), imports, inputs);
     }
 
@@ -180,6 +197,8 @@ namespace engine::render {
                                                                           .shaderRead = false});
 
         m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
+        // After the solid surfaces, which it blends over and tests depth against
+        m_transparent.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
         if (m_ui) {
             // Last: on top of the scene
             AddUiPass(m_graph, m_backBuffer, kBackBufferUnormView, *m_ui);

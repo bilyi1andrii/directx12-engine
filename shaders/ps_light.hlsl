@@ -2,7 +2,7 @@
 // The lights are the ambient light, one directional light, and the point and spot lights.
 // The maths runs on linear colours. Bright areas clip to white, because there is no tonemapper yet.
 // A second build with ALPHA_TEST defined cuts holes where the material's alpha is below its cutoff (leaves, chains).
-// shaders/CMakeLists.txt makes that build.
+// A third, with ALPHA_BLEND, outputs the material's alpha for blending (glass). shaders/CMakeLists.txt makes both.
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -81,13 +81,16 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     const float4 albedoSample = albedoTexture.Sample(g_anisotropicWrap, input.uv);
     const float3 albedo = albedoSample.rgb;
 
-#ifdef ALPHA_TEST
-    // Unpacks the mask and the cutoff from one root constant (layout: DrawConstants in shared_types.hlsli)
+#if defined(ALPHA_TEST) || defined(ALPHA_BLEND)
+    // The mask and a byte from one root constant (layout: DrawConstants in shared_types.hlsli). The byte is the
+    // cutoff for cut-out materials and the opacity for transparent ones.
     Texture2D<float4> opacityTexture = ResourceDescriptorHeap[g_draw.alphaInfo >> 8];
     const float alpha = albedoSample.a * opacityTexture.Sample(g_anisotropicWrap, input.uv).r;
-    const float cutoff = (g_draw.alphaInfo & 0xFF) / 255.0f;
+    const float alphaByte = (g_draw.alphaInfo & 0xFF) / 255.0f;
+#endif
+#ifdef ALPHA_TEST
     // A pixel below the cutoff is a hole: clip discards it, so it writes neither colour nor depth
-    clip(alpha - cutoff);
+    clip(alpha - alphaByte);
 #endif
 
     // Blending the three vertex normals across the triangle makes the normal shorter than 1
@@ -107,5 +110,10 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         lighting += SpotLight(g_frame.spotLights[j], N, input.worldPosition, V);
     }
 
+#ifdef ALPHA_BLEND
+    // How much this surface covers what is behind it
+    return float4(albedo * lighting, alpha * alphaByte);
+#else
     return float4(albedo * lighting, 1.0f);
+#endif
 }

@@ -25,11 +25,13 @@
 #include "render/GpuResources.h"
 #include "render/TransientTexturePool.h"
 #include "render/passes/OpaquePass.h"
+#include "render/passes/TransparentPass.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
 #include "renderdata/Lights.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
+#include "renderdata/TransparentDraws.h"
 
 // ImGui's per-frame draw data (ui::DebugUI::Render); opaque here
 struct ImDrawData;
@@ -73,7 +75,8 @@ namespace engine::render {
         }
 
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
-        // and lit by `lights`, then the UI's draw data `ui` on top (needs EnableUi; null draws no UI)
+        // and lit by `lights`, then the objects with transparent materials of both, back to front, then the UI's draw
+        // data `ui` on top (needs EnableUi; null draws no UI)
         void Render(const FrameView &view, const LightSet &lights, const RenderList &list,
                     std::span<const StaticListHandle> staticLists = {}, ImDrawData *ui = nullptr);
 
@@ -154,8 +157,9 @@ namespace engine::render {
         // textures are handed to a frame by DestroyResources (after the destructor's flush), so the frames
         // release them, before the allocator goes.
         GpuResources m_resources;
-        // After the pipeline cache, which it keeps a reference to
+        // After the pipeline cache, which they keep a reference to
         OpaquePass m_opaque;
+        TransparentPass m_transparent;
         // This frame's moving objects; CPU memory only (the instance data is in the frames' upload rings)
         DynamicInstances m_dynamicInstances;
 
@@ -170,6 +174,8 @@ namespace engine::render {
         FgTexture m_backBuffer;
         // This frame's opaque draws: the static lists' and the moving objects'. Kept so its memory is reused.
         std::vector<std::span<const InstanceDraw>> m_drawSets;
+        // This frame's transparent objects, static and moving, sorted back to front. Kept so its memory is reused.
+        std::vector<TransparentDraw> m_transparentDraws;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;

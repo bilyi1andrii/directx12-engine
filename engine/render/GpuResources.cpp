@@ -12,6 +12,8 @@
 
 #include "core/Assert.h"
 #include "render/InstanceUpload.h"
+#include "renderdata/Model.h"
+#include "renderdata/TransparentDraws.h"
 #include "renderdata/Vertex.h"
 #include "rhi/Allocator.h"
 #include "rhi/BindlessHeap.h"
@@ -74,6 +76,7 @@ namespace engine::render {
                 .firstIndex = submesh.firstIndex,
                 .indexCount = submesh.indexCount,
                 .baseVertex = submesh.baseVertex,
+                .center = submesh.indexCount > 0 ? Center(SubmeshBounds(mesh, submesh)) : DirectX::XMFLOAT3{},
             }));
         }
         return handles;
@@ -120,6 +123,21 @@ namespace engine::render {
     }
 
     StaticListHandle GpuResources::CreateStaticList(const RenderList &list, std::wstring_view name) {
+        // Before the bindless slot is taken, because it allocates. All objects go into one chunk in bucket order, so
+        // an object's element is its place in that order.
+        std::vector<StaticTransparentObject> transparent;
+        uint32_t element = 0;
+        for (const BatchBucket &bucket : list.Buckets()) {
+            if (Material(bucket.key.material).alphaMode == AlphaMode::Blend) {
+                const DirectX::XMFLOAT3 &center = Mesh(bucket.key.mesh).center;
+                for (uint32_t i = 0; i < bucket.worlds.size(); ++i) {
+                    transparent.push_back(
+                        {.key = bucket.key, .element = element + i, .position = SortPoint(bucket.worlds[i], center)});
+                }
+            }
+            element += static_cast<uint32_t>(bucket.worlds.size());
+        }
+
         // Reserve first: once the bindless slot is taken, nothing may throw, or the slot would leak
         m_staticLists.reserve(m_staticLists.size() + 1);
         // Filled by beginChunk. A Buffer cannot be assigned, so it is constructed in place (emplace).
@@ -156,6 +174,7 @@ namespace engine::render {
             .instances = instances ? std::move(*instances) : rhi::Buffer{},
             .instanceBufferIndex = instanceBufferIndex,
             .draws = std::move(draws),
+            .transparent = std::move(transparent),
         });
         return handle;
     }

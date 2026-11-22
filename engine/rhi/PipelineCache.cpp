@@ -48,6 +48,46 @@ namespace engine::rhi {
             static constexpr uint64_t kPrime = 1099511628211ull;
             uint64_t m_hash = 14695981039346656037ull; // FNV offset basis
         };
+
+        [[nodiscard]] D3D12_CULL_MODE NativeCullMode(CullMode mode) noexcept {
+            switch (mode) {
+            case CullMode::None:
+                return D3D12_CULL_MODE_NONE;
+            case CullMode::Front:
+                return D3D12_CULL_MODE_FRONT;
+            case CullMode::Back:
+                break;
+            }
+            return D3D12_CULL_MODE_BACK;
+        }
+
+        [[nodiscard]] D3D12_DEPTH_WRITE_MASK NativeDepthWrite(DepthMode mode) noexcept {
+            switch (mode) {
+            case DepthMode::TestOnly:
+                return D3D12_DEPTH_WRITE_MASK_ZERO;
+            case DepthMode::TestAndWrite:
+                break;
+            }
+            return D3D12_DEPTH_WRITE_MASK_ALL;
+        }
+
+        // Blending happens after the pixel shader, in fixed-function hardware: it mixes the shader's colour with the
+        // colour already in the render target. The PSO fixes how.
+        [[nodiscard]] D3D12_BLEND_DESC NativeBlend(BlendMode mode) noexcept {
+            D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+            if (mode == BlendMode::AlphaBlend) {
+                D3D12_RENDER_TARGET_BLEND_DESC &target = blend.RenderTarget[0];
+                target.BlendEnable = TRUE;
+                target.SrcBlend = D3D12_BLEND_SRC_ALPHA;
+                target.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+                target.BlendOp = D3D12_BLEND_OP_ADD;
+                // The target's alpha is not shown, so it takes the shader's alpha unmixed
+                target.SrcBlendAlpha = D3D12_BLEND_ONE;
+                target.DestBlendAlpha = D3D12_BLEND_ZERO;
+                target.BlendOpAlpha = D3D12_BLEND_OP_ADD;
+            }
+            return blend;
+        }
     } // namespace
 
     PipelineCache::PipelineCache(NativeDevice *device, std::filesystem::path shaderDirectory)
@@ -144,10 +184,11 @@ namespace engine::rhi {
         const std::vector<std::byte> *pixelShader = desc.pixelShader.empty() ? nullptr : &Shader(desc.pixelShader);
 
         D3D12_RASTERIZER_DESC rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-        rasterizer.CullMode = desc.cull == CullMode::None ? D3D12_CULL_MODE_NONE : D3D12_CULL_MODE_BACK;
+        rasterizer.CullMode = NativeCullMode(desc.cull);
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
         depthStencil.DepthFunc = kDepthComparison;
+        depthStencil.DepthWriteMask = NativeDepthWrite(desc.depth);
         if (desc.depthFormat == DXGI_FORMAT_UNKNOWN) {
             depthStencil.DepthEnable = FALSE;
         }
@@ -158,7 +199,7 @@ namespace engine::rhi {
             .PS = pixelShader != nullptr ? D3D12_SHADER_BYTECODE{.pShaderBytecode = pixelShader->data(),
                                                                  .BytecodeLength = pixelShader->size()}
                                          : D3D12_SHADER_BYTECODE{},
-            .BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT),
+            .BlendState = NativeBlend(desc.blend),
             .SampleMask = D3D12_DEFAULT_SAMPLE_MASK,
             .RasterizerState = rasterizer,
             .DepthStencilState = depthStencil,

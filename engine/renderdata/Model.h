@@ -7,6 +7,7 @@
 #include <DirectXMath.h>
 
 #include "renderdata/Handles.h"
+#include "renderdata/MeshData.h"
 
 namespace engine::render {
     // An axis-aligned box: the smallest corner and the largest one
@@ -14,6 +15,14 @@ namespace engine::render {
         DirectX::XMFLOAT3 min{0.0f, 0.0f, 0.0f};
         DirectX::XMFLOAT3 max{0.0f, 0.0f, 0.0f};
     };
+
+    // The box around the vertices `submesh` draws, in the submesh's own space. `submesh` must draw at least one
+    // triangle.
+    [[nodiscard]] Aabb SubmeshBounds(const MeshData &mesh, const SubmeshData &submesh);
+
+    [[nodiscard]] inline DirectX::XMFLOAT3 Center(const Aabb &box) noexcept {
+        return {(box.min.x + box.max.x) * 0.5f, (box.min.y + box.max.y) * 0.5f, (box.min.z + box.max.z) * 0.5f};
+    }
 
     // A drawable part of a model: submesh, material and place in the model
     struct ModelPart {
