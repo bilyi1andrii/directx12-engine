@@ -62,7 +62,8 @@ namespace engine::assets {
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
 
-        // The material with these settings. Each distinct combination is created once, then reused.
+        // The material with these settings. Each distinct combination is created once, then reused. The cutoff counts
+        // only for Mask and the opacity only for Blend; the material is created with the other one at its default.
         [[nodiscard]] render::MaterialHandle Material(const render::MaterialInfo &material);
         // The opaque material with this texture, shading and culling
         [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,

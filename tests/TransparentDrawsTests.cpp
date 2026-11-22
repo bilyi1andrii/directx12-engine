@@ -1,0 +1,87 @@
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <string_view>
+#include <vector>
+
+#include <DirectXMath.h>
+#include <gtest/gtest.h>
+
+#include "renderdata/TransparentDraws.h"
+
+using engine::render::SortBackToFront;
+using engine::render::TransparentDraw;
+using engine::render::ViewDepth;
+
+namespace {
+    struct Object {
+        DirectX::XMFLOAT3 position;
+        float depth; // expected ViewDepth
+        uint32_t instanceBuffer = 0;
+        uint32_t element = 0;
+    };
+} // namespace
+
+// Each object's depth is measured along the camera's direction, also for a camera on an axis or tilted, and for
+// objects behind it. The farthest is drawn first; at equal depths the instance buffer, then the element decides.
+TEST(TransparentDraws, SortBackToFrontByViewDepth) {
+    struct Case {
+        std::string_view name;
+        DirectX::XMFLOAT3 eye;
+        DirectX::XMFLOAT3 target;
+        std::vector<Object> objects;
+        std::vector<size_t> drawOrder; // indices into `objects`
+    };
+    const float diagonal = std::sqrt(2.0f);
+    const Case kCases[] = {
+        {"looking along +Z",
+         {0.0f, 0.0f, 0.0f},
+         {0.0f, 0.0f, 1.0f},
+         {{{0.0f, 0.0f, 2.0f}, 2.0f, 0, 0}, {{0.0f, 0.0f, 10.0f}, 10.0f, 0, 1}, {{3.0f, 4.0f, 5.0f}, 5.0f, 0, 2}},
+         {1, 2, 0}},
+        {"on the X axis, looking back at the origin",
+         {10.0f, 0.0f, 0.0f},
+         {0.0f, 0.0f, 0.0f},
+         {{{0.0f, 0.0f, 0.0f}, 10.0f, 0, 0}, {{5.0f, 0.0f, 3.0f}, 5.0f, 0, 1}, {{-5.0f, 0.0f, 0.0f}, 15.0f, 0, 2}},
+         {2, 0, 1}},
+        {"tilted down at the origin",
+         {0.0f, 10.0f, -10.0f},
+         {0.0f, 0.0f, 0.0f},
+         {{{0.0f, 0.0f, 0.0f}, 10.0f * diagonal, 0, 0},
+          {{0.0f, 0.0f, 10.0f}, 15.0f * diagonal, 0, 1},
+          {{0.0f, 5.0f, -5.0f}, 5.0f * diagonal, 0, 2}},
+         {1, 0, 2}},
+        {"objects behind the camera",
+         {0.0f, 0.0f, 0.0f},
+         {0.0f, 0.0f, 1.0f},
+         {{{0.0f, 0.0f, -3.0f}, -3.0f, 0, 0}, {{0.0f, 0.0f, 1.0f}, 1.0f, 0, 1}, {{2.0f, 0.0f, -1.0f}, -1.0f, 0, 2}},
+         {1, 2, 0}},
+        {"equal depths",
+         {0.0f, 0.0f, 0.0f},
+         {0.0f, 0.0f, 1.0f},
+         {{{1.0f, 0.0f, 5.0f}, 5.0f, 2, 0}, {{-1.0f, 0.0f, 5.0f}, 5.0f, 1, 7}, {{0.0f, 2.0f, 5.0f}, 5.0f, 1, 3}},
+         {2, 1, 0}},
+    };
+    for (const Case &test : kCases) {
+        using namespace DirectX;
+        XMFLOAT4X4 view{};
+        XMStoreFloat4x4(&view, XMMatrixLookAtLH(XMLoadFloat3(&test.eye), XMLoadFloat3(&test.target),
+                                                XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)));
+        std::vector<TransparentDraw> draws;
+        for (const Object &object : test.objects) {
+            const float depth = ViewDepth(view, object.position);
+            EXPECT_NEAR(depth, object.depth, 1e-4f) << test.name;
+            draws.push_back(
+                {.instanceBufferIndex = object.instanceBuffer, .element = object.element, .viewDepth = depth});
+        }
+
+        SortBackToFront(draws);
+
+        ASSERT_EQ(draws.size(), test.drawOrder.size()) << test.name;
+        for (size_t i = 0; i < draws.size(); ++i) {
+            const Object &expected = test.objects[test.drawOrder[i]];
+            EXPECT_EQ(draws[i].instanceBufferIndex, expected.instanceBuffer) << test.name << ", draw " << i;
+            EXPECT_EQ(draws[i].element, expected.element) << test.name << ", draw " << i;
+        }
+    }
+}

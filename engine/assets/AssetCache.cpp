@@ -191,11 +191,11 @@ namespace engine::assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials ignore alpha. They keep the default alpha settings, so equal-looking opaque materials stay
-        // one material whatever their file says about alpha. Blend materials load the mask too, for the transparent
-        // pass to come.
+        // Opaque materials ignore alpha, so they need no mask. Material(MaterialInfo) drops the alpha values a mode
+        // does not use.
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
+            info.opacity = ToByte(material.baseColor.w);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
             // A mask that failed to load comes back as the grey fallback texture. Grey is dark enough to cut out the
@@ -238,11 +238,22 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
-        if (const auto it = m_materials.find(material); it != m_materials.end()) {
+        // Each alpha mode reads one of the two alpha values. The other goes back to its default, so materials that
+        // look the same share one handle whatever their file says.
+        render::MaterialInfo used = material;
+        const render::MaterialInfo defaults;
+        if (used.alphaMode != render::AlphaMode::Mask) {
+            used.alphaCutoff = defaults.alphaCutoff;
+        }
+        if (used.alphaMode != render::AlphaMode::Blend) {
+            used.opacity = defaults.opacity;
+        }
+
+        if (const auto it = m_materials.find(used); it != m_materials.end()) {
             return it->second;
         }
-        const MaterialHandle handle = m_gpu->CreateMaterial(material);
-        m_materials.emplace(material, handle);
+        const MaterialHandle handle = m_gpu->CreateMaterial(used);
+        m_materials.emplace(used, handle);
         return handle;
     }
 
@@ -253,11 +264,12 @@ namespace engine::assets {
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
         // Copies every field into a small array without gaps and hashes its bytes. The struct itself has padding
         // bytes of unknown value, so hashing it directly would give equal materials different hashes.
-        const std::array<uint32_t, 3> words{
+        const std::array<uint32_t, 4> words{
             material.albedo.index,
             material.opacityMap.index,
             uint32_t{std::to_underlying(material.shading)} | (uint32_t{material.doubleSided} << 8) |
                 (uint32_t{std::to_underlying(material.alphaMode)} << 16) | (uint32_t{material.alphaCutoff} << 24),
+            material.opacity,
         };
         return std::hash<std::string_view>{}(
             std::string_view(reinterpret_cast<const char *>(words.data()), sizeof(words)));

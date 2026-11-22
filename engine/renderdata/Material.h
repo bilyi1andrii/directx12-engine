@@ -26,6 +26,9 @@ namespace engine::render {
         // Mask: a pixel whose alpha is below this is not drawn. Stored as a byte, the form the shader receives, where
         // 0 to 255 stands for 0 to 1. The default is one half.
         uint8_t alphaCutoff = 128;
+        // Blend: how much of the surface covers what is behind it, as a byte like alphaCutoff. The default is fully
+        // opaque. The shader multiplies it with the alpha of the albedo and the mask.
+        uint8_t opacity = 255;
         // Mask and Blend: the surface's alpha is the albedo's alpha times this mask. They must set it: without a
         // separate mask, use a white texture. The default, the grey fallback, is dark enough to cut out the whole
         // surface. Not read for opaque materials.

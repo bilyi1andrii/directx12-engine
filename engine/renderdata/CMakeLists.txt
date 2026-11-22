@@ -22,6 +22,8 @@ add_library(engine_renderdata STATIC
         RenderList.cpp
         RenderList.h
         TextureData.h
+        TransparentDraws.cpp
+        TransparentDraws.h
         Vertex.h)
 
 engine_target_defaults(engine_renderdata)
