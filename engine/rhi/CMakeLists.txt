@@ -1,3 +1,13 @@
+add_library(engine_gputimes STATIC
+        GpuTimes.cpp
+        GpuTimes.h)
+
+engine_target_defaults(engine_gputimes)
+target_include_directories(engine_gputimes PUBLIC "${PROJECT_SOURCE_DIR}/engine")
+
+target_link_libraries(engine_gputimes PUBLIC
+        engine_core)
+
 # engine_rhi: thin wrapper over D3D12 and DXGI (device, queues, swap chain, descriptors, ...)
 
 add_library(engine_rhi STATIC
