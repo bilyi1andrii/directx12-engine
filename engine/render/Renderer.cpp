@@ -5,9 +5,7 @@
 #include <exception>
 #include <format>
 #include <memory>
-#include <optional>
 #include <span>
-#include <string>
 
 #include <DirectXMath.h>
 #include <directx/d3dx12.h>
@@ -131,14 +129,6 @@ namespace engine::render {
         // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
         m_profiler.BeginFrame(m_context, m_frameNumber);
-
-        if (const std::optional<rhi::GpuFrameTimes> &times = m_profiler.Latest(); times && m_frameNumber % 120 == 0) {
-            std::string passes;
-            for (const rhi::GpuScopeTime &pass : times->Scopes()) {
-                passes += std::format(", {} {:.3f}", pass.name, pass.ms);
-            }
-            core::LogInfo("GPU frame {}: {:.3f} ms{}", times->frame, times->totalMs, passes);
-        }
     }
 
     void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,

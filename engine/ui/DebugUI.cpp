@@ -141,6 +141,15 @@ namespace engine::ui {
             } else {
                 ImGui::TextUnformatted("Measuring...");
             }
+            if (stats.cpuRecordMs > 0.0) {
+                ImGui::Text("CPU record %.3f ms", stats.cpuRecordMs);
+            }
+            if (stats.gpuTotalMs > 0.0) {
+                ImGui::Text("GPU %.3f ms", stats.gpuTotalMs);
+                for (const PassTime &pass : stats.gpuPasses) {
+                    ImGui::BulletText("%.*s %.3f ms", static_cast<int>(pass.name.size()), pass.name.data(), pass.ms);
+                }
+            }
             ImGui::Text("%zu objects", stats.objectCount);
             if (!stats.sceneInfo.empty()) {
                 ImGui::TextUnformatted(stats.sceneInfo.data(), stats.sceneInfo.data() + stats.sceneInfo.size());
