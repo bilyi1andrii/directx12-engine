@@ -153,18 +153,18 @@ namespace engine::render {
         m_drawSets.emplace_back(m_dynamicInstances.Draws());
 
         // Transparent objects of both kinds in one order. Each one's depth is computed once, here.
-        m_transparentDraws.clear();
+        m_transparentObjects.clear();
         for (const StaticListHandle handle : staticLists) {
             const GpuStaticList &staticList = m_resources.StaticList(handle);
             for (const StaticTransparentObject &object : staticList.transparent) {
-                m_transparentDraws.push_back({.key = object.key,
-                                              .instanceBufferIndex = staticList.instanceBufferIndex,
-                                              .element = object.element,
-                                              .viewDepth = ViewDepth(view.view, object.position)});
+                m_transparentObjects.push_back({.key = object.key,
+                                                .instanceBufferIndex = staticList.instanceBufferIndex,
+                                                .element = object.element,
+                                                .viewDepth = ViewDepth(view.view, object.position)});
             }
         }
-        m_dynamicInstances.AppendTransparent(list, m_resources, view.view, m_transparentDraws);
-        SortBackToFront(m_transparentDraws);
+        m_dynamicInstances.AppendTransparent(list, m_resources, view.view, m_transparentObjects);
+        SortBackToFront(m_transparentObjects);
 
         const GraphKey key{.width = m_swapChain.Width(), .height = m_swapChain.Height(), .ui = m_ui != nullptr};
         if (m_graphKey != key) {
@@ -182,7 +182,7 @@ namespace engine::render {
         const FrameInputs inputs{.frameConstants = frameCb.gpu,
                                  .drawPath = m_settings.drawPath,
                                  .drawSets = m_drawSets,
-                                 .transparentDraws = m_transparentDraws,
+                                 .transparentObjects = m_transparentObjects,
                                  .ui = ui};
         m_graph.Execute(m_context, CurrentFrame(), imports, inputs);
     }

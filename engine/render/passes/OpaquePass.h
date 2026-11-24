@@ -59,11 +59,13 @@ namespace engine::render {
             // A different slot in the PSO array for every combination
             [[nodiscard]] constexpr uint32_t Index() const noexcept {
                 const uint32_t formatAndShading =
-                    std::to_underlying(format) * static_cast<uint32_t>(kShadingCount) + std::to_underlying(shading);
+                    std::to_underlying(format) * uint32_t{std::to_underlying(Shading::Count)} +
+                    std::to_underlying(shading);
                 return (formatAndShading * 2 + (doubleSided ? 1 : 0)) * 2 + (alphaTest ? 1 : 0);
             }
         };
-        static constexpr size_t kPipelineKeyCount = std::to_underlying(VertexFormat::Count) * kShadingCount * 2 * 2;
+        static constexpr size_t kPipelineKeyCount =
+            size_t{std::to_underlying(VertexFormat::Count)} * std::to_underlying(Shading::Count) * 2 * 2;
 
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 

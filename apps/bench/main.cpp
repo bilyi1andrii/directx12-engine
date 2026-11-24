@@ -76,13 +76,11 @@ namespace {
         uint32_t height = 0;
         bool tearingSupported = false;
         size_t objectCount = 0;
-        size_t partCount = 0; // of one object
-        // Parts of one object with a transparent material, and how many draws the transparent pass makes for one
-        // object (two for a two-sided material)
-        size_t transparentPartCount = 0;
-        size_t transparentDrawsPerObject = 0;
-        uint64_t triangleCount = 0; // of all objects: what one frame draws
-        std::string lights;         // how many lights of each kind shine
+        size_t partCount = 0;                 // of one object
+        size_t transparentPartCount = 0;      // of one object
+        size_t transparentDrawsPerObject = 0; // two for a two-sided material
+        uint64_t triangleCount = 0;           // of all objects: what one frame draws
+        std::string lights;                   // how many lights of each kind shine
     };
 
     // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
@@ -157,7 +155,6 @@ namespace {
                      .partCount = (*model)->parts.size(),
                      .triangleCount = grid.ObjectCount() * (*model)->triangleCount,
                      .lights = DescribeLights(lights)};
-        // The renderer draws these parts one by one, sorted, instead of with the others
         for (const engine::render::ModelPart &part : (*model)->parts) {
             const engine::render::MaterialInfo &material = renderer.Resources().Material(part.material);
             if (material.alphaMode == engine::render::AlphaMode::Blend) {

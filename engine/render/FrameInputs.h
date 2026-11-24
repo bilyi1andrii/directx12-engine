@@ -5,7 +5,7 @@
 
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/RendererSettings.h"
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 #include "rhi/RhiCommon.h"
 
 // ImGui's per-frame draw data; opaque here
@@ -22,7 +22,7 @@ namespace engine::render {
         // material are in here too; the opaque pass skips them.
         std::span<const std::span<const InstanceDraw>> drawSets;
         // Every object with a transparent material, static and moving, sorted back to front
-        std::span<const TransparentDraw> transparentDraws;
+        std::span<const TransparentObject> transparentObjects;
         // Null when the app draws no UI this frame
         ImDrawData *ui = nullptr;
     };

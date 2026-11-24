@@ -32,9 +32,7 @@ namespace engine::render {
 
     void DynamicInstances::AppendTransparent(const RenderList &list, const GpuResources &resources,
                                              const DirectX::XMFLOAT4X4 &view,
-                                             std::vector<TransparentDraw> &draws) const {
-        ENGINE_ASSERT_MSG(m_ranges.size() == m_draws.size(), "{} instance ranges for {} draws", m_ranges.size(),
-                          m_draws.size());
+                                             std::vector<TransparentObject> &objects) const {
         const std::span<const BatchBucket> buckets = list.Buckets();
         for (size_t i = 0; i < m_draws.size(); ++i) {
             const InstanceDraw &draw = m_draws[i];
@@ -42,15 +40,14 @@ namespace engine::render {
                 continue;
             }
             const InstanceRange &range = m_ranges[i];
-            ENGINE_ASSERT_MSG(range.bucket < buckets.size(), "Not the list of the last Upload");
             const BatchBucket &bucket = buckets[range.bucket];
             const DirectX::XMFLOAT3 &center = resources.Mesh(draw.key.mesh).center;
             for (uint32_t object = 0; object < range.count; ++object) {
                 const DirectX::XMFLOAT4X4 &world = bucket.worlds[range.firstObject + object];
-                draws.push_back({.key = draw.key,
-                                 .instanceBufferIndex = draw.instanceBufferIndex,
-                                 .element = draw.firstElement + object,
-                                 .viewDepth = ViewDepth(view, SortPoint(world, center))});
+                objects.push_back({.key = draw.key,
+                                   .instanceBufferIndex = draw.instanceBufferIndex,
+                                   .element = draw.firstElement + object,
+                                   .viewDepth = ViewDepth(view, SortPoint(world, center))});
             }
         }
     }

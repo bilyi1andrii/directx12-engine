@@ -9,7 +9,7 @@
 
 #include "render/FrameGraph.h"
 #include "render/GpuResources.h"
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 #include "rhi/PipelineCache.h"
 
 namespace engine::rhi {
@@ -36,16 +36,16 @@ namespace engine::render {
         TransparentPass(TransparentPass &&) = delete;
         TransparentPass &operator=(TransparentPass &&) = delete;
 
-        // Adds the pass to `graph`: it draws FrameInputs::transparentDraws into `color` and tests them against
+        // Adds the pass to `graph`: it draws FrameInputs::transparentObjects into `color` and tests them against
         // `depth`, keeping both as earlier passes left them. It draws through `color`'s view number `colorView`, which
         // must be in SwapChain::kRtvFormat. The pass and `resources` must outlive the graph's passes.
         void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
                    const GpuResources &resources) const;
 
-        // Records `draws` in order, one DrawIndexed per object (two for a two-sided material), whatever the draw
+        // Records `objects` in order, one DrawIndexed per object (two for a two-sided material), whatever the draw
         // path. The draws read meshes and materials from `resources`; every material must be lit and Blend.
         void Record(rhi::CommandContext &context, const GpuResources &resources,
-                    std::span<const TransparentDraw> draws) const;
+                    std::span<const TransparentObject> objects) const;
 
     private:
         // Slot in m_pipelines of the PSO for meshes in `format` that draws only the triangles facing away (`farSide`)

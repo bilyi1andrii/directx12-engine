@@ -13,7 +13,7 @@
 #include "core/Assert.h"
 #include "render/InstanceUpload.h"
 #include "renderdata/Model.h"
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 #include "renderdata/Vertex.h"
 #include "rhi/Allocator.h"
 #include "rhi/BindlessHeap.h"
@@ -110,7 +110,7 @@ namespace engine::render {
     }
 
     MaterialHandle GpuResources::CreateMaterial(const MaterialInfo &material) {
-        ENGINE_ASSERT_MSG(std::to_underlying(material.shading) < kShadingCount, "Material with unknown shading {}",
+        ENGINE_ASSERT_MSG(material.shading < Shading::Count, "Material with unknown shading {}",
                           std::to_underlying(material.shading));
         // The unlit shader has no alpha-test or blended variant
         ENGINE_ASSERT_MSG(material.shading == Shading::Lit || material.alphaMode == AlphaMode::Opaque,

@@ -7,11 +7,11 @@
 #include <DirectXMath.h>
 #include <gtest/gtest.h>
 
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 
 using engine::render::SortBackToFront;
 using engine::render::SortPoint;
-using engine::render::TransparentDraw;
+using engine::render::TransparentObject;
 using engine::render::ViewDepth;
 
 namespace {
@@ -28,7 +28,7 @@ namespace {
 // Each object is sorted by the middle of its mesh, placed by its world matrix. Its depth is measured along the
 // camera's direction, also for a camera on an axis or tilted, and for objects behind it. The farthest is drawn first;
 // at equal depths the instance buffer, then the element decides.
-TEST(TransparentDraws, SortBackToFrontByViewDepth) {
+TEST(TransparentSort, SortBackToFrontByViewDepth) {
     struct Case {
         std::string_view name;
         DirectX::XMFLOAT3 eye;
@@ -86,24 +86,24 @@ TEST(TransparentDraws, SortBackToFrontByViewDepth) {
         XMFLOAT4X4 view{};
         XMStoreFloat4x4(&view, XMMatrixLookAtLH(XMLoadFloat3(&test.eye), XMLoadFloat3(&test.target),
                                                 XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)));
-        std::vector<TransparentDraw> draws;
+        std::vector<TransparentObject> sorted;
         for (const Object &object : test.objects) {
             XMFLOAT4X4 world{};
             XMStoreFloat4x4(&world, XMMatrixRotationY(XMConvertToRadians(object.turnDegrees)) *
                                         XMMatrixTranslation(object.position.x, object.position.y, object.position.z));
             const float depth = ViewDepth(view, SortPoint(world, object.meshCenter));
             EXPECT_NEAR(depth, object.depth, 1e-4f) << test.name;
-            draws.push_back(
+            sorted.push_back(
                 {.instanceBufferIndex = object.instanceBuffer, .element = object.element, .viewDepth = depth});
         }
 
-        SortBackToFront(draws);
+        SortBackToFront(sorted);
 
-        ASSERT_EQ(draws.size(), test.drawOrder.size()) << test.name;
-        for (size_t i = 0; i < draws.size(); ++i) {
+        ASSERT_EQ(sorted.size(), test.drawOrder.size()) << test.name;
+        for (size_t i = 0; i < sorted.size(); ++i) {
             const Object &expected = test.objects[test.drawOrder[i]];
-            EXPECT_EQ(draws[i].instanceBufferIndex, expected.instanceBuffer) << test.name << ", draw " << i;
-            EXPECT_EQ(draws[i].element, expected.element) << test.name << ", draw " << i;
+            EXPECT_EQ(sorted[i].instanceBufferIndex, expected.instanceBuffer) << test.name << ", draw " << i;
+            EXPECT_EQ(sorted[i].element, expected.element) << test.name << ", draw " << i;
         }
     }
 }

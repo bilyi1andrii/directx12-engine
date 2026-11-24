@@ -31,7 +31,7 @@
 #include "renderdata/Lights.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/RendererSettings.h"
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 
 // ImGui's per-frame draw data (ui::DebugUI::Render); opaque here
 struct ImDrawData;
@@ -175,7 +175,7 @@ namespace engine::render {
         // This frame's opaque draws: the static lists' and the moving objects'. Kept so its memory is reused.
         std::vector<std::span<const InstanceDraw>> m_drawSets;
         // This frame's transparent objects, static and moving, sorted back to front. Kept so its memory is reused.
-        std::vector<TransparentDraw> m_transparentDraws;
+        std::vector<TransparentObject> m_transparentObjects;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
         uint64_t m_frameNumber = 0;

@@ -42,13 +42,13 @@ namespace engine::render {
                 builder.WriteDepth(depth, std::nullopt);
             },
             [this, &resources](PassContext &context) {
-                Record(context.Commands(), resources, context.Inputs().transparentDraws);
+                Record(context.Commands(), resources, context.Inputs().transparentObjects);
             });
     }
 
     void TransparentPass::Record(rhi::CommandContext &context, const GpuResources &resources,
-                                 std::span<const TransparentDraw> draws) const {
-        if (draws.empty()) {
+                                 std::span<const TransparentObject> objects) const {
+        if (objects.empty()) {
             return;
         }
         context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -62,10 +62,10 @@ namespace engine::render {
             context.DrawIndexed(mesh.indexCount, mesh.firstIndex, mesh.baseVertex);
         };
 
-        for (const TransparentDraw &draw : draws) {
-            const GpuMesh &mesh = resources.Mesh(draw.key.mesh);
+        for (const TransparentObject &object : objects) {
+            const GpuMesh &mesh = resources.Mesh(object.key.mesh);
             const GpuGeometry &geometry = resources.Geometry(mesh.geometry);
-            const MaterialInfo &material = resources.Material(draw.key.material);
+            const MaterialInfo &material = resources.Material(object.key.material);
             ENGINE_ASSERT_MSG(material.alphaMode == AlphaMode::Blend && material.shading == Shading::Lit,
                               "The transparent pass draws lit Blend materials only");
             if (mesh.geometry != currentGeometry) {
@@ -76,9 +76,9 @@ namespace engine::render {
 
             // One object per draw: its element in the instance buffer goes into the root constants (b0)
             context.SetGraphicsRootConstants(gpu::kRootDrawConstants,
-                                             gpu::DrawConstants{.instanceOffset = draw.element,
+                                             gpu::DrawConstants{.instanceOffset = object.element,
                                                                 .materialIndex = material.albedo.index,
-                                                                .instanceBufferIndex = draw.instanceBufferIndex,
+                                                                .instanceBufferIndex = object.instanceBufferIndex,
                                                                 .alphaInfo = PackAlphaInfo(material)});
             // The far side first, so the near side blends over it. In D3D12 the cull mode is part of the PSO, so a
             // two-sided object switches PSOs twice: a few microseconds of CPU time each. Culling still saves the GPU

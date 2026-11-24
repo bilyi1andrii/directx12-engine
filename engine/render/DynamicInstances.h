@@ -8,7 +8,7 @@
 
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/RenderList.h"
-#include "renderdata/TransparentDraws.h"
+#include "renderdata/TransparentSort.h"
 
 namespace engine::rhi {
     class BindlessHeap;
@@ -29,11 +29,11 @@ namespace engine::render {
         // The draws of the last Upload, in the list's bucket order. Valid until the next Upload.
         [[nodiscard]] std::span<const InstanceDraw> Draws() const noexcept { return m_draws; }
 
-        // Appends one draw to `draws` for every object of the last Upload with a transparent material, with its
-        // depth seen through `view` (world -> view, row vectors). `list` must be the list of that Upload: the
-        // positions come from its matrices, never from the upload memory, which is slow to read.
+        // Appends to `objects` every object of the last Upload with a transparent material, with its depth seen
+        // through `view` (world -> view, row vectors). `list` must be the list of that Upload: the positions come
+        // from its matrices, never from the upload memory, which is slow to read.
         void AppendTransparent(const RenderList &list, const GpuResources &resources, const DirectX::XMFLOAT4X4 &view,
-                               std::vector<TransparentDraw> &draws) const;
+                               std::vector<TransparentObject> &objects) const;
 
     private:
         std::vector<InstanceRange> m_ranges; // the last Upload's ranges: m_ranges[i] holds the objects of m_draws[i]

@@ -175,8 +175,7 @@ namespace engine::assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials ignore alpha, so they need no mask. Material(MaterialInfo) drops the alpha values a mode
-        // does not use.
+        // Opaque materials ignore alpha, so they need no mask
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
             info.opacity = ToByte(material.baseColor.w);
@@ -222,8 +221,7 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
-        // Each alpha mode reads one of the two alpha values. The other goes back to its default, so materials that
-        // look the same share one handle whatever their file says.
+        // The alpha value a mode does not read goes back to its default, so materials that look the same share a handle
         render::MaterialInfo used = material;
         const render::MaterialInfo defaults;
         if (used.alphaMode != render::AlphaMode::Mask) {
