@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <limits>
 #include <optional>
-#include <utility>
 
 #include "core/Assert.h"
 #include "render/FrameInputs.h"
@@ -81,7 +80,9 @@ namespace engine::render {
                                                                 .materialIndex = material.albedo.index,
                                                                 .instanceBufferIndex = draw.instanceBufferIndex,
                                                                 .alphaInfo = PackAlphaInfo(material)});
-            // The far side first, so the near side blends over it
+            // The far side first, so the near side blends over it. In D3D12 the cull mode is part of the PSO, so a
+            // two-sided object switches PSOs twice: a few microseconds of CPU time each. Culling still saves the GPU
+            // from shading the side a draw does not want.
             if (material.doubleSided) {
                 drawWith(Pipeline(geometry.vertexFormat, true), mesh);
             }
