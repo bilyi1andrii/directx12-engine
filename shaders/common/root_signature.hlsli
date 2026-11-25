@@ -7,13 +7,12 @@
 //   [1] b1: root CBV with FrameConstants, from the UploadRing
 //   [2] b2: root CBV with PassConstants, from the UploadRing
 //
-// CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED lets shaders read ResourceDescriptorHeap[i] (bindless). BindlessHeap must be bound
-// before this root signature is set.
+// CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED lets shaders read ResourceDescriptorHeap[i] (bindless).
 //
 // Its static samplers:
 //   s0: anisotropic x16, wrap (textures; sharp at grazing angles)
 //   s1: point, clamp (post-processing)
-//   s2: shadow comparison (LESS_EQUAL, white border)
+//   s2: shadow comparison
 
 #ifndef ROOT_SIGNATURE_HLSLI
 #define ROOT_SIGNATURE_HLSLI
@@ -22,12 +21,10 @@
 #include <cstdint>
 
 namespace engine::gpu {
-    // Root parameter indices for SetGraphicsRoot*: the order of the parameters in GLOBAL_ROOT_SIGNATURE below
     inline constexpr uint32_t kRootDrawConstants = 0;  // b0
     inline constexpr uint32_t kRootFrameConstants = 1; // b1
     inline constexpr uint32_t kRootPassConstants = 2;  // b2
 
-    // Number of 32-bit values in kRootDrawConstants (num32BitConstants below)
     inline constexpr uint32_t kDrawConstantCount = 4;
 } // namespace engine::gpu
 #else
@@ -52,8 +49,8 @@ namespace engine::gpu {
     "StaticSampler(s2, filter = FILTER_COMPARISON_MIN_MAG_MIP_LINEAR,"                          \
     "              addressU = TEXTURE_ADDRESS_BORDER, addressV = TEXTURE_ADDRESS_BORDER,"       \
     "              addressW = TEXTURE_ADDRESS_BORDER, maxAnisotropy = 1,"                       \
-    "              comparisonFunc = COMPARISON_LESS_EQUAL,"                                     \
-    "              borderColor = STATIC_BORDER_COLOR_OPAQUE_WHITE,"                             \
+    "              comparisonFunc = COMPARISON_GREATER_EQUAL,"                                  \
+    "              borderColor = STATIC_BORDER_COLOR_OPAQUE_BLACK,"                             \
     "              visibility = SHADER_VISIBILITY_PIXEL)"
 
 #endif // __cplusplus
