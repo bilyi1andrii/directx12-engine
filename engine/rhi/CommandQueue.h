@@ -44,6 +44,8 @@ namespace engine::rhi {
         // never per frame.
         void Flush();
 
+        [[nodiscard]] uint64_t TimestampFrequency() const;
+
         [[nodiscard]] ID3D12CommandQueue *Native() const noexcept { return m_queue.Get(); }
 
     private:

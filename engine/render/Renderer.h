@@ -15,6 +15,7 @@
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/Device.h"
 #include "rhi/FrameContext.h"
+#include "rhi/GpuProfiler.h"
 #include "rhi/PipelineCache.h"
 #include "rhi/SwapChain.h"
 #include "rhi/UploadContext.h"
@@ -92,6 +93,10 @@ namespace engine::render {
         // that marks its end
         void EndFrame();
 
+        [[nodiscard]] const std::optional<rhi::GpuFrameTimes> &GpuTimes() const noexcept { return m_profiler.Latest(); }
+
+        [[nodiscard]] std::vector<rhi::GpuFrameTimes> FinishGpuTimes();
+
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
         // For benchmark results
         [[nodiscard]] const std::string &AdapterName() const noexcept { return m_device.AdapterName(); }
@@ -138,6 +143,7 @@ namespace engine::render {
         rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
         rhi::CommandQueue m_queue;
+        rhi::GpuProfiler m_profiler;
         // Back buffers and other render targets; 64 slots cost a few KB of CPU memory
         rhi::DescriptorAllocator m_rtvAllocator;
         // Scene depth and shadow maps

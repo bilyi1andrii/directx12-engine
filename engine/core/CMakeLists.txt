@@ -12,6 +12,8 @@ add_library(engine_core STATIC
         File.h
         Input.cpp
         Input.h
+        IntervalAverage.cpp
+        IntervalAverage.h
         Log.cpp
         Log.h
         ThrowIfFailed.cpp

@@ -73,4 +73,10 @@ namespace engine::rhi {
     void CommandQueue::Flush() {
         WaitForFenceValue(Signal());
     }
+
+    uint64_t CommandQueue::TimestampFrequency() const {
+        uint64_t ticksPerSecond = 0;
+        ThrowIfFailed(m_queue->GetTimestampFrequency(&ticksPerSecond));
+        return ticksPerSecond;
+    }
 } // namespace engine::rhi

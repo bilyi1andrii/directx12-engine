@@ -8,8 +8,8 @@
 #include <filesystem>
 #include <format>
 #include <optional>
+#include <span>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include "BenchOptions.h"
@@ -25,6 +25,7 @@
 #include "core/Utf8.h"
 #include "core/Window.h"
 #include "rhi/AgilitySdk.h"
+#include "rhi/GpuTimes.h"
 #include "rhi/ValidationStats.h"
 #include "render/Renderer.h"
 #include "renderdata/LightPacking.h"
@@ -56,19 +57,26 @@ namespace {
         return std::chrono::duration<double, std::milli>(duration).count();
     }
 
-    // Takes a copy, because nth_element reorders it
-    double Median(std::vector<double> values) {
-        if (values.empty()) {
+    template <typename Column> double Median(std::span<const FrameTiming> timings, Column column) {
+        if (timings.empty()) {
             return 0.0;
+        }
+        std::vector<double> values;
+        values.reserve(timings.size());
+        for (const FrameTiming &timing : timings) {
+            values.push_back(column(timing));
         }
         const auto middle = values.begin() + static_cast<std::ptrdiff_t>(values.size() / 2);
         std::ranges::nth_element(values, middle);
         return *middle;
     }
 
+    static_assert(engine::bench::kMaxGpuPasses == engine::rhi::kMaxGpuScopes);
+
     struct BenchRun {
         engine::apps::RunResult result;
-        std::vector<FrameTiming> timings; // one per measured frame
+        std::vector<FrameTiming> timings;   // one per measured frame
+        std::vector<std::string> gpuPasses;
         // For run.txt: the window and the renderer are gone when RunBench returns
         std::string adapterName;
         std::string driverVersion;
@@ -169,6 +177,34 @@ namespace {
         run.timings.resize(options.frames);
         const uint64_t totalFrames = uint64_t{options.warmupFrames} + options.frames;
         uint64_t frame = 0; // frames rendered so far
+
+        uint64_t nextGpuFrame = options.warmupFrames;
+        std::optional<std::string> gpuError;
+        const auto takeGpuTimes = [&](const engine::rhi::GpuFrameTimes &times) {
+            if (gpuError || times.frame < nextGpuFrame || times.frame >= totalFrames) {
+                return;
+            }
+            if (times.frame != nextGpuFrame) {
+                gpuError = std::format("no GPU times for frame {}", nextGpuFrame);
+                return;
+            }
+            const std::span<const engine::rhi::GpuScopeTime> passes = times.Scopes();
+            if (nextGpuFrame == options.warmupFrames) {
+                for (const engine::rhi::GpuScopeTime &pass : passes) {
+                    run.gpuPasses.emplace_back(pass.name);
+                }
+            } else if (!std::ranges::equal(passes, run.gpuPasses, {}, &engine::rhi::GpuScopeTime::name)) {
+                gpuError = std::format("the frame graph's passes changed at frame {}", times.frame);
+                return;
+            }
+            FrameTiming &timing = run.timings[times.frame - options.warmupFrames];
+            timing.gpuTotalMs = times.totalMs;
+            for (size_t pass = 0; pass < passes.size(); ++pass) {
+                timing.gpuPassMs[pass] = passes[pass].ms;
+            }
+            ++nextGpuFrame;
+        };
+
         Clock::time_point frameStart{};
         while (true) {
             // A frame's start is also the end of the previous frame
@@ -193,6 +229,9 @@ namespace {
             engine::scene::LookAt(camera, pose.target);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
+            if (const std::optional<engine::rhi::GpuFrameTimes> &gpu = renderer.GpuTimes()) {
+                takeGpuTimes(*gpu);
+            }
             const Clock::time_point recordStart = Clock::now();
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
@@ -206,15 +245,26 @@ namespace {
             ++frame;
         }
 
+        for (const engine::rhi::GpuFrameTimes &times : renderer.FinishGpuTimes()) {
+            takeGpuTimes(times);
+        }
         run.result = {.exitCode = window.ExitCode(), .framesRendered = frame};
+        if (frame == totalFrames) {
+            if (!gpuError && nextGpuFrame != totalFrames) {
+                gpuError = std::format("no GPU times for frame {}", nextGpuFrame);
+            }
+            if (gpuError) {
+                return std::unexpected("GPU times: " + *gpuError);
+            }
+        }
         return run;
     }
 
-    // The lines of run.txt: settings, machine and the two medians
+    // The lines of run.txt: settings, machine and the medians
     std::vector<RunField> RunInfo(const BenchOptions &options, const BenchRun &run, std::string_view started,
-                                  double medianFrameMs, double medianRecordMs) {
+                                  double medianFrameMs, double medianRecordMs, double medianGpuMs) {
         const bool instanced = options.drawPath == engine::render::DrawPath::Instanced;
-        return {
+        std::vector<RunField> fields{
             {"engine", std::string(engine::bench::kEngineName)},
             {"scene", engine::core::ToUtf8(BenchSceneName(options).native())},
             {"grid", std::string(engine::apps::ToString(options.gridMode))},
@@ -239,7 +289,14 @@ namespace {
             {"started", std::string(started)},
             {"median_cpu_frame_ms", std::format("{:.4f}", medianFrameMs)},
             {"median_cpu_record_ms", std::format("{:.4f}", medianRecordMs)},
+            {"median_gpu_total_ms", std::format("{:.4f}", medianGpuMs)},
         };
+        for (size_t pass = 0; pass < run.gpuPasses.size(); ++pass) {
+            const double median = Median(run.timings, [pass](const FrameTiming &t) { return t.gpuPassMs[pass]; });
+            fields.push_back(
+                {"median_" + engine::bench::GpuPassColumn(run.gpuPasses[pass]), std::format("{:.4f}", median)});
+        }
+        return fields;
     }
 } // namespace
 
@@ -282,23 +339,17 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
             return kExitBenchFailed;
         }
 
-        std::vector<double> frameMs;
-        std::vector<double> recordMs;
-        frameMs.reserve(run.timings.size());
-        recordMs.reserve(run.timings.size());
-        for (const FrameTiming &timing : run.timings) {
-            frameMs.push_back(timing.cpuFrameMs);
-            recordMs.push_back(timing.cpuRecordMs);
-        }
-        const double medianFrameMs = Median(std::move(frameMs));
-        const double medianRecordMs = Median(std::move(recordMs));
-        LogInfo("Measured {} frames: cpu_frame_ms median {:.3f}, cpu_record_ms median {:.3f}", run.timings.size(),
-                medianFrameMs, medianRecordMs);
+        const double medianFrameMs = Median(run.timings, [](const FrameTiming &t) { return t.cpuFrameMs; });
+        const double medianRecordMs = Median(run.timings, [](const FrameTiming &t) { return t.cpuRecordMs; });
+        const double medianGpuMs = Median(run.timings, [](const FrameTiming &t) { return t.gpuTotalMs; });
+        LogInfo("Measured {} frames: medians cpu_frame_ms {:.3f}, cpu_record_ms {:.3f}, gpu_total_ms {:.3f}",
+                run.timings.size(), medianFrameMs, medianRecordMs, medianGpuMs);
 
         const std::string timestamp = engine::bench::FolderTimestamp(started);
-        const std::vector<RunField> fields = RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs);
-        const std::expected<std::filesystem::path, std::string> folder =
-            engine::bench::WriteResults(options->outDir, BenchSceneName(*options), timestamp, run.timings, fields);
+        const std::vector<RunField> fields =
+            RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs, medianGpuMs);
+        const std::expected<std::filesystem::path, std::string> folder = engine::bench::WriteResults(
+            options->outDir, BenchSceneName(*options), timestamp, run.gpuPasses, run.timings, fields);
         if (!folder) {
             LogError("Results not written: {}", folder.error());
             return kExitBenchFailed;

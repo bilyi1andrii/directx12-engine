@@ -57,13 +57,14 @@ namespace engine::render {
           m_upload(m_device.Native(), m_allocator, L"Upload"),
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
+          m_profiler(m_device.Native(), m_allocator, m_queue.TimestampFrequency()),
           m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
           m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
           m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
-          m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature()) {
+          m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -127,6 +128,7 @@ namespace engine::render {
         m_context.Begin(frame.CommandAllocator());
         // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
+        m_profiler.BeginFrame(m_context, m_frameNumber);
     }
 
     void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
@@ -210,11 +212,18 @@ namespace engine::render {
         m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
     }
 
+    std::vector<rhi::GpuFrameTimes> Renderer::FinishGpuTimes() {
+        ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "FinishGpuTimes inside frame {}", m_frameNumber);
+        m_queue.Flush();
+        return m_profiler.ReadRemaining();
+    }
+
     void Renderer::EndFrame() {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "EndFrame without Render in frame {}", m_frameNumber);
         m_frameStage = FrameStage::Idle;
 
         // The frame graph has left the back buffer in PRESENT
+        m_profiler.EndFrame(m_context);
         m_context.Close();
 
         // Uploads first: this frame may already use them, and the GPU runs lists in submission order

@@ -1,5 +1,7 @@
 #include "BenchOutput.h"
 
+#include <algorithm>
+#include <cctype>
 #include <format>
 #include <fstream>
 #include <system_error>
@@ -57,11 +59,33 @@ namespace engine::bench {
         }
     } // namespace
 
-    void WriteFramesCsv(std::ostream &out, std::span<const FrameTiming> timings) {
-        out << "frame,cpu_frame_ms,cpu_record_ms\n";
+    std::string GpuPassColumn(std::string_view passName) {
+        std::string column = "gpu_";
+        for (const char c : passName) {
+            const auto byte = static_cast<unsigned char>(c);
+            column += std::isalnum(byte) ? static_cast<char>(std::tolower(byte)) : '_';
+        }
+        return column + "_ms";
+    }
+
+    void WriteFramesCsv(std::ostream &out, std::span<const std::string> gpuPasses,
+                        std::span<const FrameTiming> timings) {
+        out << "frame,cpu_frame_ms,cpu_record_ms,gpu_total_ms";
+        for (const std::string &pass : gpuPasses) {
+            out << ',' << GpuPassColumn(pass);
+        }
+        out << '\n';
+
+        const size_t passCount = std::min(gpuPasses.size(), kMaxGpuPasses);
         for (size_t frame = 0; frame < timings.size(); ++frame) {
+            const FrameTiming &timing = timings[frame];
             // 4 decimals = 0.1 microseconds, more than precise enough
-            out << std::format("{},{:.4f},{:.4f}\n", frame, timings[frame].cpuFrameMs, timings[frame].cpuRecordMs);
+            out << std::format("{},{:.4f},{:.4f},{:.4f}", frame, timing.cpuFrameMs, timing.cpuRecordMs,
+                               timing.gpuTotalMs);
+            for (size_t pass = 0; pass < passCount; ++pass) {
+                out << std::format(",{:.4f}", timing.gpuPassMs[pass]);
+            }
+            out << '\n';
         }
     }
 
@@ -79,13 +103,15 @@ namespace engine::bench {
 
     std::expected<std::filesystem::path, std::string>
     WriteResults(const std::filesystem::path &outDir, const std::filesystem::path &scene, std::string_view timestamp,
-                 std::span<const FrameTiming> timings, std::span<const RunField> fields) {
+                 std::span<const std::string> gpuPasses, std::span<const FrameTiming> timings,
+                 std::span<const RunField> fields) {
         const std::expected<std::filesystem::path, std::string> folder =
             CreateNewFolder(outDir / kEngineName / scene / timestamp);
         if (!folder) {
             return std::unexpected(folder.error());
         }
-        if (auto written = WriteFile(*folder / "frames.csv", [&](std::ostream &out) { WriteFramesCsv(out, timings); });
+        if (auto written =
+                WriteFile(*folder / "frames.csv", [&](std::ostream &out) { WriteFramesCsv(out, gpuPasses, timings); });
             !written) {
             return std::unexpected(written.error());
         }

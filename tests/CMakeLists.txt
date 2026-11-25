@@ -10,6 +10,7 @@ add_executable(engine_tests
         CameraTests.cpp
         FileTests.cpp
         FrameGraphCompilerTests.cpp
+        GpuTimesTests.cpp
         GridLayoutTests.cpp
         InstanceChunksTests.cpp
         LightPackingTests.cpp
@@ -36,6 +37,7 @@ target_link_libraries(engine_tests PRIVATE
         engine_core
         engine_assets
         engine_framegraph
+        engine_gputimes
         engine_renderdata
         engine_scene
         GTest::gtest) # not gtest_main: main.cpp holds the process-wide core::ComScope
