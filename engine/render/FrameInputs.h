@@ -5,6 +5,7 @@
 
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/RendererSettings.h"
+#include "renderdata/ShadowView.h"
 #include "renderdata/TransparentSort.h"
 #include "rhi/RhiCommon.h"
 
@@ -21,6 +22,7 @@ namespace engine::render {
         // The opaque draws: each static list's draws, then those of the moving objects (the opaque pass skips Blend)
         std::span<const std::span<const InstanceDraw>> drawSets;
         std::span<const TransparentObject> transparentObjects; // static and moving, sorted back to front
+        ShadowView shadow;
         // Null when the app draws no UI this frame
         ImDrawData *ui = nullptr;
     };

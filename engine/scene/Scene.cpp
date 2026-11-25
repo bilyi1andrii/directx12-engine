@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "core/Assert.h"
+#include "renderdata/ShadowView.h"
 
 namespace engine::scene {
     ObjectId Scene::AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
@@ -120,6 +121,15 @@ namespace engine::scene {
         lights.environment = scene.Environment();
         lights.points.clear();
         lights.spots.clear();
+
+        const std::span<const Transform> transforms = scene.Transforms();
+        const std::span<const EntityPart> parts = scene.Parts();
+        lights.shadowBounds = {};
+        for (size_t i = 0; i < parts.size(); ++i) {
+            const render::Aabb box = render::TransformBox(parts[i].bounds, transforms[i].world);
+            lights.shadowBounds = i == 0 ? box : render::Union(lights.shadowBounds, box);
+        }
+
         const std::span<const ObjectId> lightObjects = scene.LightObjects();
         const std::span<const render::LocalLight> sceneLights = scene.Lights();
         for (size_t i = 0; i < sceneLights.size(); ++i) {

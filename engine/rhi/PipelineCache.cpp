@@ -135,6 +135,8 @@ namespace engine::rhi {
         hasher.Add(key.blend);
         hasher.Add(key.cull);
         hasher.Add(key.depth);
+        hasher.Add(key.depthBias.constant);
+        hasher.Add(key.depthBias.slopeScaled);
         hasher.Add(key.topology);
         hasher.Add(key.renderTargetFormats.size());
         for (const DXGI_FORMAT format : key.renderTargetFormats) {
@@ -146,10 +148,11 @@ namespace engine::rhi {
 
     PipelineCache::Key PipelineCache::MakeKey(const GraphicsPipelineDesc &desc) {
         ENGINE_ASSERT_MSG(!desc.vertexShader.empty(), "PSO \"{}\" has no vertex shader", core::ToUtf8(desc.name));
-        ENGINE_ASSERT_MSG(!desc.renderTargetFormats.empty() &&
-                              desc.renderTargetFormats.size() <= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT,
-                          "PSO \"{}\" has {} render targets (1 to 8 allowed)", core::ToUtf8(desc.name),
+        ENGINE_ASSERT_MSG(desc.renderTargetFormats.size() <= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT,
+                          "PSO \"{}\" has {} render targets (at most 8)", core::ToUtf8(desc.name),
                           desc.renderTargetFormats.size());
+        ENGINE_ASSERT_MSG(!desc.renderTargetFormats.empty() || desc.depthFormat != DXGI_FORMAT_UNKNOWN,
+                          "PSO \"{}\" writes nothing", core::ToUtf8(desc.name));
 
         Key key{
             .vertexShader = std::wstring(desc.vertexShader),
@@ -158,6 +161,7 @@ namespace engine::rhi {
             .blend = desc.blend,
             .cull = desc.cull,
             .depth = desc.depth,
+            .depthBias = desc.depthBias,
             .topology = desc.topology,
             .renderTargetFormats = {desc.renderTargetFormats.begin(), desc.renderTargetFormats.end()},
             .depthFormat = desc.depthFormat,
@@ -184,6 +188,8 @@ namespace engine::rhi {
 
         D3D12_RASTERIZER_DESC rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
         rasterizer.CullMode = NativeCullMode(desc.cull);
+        rasterizer.DepthBias = desc.depthBias.constant;
+        rasterizer.SlopeScaledDepthBias = desc.depthBias.slopeScaled;
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
         depthStencil.DepthFunc = kDepthComparison;

@@ -8,6 +8,7 @@ file(GLOB_RECURSE SHADER_INCLUDES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}
 set(SHADER_VARIANTS
         ps_light ps_light_alpha_test ALPHA_TEST=1
         ps_light ps_light_blend ALPHA_BLEND=1
+        vs_mesh vs_mesh_shadow SHADOW_CASTER=1
 )
 
 set(SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")

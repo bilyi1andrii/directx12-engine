@@ -1,5 +1,5 @@
-// The pixel shader for lit surfaces: the texture's colour, lit by the ambient light, the sun-like light and the
-// point and spot lights. Two more builds of it draw cut-out surfaces (with holes) and see-through ones (blended).
+// Pixel shader for lit surfaces: samples texture with ambient, directional (shadowed), point, and spot lights.
+// Also compiled in two variants: alpha-cutout and transparent (blended).
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -7,7 +7,31 @@
 
 ConstantBuffer<DrawConstants> g_draw : register(b0);
 ConstantBuffer<FrameConstants> g_frame : register(b1);
+ConstantBuffer<ShadowConstants> g_shadow : register(b2);
 SamplerState g_anisotropicWrap : register(s0);
+SamplerComparisonState g_shadowCompare : register(s2);
+
+// 1 where the directional light reaches this point, 0 in shadow: 3x3 filtered comparisons (PCF)
+float DirectionalShadow(float3 worldPosition, float3 N)
+{
+    const float4 clip = mul(float4(worldPosition + N * g_shadow.normalOffset, 1.0f), g_shadow.lightViewProjection);
+    const float2 uv = clip.xy * float2(0.5f, -0.5f) + 0.5f;
+    if (any(uv < 0.0f) || any(uv > 1.0f))
+    {
+        return 1.0f;
+    }
+
+    Texture2D<float> shadowMap = ResourceDescriptorHeap[g_shadow.shadowMapIndex];
+    float lit = 0.0f;
+    [unroll] for (int y = -1; y <= 1; ++y)
+    {
+        [unroll] for (int x = -1; x <= 1; ++x)
+        {
+            lit += shadowMap.SampleCmpLevelZero(g_shadowCompare, uv + float2(x, y) * g_shadow.texelSize, clip.z);
+        }
+    }
+    return lit / 9.0f;
+}
 
 // N: surface normal, L: towards the light, V: towards the camera, all unit length
 float3 DiffuseAndSpecular(float3 N, float3 L, float3 V)
@@ -79,7 +103,7 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     const float3 V = normalize(g_frame.cameraPosition - input.worldPosition);
 
     float3 lighting = g_frame.ambientColor * g_frame.ambientStrength;
-    lighting += DirectionalLight(N, V);
+    lighting += DirectionalLight(N, V) * DirectionalShadow(input.worldPosition, N);
     for (uint i = 0; i < g_frame.pointLightCount; ++i)
     {
         lighting += PointLight(g_frame.pointLights[i], N, input.worldPosition, V);

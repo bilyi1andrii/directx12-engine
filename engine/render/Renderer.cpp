@@ -63,7 +63,7 @@ namespace engine::render {
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
-          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_opaque(m_pipelines),
+          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_shadow(m_pipelines), m_opaque(m_pipelines),
           m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
@@ -184,6 +184,8 @@ namespace engine::render {
                                  .drawPath = m_settings.drawPath,
                                  .drawSets = m_drawSets,
                                  .transparentObjects = m_transparentObjects,
+                                 .shadow =
+                                     MakeShadowView(lights.environment.directional.direction, lights.shadowBounds),
                                  .ui = ui};
         m_graph.Execute(m_context, CurrentFrame(), imports, inputs);
     }
@@ -197,9 +199,16 @@ namespace engine::render {
                                                                           .target = TransientTextureDesc::Target::Depth,
                                                                           .shaderRead = false});
 
-        m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
+        const FgTexture shadowMap = m_graph.CreateTexture("ShadowMap", {.width = kShadowMapSize,
+                                                                        .height = kShadowMapSize,
+                                                                        .format = rhi::kDepthFormat,
+                                                                        .target = TransientTextureDesc::Target::Depth,
+                                                                        .shaderRead = true});
+
+        m_shadow.AddTo(m_graph, shadowMap, m_resources);
+        m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, shadowMap, m_resources);
         // After Opaque: it blends over the solid surfaces and tests against their depth
-        m_transparent.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
+        m_transparent.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, shadowMap, m_resources);
         if (m_ui) {
             // Last: on top of the scene
             AddUiPass(m_graph, m_backBuffer, kBackBufferUnormView, *m_ui);

@@ -22,6 +22,8 @@ add_library(engine_renderdata STATIC
         RendererSettings.h
         RenderList.cpp
         RenderList.h
+        ShadowView.cpp
+        ShadowView.h
         TextureData.h
         TransparentSort.cpp
         TransparentSort.h

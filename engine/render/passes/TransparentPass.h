@@ -29,7 +29,7 @@ namespace engine::render {
         TransparentPass(TransparentPass &&) = delete;
         TransparentPass &operator=(TransparentPass &&) = delete;
 
-        void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
+        void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth, FgTexture shadowMap,
                    const GpuResources &resources) const;
 
         void Record(rhi::CommandContext &context, const GpuResources &resources,

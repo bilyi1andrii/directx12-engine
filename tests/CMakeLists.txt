@@ -21,6 +21,7 @@ add_executable(engine_tests
         RenderListTests.cpp
         SceneSaveTests.cpp
         SceneTests.cpp
+        ShadowViewTests.cpp
         TestFiles.h
         TextureLoaderTests.cpp
         TransparentSortTests.cpp

@@ -75,6 +75,9 @@ namespace engine::bench {
             {.light = spot({1.0f, 0.55f, 0.2f}), .position = {0.0f, height, offset}, .direction = kSpotDirection},
             {.light = spot({0.0f, 1.0f, 0.0f}), .position = {0.0f, height, -offset}, .direction = kSpotDirection},
         };
+        const float half = 0.5f * Extent();
+        lights.shadowBounds = {.min = {-half, kGridHeight - 0.5f * kGridObjectSize, -half},
+                               .max = {half, kGridHeight + 0.5f * kGridObjectSize, half}};
         return lights;
     }
 

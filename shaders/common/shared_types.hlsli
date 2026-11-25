@@ -72,6 +72,15 @@ struct FrameConstants
     SpotLightData  spotLights[kMaxSpotLights];
 };
 
+struct ShadowConstants
+{
+    float4x4 lightViewProjection;
+    uint     shadowMapIndex;
+    float    texelSize;
+    float    normalOffset;
+    float    pad0;
+};
+
 struct InstanceData
 {
     float4x4 world;
@@ -79,6 +88,7 @@ struct InstanceData
 
 #ifdef __cplusplus
     static_assert(sizeof(FrameConstants) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
+    static_assert(sizeof(ShadowConstants) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(sizeof(PointLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(sizeof(SpotLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");

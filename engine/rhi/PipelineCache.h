@@ -31,6 +31,13 @@ namespace engine::rhi {
         TestOnly,
     };
 
+    struct DepthBias {
+        int32_t constant = 0;
+        float slopeScaled = 0.0f;
+
+        bool operator==(const DepthBias &) const = default;
+    };
+
     // Everything required to build a PSO. Uses views/spans to avoid copying,
     // so the underlying data must remain valid during the PipelineCache::Get() call.
     struct GraphicsPipelineDesc {
@@ -41,6 +48,7 @@ namespace engine::rhi {
         BlendMode blend = BlendMode::Opaque;
         CullMode cull = CullMode::Back;
         DepthMode depth = DepthMode::TestAndWrite;
+        DepthBias depthBias;
         D3D12_PRIMITIVE_TOPOLOGY_TYPE topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
         std::span<const DXGI_FORMAT> renderTargetFormats;
@@ -100,6 +108,7 @@ namespace engine::rhi {
             BlendMode blend = BlendMode::Opaque;
             CullMode cull = CullMode::Back;
             DepthMode depth = DepthMode::TestAndWrite;
+            DepthBias depthBias;
             D3D12_PRIMITIVE_TOPOLOGY_TYPE topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
             std::vector<DXGI_FORMAT> renderTargetFormats;
             DXGI_FORMAT depthFormat = DXGI_FORMAT_UNKNOWN;
