@@ -1,6 +1,8 @@
 #ifndef D3D12_ENGINE_GPUUPLOADER_H
 #define D3D12_ENGINE_GPUUPLOADER_H
 
+// What loading assets needs from the renderer: creating meshes, textures and materials.
+
 #include <string_view>
 #include <vector>
 
@@ -10,22 +12,16 @@
 #include "renderdata/TextureData.h"
 
 namespace render {
-    // What asset loading needs from the renderer. GpuResources (engine_render) implements it. AssetCache sees only
-    // this, so assets does not depend on engine_render and tests can pass a fake without a GPU.
     class GpuUploader {
     public:
         virtual ~GpuUploader() = default;
 
-        // One MeshHandle per submesh of `mesh`, in submesh order
         [[nodiscard]] virtual std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name) = 0;
 
         [[nodiscard]] virtual TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) = 0;
 
-        // The grey texture for one that failed to load
         [[nodiscard]] virtual TextureHandle UnloadedTexture() const noexcept = 0;
 
-        // Adds a material to the renderer's table and returns its handle. Every call adds a new entry, so reuse
-        // the handle for surfaces that look the same (AssetCache::Material does).
         [[nodiscard]] virtual MaterialHandle CreateMaterial(const MaterialInfo &material) = 0;
 
     protected:

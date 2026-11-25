@@ -1,21 +1,19 @@
 #ifndef D3D12_ENGINE_RENDERERSETTINGS_H
 #define D3D12_ENGINE_RENDERERSETTINGS_H
 
+// Options the app and the debug UI change at runtime: how objects are drawn, and vsync. The renderer reads them
+// once per frame, so they never change halfway through one.
+
 #include <cstdint>
 
 namespace render {
-    // How the renderer draws the buckets of a RenderList. Both paths read the same instance data.
     enum class DrawPath : uint8_t {
-        Instanced,    // one DrawIndexedInstanced per bucket
-        NonInstanced, // one draw per object; measures per-draw cost
+        Instanced,
+        NonInstanced,
     };
 
-    // Options changed at runtime by the app and the debug UI (ui::DebugUI). The renderer copies them once per
-    // frame, in BeginFrame, so they never change in the middle of a frame.
     struct RendererSettings {
         DrawPath drawPath = DrawPath::Instanced;
-        // Present waits for the display's next refresh. Off: presents at once (with tearing if supported), so
-        // the frame rate is not capped; benchmarks run with it off.
         bool vsync = true;
     };
 } // namespace render

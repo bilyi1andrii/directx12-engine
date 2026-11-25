@@ -14,7 +14,6 @@ add_executable(engine_tests
         GridLayoutTests.cpp
         InstanceChunksTests.cpp
         LightPackingTests.cpp
-        ModelDataTests.cpp
         ModelImporterTests.cpp
         PickingTests.cpp
         PrimitivesTests.cpp

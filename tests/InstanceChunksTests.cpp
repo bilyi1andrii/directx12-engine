@@ -1,3 +1,5 @@
+// Tests splitting a frame's objects into chunks that each fit one upload page.
+
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -14,7 +16,6 @@ using render::InstanceRange;
 using render::SplitIntoChunks;
 
 namespace {
-    // Buckets with the given object counts; only the counts matter for the split
     [[nodiscard]] std::vector<BatchBucket> BucketsOfSize(std::initializer_list<size_t> counts) {
         std::vector<BatchBucket> buckets;
         for (const size_t count : counts) {
@@ -34,8 +35,6 @@ namespace {
 } // namespace
 
 TEST(InstanceChunks, BucketCrossingAChunkBoundaryIsSplit) {
-    // Capacity 4: bucket 0 fills elements 0-2 of chunk 0, bucket 1 continues at element 3 and
-    // spills 3 objects into chunk 1
     const std::vector<BatchBucket> buckets = BucketsOfSize({3, 4});
     std::vector<InstanceRange> ranges;
 
@@ -48,9 +47,8 @@ TEST(InstanceChunks, BucketCrossingAChunkBoundaryIsSplit) {
 }
 
 TEST(InstanceChunks, BucketLargerThanTwoChunksAndEmptyBuckets) {
-    // An empty bucket gives no range; a full chunk is followed by a new one, not an empty range
     const std::vector<BatchBucket> buckets = BucketsOfSize({0, 9, 0, 1});
-    std::vector<InstanceRange> ranges{InstanceRange{}}; // old contents are replaced
+    std::vector<InstanceRange> ranges{InstanceRange{}};
 
     SplitIntoChunks(buckets, 4, ranges);
 

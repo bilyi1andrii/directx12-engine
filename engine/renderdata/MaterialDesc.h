@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_MATERIALDESC_H
 #define D3D12_ENGINE_MATERIALDESC_H
 
+// A material as read from a model file: its colours, factors, and the textures it names, which may be files or
+// images stored inside the model.
+
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -10,47 +13,40 @@
 
 namespace render {
     enum class AlphaMode : uint8_t {
-        Opaque, // alpha is ignored
-        Mask,   // pixels with alpha below alphaCutoff are discarded
-        Blend,  // transparent, drawn back to front
+        Opaque,
+        Mask,
+        Blend,
     };
 
-    // A texture stored inside the model file: index into ModelData::embeddedTextures
     struct EmbeddedTexture {
         uint32_t index = 0;
 
         bool operator==(const EmbeddedTexture &) const = default;
     };
 
-    // Where a texture comes from: nowhere, a file (absolute, normalized path), or an image inside the model file
     using TextureSource = std::variant<std::monostate, std::filesystem::path, EmbeddedTexture>;
 
-    // A material read from a model file: colours, factors and textures. Until PBR exists, only albedo is used.
     struct MaterialDesc {
         std::string name;
 
-        DirectX::XMFLOAT4 baseColor{1.0f, 1.0f, 1.0f, 1.0f}; // multiplies the albedo texture; w is the opacity
-        float metallicFactor = 1.0f;                         // multiplies the metallic texture
-        float roughnessFactor = 1.0f;                        // multiplies the roughness texture
+        DirectX::XMFLOAT4 baseColor{1.0f, 1.0f, 1.0f, 1.0f};
+        float metallicFactor = 1.0f;
+        float roughnessFactor = 1.0f;
         DirectX::XMFLOAT3 emissiveFactor{0.0f, 0.0f, 0.0f};
 
-        // From the file (glTF), else Blend for opacity below 1, else Mask when there is an opacity map
         AlphaMode alphaMode = AlphaMode::Opaque;
-        float alphaCutoff = 0.5f; // for AlphaMode::Mask
-        bool doubleSided = false; // draw back faces too (leaves, curtains)
+        float alphaCutoff = 0.5f;
+        bool doubleSided = false;
 
         TextureSource albedo;
         TextureSource normal;
         TextureSource emissive;
         TextureSource height;
-        // A separate mask, read from the red channel. Not set when the file names the albedo: its alpha is the mask.
         TextureSource opacityMap;
-        // Either two separate textures, or one packed texture (glTF: roughness in green, metallic in blue).
-        // When packed, both point to the same texture.
         TextureSource metallic;
         TextureSource roughness;
         bool packedMetallicRoughness = false;
-        TextureSource ambientOcclusion; // read from the red channel
+        TextureSource ambientOcclusion;
     };
 } // namespace render
 

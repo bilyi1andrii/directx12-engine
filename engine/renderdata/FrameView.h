@@ -1,10 +1,11 @@
 #ifndef D3D12_ENGINE_FRAMEVIEW_H
 #define D3D12_ENGINE_FRAMEVIEW_H
 
+// Where a frame is seen from: the camera's view, its projection and its position.
+
 #include <DirectXMath.h>
 
 namespace render {
-    // Where a frame is seen from
     struct FrameView {
         DirectX::XMFLOAT4X4 view;
         DirectX::XMFLOAT4X4 projection;

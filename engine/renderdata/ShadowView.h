@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_SHADOWVIEW_H
 #define D3D12_ENGINE_SHADOWVIEW_H
 
+// The directional light's view for the shadow map: a box around the whole scene, seen from the light, and the
+// helpers that build the scene's box.
+
 #include <cstdint>
 
 #include <DirectXMath.h>

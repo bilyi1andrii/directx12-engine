@@ -1,27 +1,22 @@
 #ifndef D3D12_ENGINE_LIGHTPACKING_H
 #define D3D12_ENGINE_LIGHTPACKING_H
 
+// Writes the scene's lights into the constants the shaders read, 
+// within the shaders' limits and in the form their maths expects.
+
 #include <cstdint>
 
 #include "renderdata/Lights.h"
 
 namespace gpu {
-    struct FrameConstants; // common/shared_types.hlsli
+    struct FrameConstants;
 }
 
 namespace render {
-    // Writes `lights` into the light fields of `constants`, in the form the shaders expect:
-    // - only enabled point and spot lights, the first gpu::kMaxPointLights / gpu::kMaxSpotLights of them;
-    // - directions at unit length (a zero direction points straight down);
-    // - cone angles as cosines, with innerCos always greater than outerCos;
-    // - strength 0 for a disabled directional light;
-    // - shininess of at least 1.
-    // The other fields of `constants` are left as they are.
     void PackLights(const LightSet &lights, gpu::FrameConstants &constants);
 
-    // How many lights of each kind PackLights passes to the shaders: enabled ones, up to the limits
     struct PackedLightCounts {
-        uint32_t directional = 0; // 0 or 1
+        uint32_t directional = 0;
         uint32_t points = 0;
         uint32_t spots = 0;
     };

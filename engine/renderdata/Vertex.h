@@ -1,17 +1,16 @@
 #ifndef D3D12_ENGINE_VERTEX_H
 #define D3D12_ENGINE_VERTEX_H
 
+// The vertex every mesh uses. Its layout must match the shaders' vertex input and the renderer's input layout.
+
 #include <DirectXMath.h>
 
 namespace render {
-    // A mesh vertex, with the same layout as in the DX11 engine.
-    // Must match VSInput in vs_mesh.hlsl and kVertexLayout in render/passes/VertexLayout.h.
-    // It is not in shared_types.hlsli because shaders receive it through the input layout, not by reading memory.
     struct Vertex {
         DirectX::XMFLOAT3 position;
         DirectX::XMFLOAT2 uv;
         DirectX::XMFLOAT3 normal;
-        DirectX::XMFLOAT3 tangent; // for normal mapping later
+        DirectX::XMFLOAT3 tangent;
     };
     static_assert(sizeof(Vertex) == 44, "Vertex must keep the DX11 layout: 44 bytes, no padding");
 } // namespace render
