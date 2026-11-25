@@ -112,7 +112,7 @@ namespace engine::scene {
     // Adds every object with this `mobility` to `list`, batched by mesh and material. No culling yet.
     void Extract(const Scene &scene, render::RenderList &list, Mobility mobility);
 
-    // Replaces `lights` with the scene's environment and all its lights, disabled ones included.
+    // Loads all scene lights (including disabled) and sets shadow bounds around all entities.
     // Positions and directions are in world space. A spot light's direction has unit length, whatever the scale
     // of its object.
     void Extract(const Scene &scene, render::LightSet &lights);

@@ -6,6 +6,8 @@
 
 #include <DirectXMath.h>
 
+#include "renderdata/Model.h"
+
 namespace engine::render {
     // One light without a position, like the sun
     struct DirectionalLight {
@@ -58,6 +60,7 @@ namespace engine::render {
         LightEnvironment environment;
         std::vector<PointLight> points;
         std::vector<SpotLight> spots;
+        Aabb shadowBounds;
     };
 } // namespace engine::render
 
