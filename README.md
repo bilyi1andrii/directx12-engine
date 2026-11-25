@@ -35,6 +35,7 @@ data.
 - Direct3D 12 with the Agility SDK, Shader Model 6.6 bindless resources and one global root signature defined in HLSL
 - Two frames in flight, GPU memory through D3D12MA, and deferred release of everything the GPU may still be using
 - Blinn-Phong lighting: a directional light plus point and spot lights that can be selected, moved and edited
+- Soft shadows from the directional light (a shadow map fitted to the scene, 3×3 filtered comparisons)
 - Automatic batching by mesh and material, drawn either instanced or with one draw call per object
 - Moving objects uploaded every frame, static objects uploaded once to GPU memory
 - Models from glTF, OBJ and FBX files (Assimp), textures with generated mips (DirectXTex)
@@ -45,7 +46,7 @@ data.
 - A benchmark with a scripted camera that writes per-frame CPU and GPU timings to CSV
 - Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
 
-There are no shadows or tonemapping yet, so very bright areas clip to white.
+There is no tonemapping yet, so very bright areas clip to white.
 
 ## How to run
 
@@ -141,7 +142,7 @@ the driver and the medians. Pressing Esc stops the run and writes nothing.
 
 ## Next Steps
 
-- Frame graph, shadows and transparency
+- Frame graph and transparency
 - HDR and tonemapping
 - PBR materials
 - Performance comparison with the DX11 engine
