@@ -77,7 +77,7 @@ namespace engine::render {
         uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
         for (const InstanceDraw &draw : drawSets | std::views::join) {
             const MaterialInfo &material = resources.Material(draw.key.material);
-            // Transparent objects are drawn later, one by one and sorted, by the transparent pass
+            // TransparentPass draws these
             if (material.alphaMode == AlphaMode::Blend) {
                 continue;
             }
@@ -123,8 +123,7 @@ namespace engine::render {
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
         ENGINE_ASSERT_MSG(material.alphaMode != AlphaMode::Blend, "Transparent materials have no opaque PSO");
-        // The unlit shader has no alpha-test build, so an unlit cut-out material is drawn solid (Debug builds reject
-        // it when it is made)
+        // Unlit has no alpha-test build; CreateMaterial rejects unlit cut-out materials in Debug
         const PipelineKey key{.format = format,
                               .shading = material.shading,
                               .doubleSided = material.doubleSided,

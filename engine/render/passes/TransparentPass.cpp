@@ -16,7 +16,6 @@
 namespace engine::render {
     TransparentPass::TransparentPass(rhi::PipelineCache &pipelines) : m_cache(pipelines), m_pipelines{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
-        // Blended over the target, depth tested but not written, and the pixel shader build that outputs alpha
         for (const bool farSide : {false, true}) {
             m_pipelines[PipelineIndex(VertexFormat::Mesh, farSide)] = pipelines.Get({
                 .vertexShader = L"vs_mesh.cso",
@@ -37,7 +36,6 @@ namespace engine::render {
         graph.AddPass(
             "Transparent",
             [&](PassBuilder &builder) {
-                // Over the opaque pass's picture and depth: nothing is cleared
                 builder.WriteColor(color, std::nullopt, colorView);
                 // Declared as a depth write, though the PSO only tests depth
                 builder.WriteDepth(depth, std::nullopt);
@@ -75,15 +73,11 @@ namespace engine::render {
                 currentGeometry = mesh.geometry;
             }
 
-            // One object per draw: its element in the instance buffer goes into the root constants (b0)
             context.SetGraphicsRootConstants(gpu::kRootDrawConstants,
                                              gpu::DrawConstants{.instanceOffset = object.element,
                                                                 .materialIndex = material.albedo.index,
                                                                 .instanceBufferIndex = object.instanceBufferIndex,
                                                                 .alphaInfo = PackAlphaInfo(material)});
-            // The far side first, so the near side blends over it. In D3D12 the cull mode is part of the PSO, so a
-            // two-sided object switches PSOs twice: a few microseconds of CPU time each. Culling still saves the GPU
-            // from shading the side a draw does not want.
             if (material.doubleSided) {
                 drawWith(Pipeline(geometry.vertexFormat, true), mesh);
             }
