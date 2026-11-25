@@ -26,6 +26,7 @@
 #include "render/GpuResources.h"
 #include "render/TransientTexturePool.h"
 #include "render/passes/OpaquePass.h"
+#include "render/passes/ShadowPass.h"
 #include "render/passes/TransparentPass.h"
 #include "renderdata/FrameView.h"
 #include "renderdata/Handles.h"
@@ -163,6 +164,7 @@ namespace engine::render {
         // release them, before the allocator goes.
         GpuResources m_resources;
         // After the pipeline cache, which they keep a reference to
+        ShadowPass m_shadow;
         OpaquePass m_opaque;
         TransparentPass m_transparent;
         // This frame's moving objects; CPU memory only (the instance data is in the frames' upload rings)

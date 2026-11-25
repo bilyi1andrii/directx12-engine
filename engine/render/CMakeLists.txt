@@ -31,8 +31,11 @@ add_library(engine_render STATIC
         UiRenderer.cpp
         UiRenderer.h
         passes/DrawConstantPacking.h
+        passes/MeshDrawing.h
         passes/OpaquePass.cpp
         passes/OpaquePass.h
+        passes/ShadowPass.cpp
+        passes/ShadowPass.h
         passes/TransparentPass.cpp
         passes/TransparentPass.h
         passes/UiPass.cpp

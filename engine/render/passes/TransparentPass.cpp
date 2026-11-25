@@ -7,6 +7,7 @@
 
 #include "render/FrameInputs.h"
 #include "render/passes/DrawConstantPacking.h"
+#include "render/passes/ShadowPass.h"
 #include "render/passes/VertexLayout.h"
 #include "rhi/CommandContext.h"
 #include "rhi/DepthFormat.h"
@@ -31,15 +32,17 @@ namespace engine::render {
     }
 
     void TransparentPass::AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
-                                const GpuResources &resources) const {
+                                FgTexture shadowMap, const GpuResources &resources) const {
         graph.AddPass(
             "Transparent",
             [&](PassBuilder &builder) {
                 builder.WriteColor(color, std::nullopt, colorView);
                 // Declared as a depth write, though the PSO only tests depth
                 builder.WriteDepth(depth, std::nullopt);
+                builder.Read(shadowMap);
             },
-            [this, &resources](PassContext &context) {
+            [this, &resources, shadowMap](PassContext &context) {
+                BindShadowConstants(context, context.ShaderIndex(shadowMap));
                 Record(context.Commands(), resources, context.Inputs().transparentObjects);
             });
     }
