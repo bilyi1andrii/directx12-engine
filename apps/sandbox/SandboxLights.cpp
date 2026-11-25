@@ -41,7 +41,7 @@ namespace sandbox {
         // Unlit, so the sphere shows the light's own colour whatever shines on it
         [[nodiscard]] engine::render::MaterialHandle MarkerMaterial(engine::assets::AssetCache &cache,
                                                                     const XMFLOAT3 &color) {
-            return cache.Material(cache.SolidColor(color), engine::render::Shading::Unlit);
+            return cache.Material({.albedo = cache.SolidColor(color), .shading = engine::render::Shading::Unlit});
         }
     } // namespace
 

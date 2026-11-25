@@ -149,7 +149,7 @@ namespace sandbox {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        const engine::render::MaterialHandle material = assets.Material(texture);
+        const engine::render::MaterialHandle material = assets.Material({.albedo = texture});
         for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
             scene.SetObjectMaterial({.index = grid.firstObject + i}, material);
         }

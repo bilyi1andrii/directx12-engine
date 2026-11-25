@@ -1,7 +1,10 @@
 #ifndef D3D12_ENGINE_MATERIAL_H
 #define D3D12_ENGINE_MATERIAL_H
 
-#include <cstddef>
+// A material: how a surface looks when it is drawn. It names the surface's texture, whether lights shade it, whether
+// its back faces show, and whether it is solid, cut out or see-through. The renderer keeps each material once and
+// hands out a handle to it.
+
 #include <cstdint>
 
 #include "renderdata/Handles.h"
@@ -9,26 +12,20 @@
 
 namespace engine::render {
     enum class Shading : uint8_t {
-        Lit,   // lit by the frame's lights
-        Unlit, // the albedo colour as it is (light markers)
+        Lit,
+        Unlit,
+        Count,
     };
-    // The renderer keeps a PSO per shading
-    inline constexpr size_t kShadingCount = 2;
 
-    // What the renderer needs to draw a surface. GpuUploader::CreateMaterial turns it into a MaterialHandle.
     struct MaterialInfo {
-        TextureHandle albedo; // default: the grey fallback texture
+        TextureHandle albedo;
         Shading shading = Shading::Lit;
-        bool doubleSided = false; // draw back faces too (leaves, curtains)
+        bool doubleSided = false;
 
-        // Only lit materials may cut holes or be transparent
         AlphaMode alphaMode = AlphaMode::Opaque;
-        // Mask: a pixel whose alpha is below this is not drawn. Stored as a byte, the form the shader receives, where
-        // 0 to 255 stands for 0 to 1. The default is one half.
         uint8_t alphaCutoff = 128;
-        // Mask and Blend: the surface's alpha is the albedo's alpha times this mask. They must set it: without a
-        // separate mask, use a white texture. The default, the grey fallback, is dark enough to cut out the whole
-        // surface. Not read for opaque materials.
+        uint8_t opacity = 255;
+
         TextureHandle opacityMap;
 
         bool operator==(const MaterialInfo &) const = default;

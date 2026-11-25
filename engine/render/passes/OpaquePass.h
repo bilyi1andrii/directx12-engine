@@ -42,8 +42,9 @@ namespace engine::render {
         void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth,
                    const GpuResources &resources) const;
 
-        // Records every draw of `drawSets`, in order. The draws read meshes and materials from `resources`.
-        // On the instanced path each draw is one DrawIndexedInstanced; otherwise one DrawIndexed per object.
+        // Records the draws of `drawSets` in order, skipping Blend materials. The draws read meshes and materials from
+        // `resources`. On the instanced path each draw is one DrawIndexedInstanced; otherwise one DrawIndexed per
+        // object.
         void Record(rhi::CommandContext &context, const GpuResources &resources, DrawPath drawPath,
                     std::span<const std::span<const InstanceDraw>> drawSets) const;
 
@@ -58,11 +59,13 @@ namespace engine::render {
             // A different slot in the PSO array for every combination
             [[nodiscard]] constexpr uint32_t Index() const noexcept {
                 const uint32_t formatAndShading =
-                    std::to_underlying(format) * static_cast<uint32_t>(kShadingCount) + std::to_underlying(shading);
+                    std::to_underlying(format) * uint32_t{std::to_underlying(Shading::Count)} +
+                    std::to_underlying(shading);
                 return (formatAndShading * 2 + (doubleSided ? 1 : 0)) * 2 + (alphaTest ? 1 : 0);
             }
         };
-        static constexpr size_t kPipelineKeyCount = std::to_underlying(VertexFormat::Count) * kShadingCount * 2 * 2;
+        static constexpr size_t kPipelineKeyCount =
+            size_t{std::to_underlying(VertexFormat::Count)} * std::to_underlying(Shading::Count) * 2 * 2;
 
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 

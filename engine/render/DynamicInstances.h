@@ -4,8 +4,11 @@
 #include <span>
 #include <vector>
 
+#include <DirectXMath.h>
+
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/RenderList.h"
+#include "renderdata/TransparentSort.h"
 
 namespace engine::rhi {
     class BindlessHeap;
@@ -13,6 +16,8 @@ namespace engine::rhi {
 } // namespace engine::rhi
 
 namespace engine::render {
+    class GpuResources;
+
     // The instance data of objects that move, written again every frame, and the draws that read it.
     // Keeps its vectors between frames, so their memory is reused.
     class DynamicInstances {
@@ -24,8 +29,12 @@ namespace engine::render {
         // The draws of the last Upload, in the list's bucket order. Valid until the next Upload.
         [[nodiscard]] std::span<const InstanceDraw> Draws() const noexcept { return m_draws; }
 
+        // Appends the last Upload's transparent objects; `list` must be that Upload's list
+        void AppendTransparent(const RenderList &list, const GpuResources &resources, const DirectX::XMFLOAT4X4 &view,
+                               std::vector<TransparentObject> &objects) const;
+
     private:
-        std::vector<InstanceRange> m_ranges; // scratch memory for WriteInstances
+        std::vector<InstanceRange> m_ranges; // m_ranges[i] holds the objects of m_draws[i]
         std::vector<InstanceDraw> m_draws;
     };
 } // namespace engine::render

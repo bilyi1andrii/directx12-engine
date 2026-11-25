@@ -12,6 +12,8 @@
 
 #include "core/Assert.h"
 #include "render/InstanceUpload.h"
+#include "renderdata/Model.h"
+#include "renderdata/TransparentSort.h"
 #include "renderdata/Vertex.h"
 #include "rhi/Allocator.h"
 #include "rhi/BindlessHeap.h"
@@ -74,6 +76,7 @@ namespace engine::render {
                 .firstIndex = submesh.firstIndex,
                 .indexCount = submesh.indexCount,
                 .baseVertex = submesh.baseVertex,
+                .center = Center(SubmeshBounds(mesh, submesh)),
             }));
         }
         return handles;
@@ -107,7 +110,7 @@ namespace engine::render {
     }
 
     MaterialHandle GpuResources::CreateMaterial(const MaterialInfo &material) {
-        ENGINE_ASSERT_MSG(std::to_underlying(material.shading) < kShadingCount, "Material with unknown shading {}",
+        ENGINE_ASSERT_MSG(material.shading < Shading::Count, "Material with unknown shading {}",
                           std::to_underlying(material.shading));
         // The unlit shader has no alpha-test or blended variant
         ENGINE_ASSERT_MSG(material.shading == Shading::Lit || material.alphaMode == AlphaMode::Opaque,
@@ -120,6 +123,19 @@ namespace engine::render {
     }
 
     StaticListHandle GpuResources::CreateStaticList(const RenderList &list, std::wstring_view name) {
+        std::vector<StaticTransparentObject> transparent;
+        uint32_t element = 0;
+        for (const BatchBucket &bucket : list.Buckets()) {
+            if (Material(bucket.key.material).alphaMode == AlphaMode::Blend) {
+                const DirectX::XMFLOAT3 &center = Mesh(bucket.key.mesh).center;
+                for (uint32_t i = 0; i < bucket.worlds.size(); ++i) {
+                    transparent.push_back(
+                        {.key = bucket.key, .element = element + i, .position = SortPoint(bucket.worlds[i], center)});
+                }
+            }
+            element += static_cast<uint32_t>(bucket.worlds.size());
+        }
+
         // Reserve first: once the bindless slot is taken, nothing may throw, or the slot would leak
         m_staticLists.reserve(m_staticLists.size() + 1);
         // Filled by beginChunk. A Buffer cannot be assigned, so it is constructed in place (emplace).
@@ -156,6 +172,7 @@ namespace engine::render {
             .instances = instances ? std::move(*instances) : rhi::Buffer{},
             .instanceBufferIndex = instanceBufferIndex,
             .draws = std::move(draws),
+            .transparent = std::move(transparent),
         });
         return handle;
     }

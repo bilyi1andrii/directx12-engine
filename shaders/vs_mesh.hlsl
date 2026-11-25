@@ -10,7 +10,7 @@ ConstantBuffer<DrawConstants> g_draw : register(b0);
 // Per-frame constants (b1)
 ConstantBuffer<FrameConstants> g_frame : register(b1);
 
-// Must match Vertex and its input layout (kVertexLayout in engine/render/passes/OpaquePass.cpp)
+// Must match Vertex and its input layout (kVertexLayout in engine/render/passes/VertexLayout.h)
 struct VSInput
 {
     float3 position : POSITION;

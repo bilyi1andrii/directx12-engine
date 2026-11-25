@@ -298,21 +298,24 @@ TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
 }
 
 // The alpha mode of an OBJ material: an opacity map (map_d, or a <material>_d image next to the model) cuts holes at
-// the default cutoff, and opacity below 1 is transparent even with a map
+// the default cutoff, and opacity below 1 is transparent even with a map. OBJ cannot say whether a material is
+// two-sided: transparent ones are, so their far side shows through.
 TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
     struct Case {
         std::string_view mtl;
         std::wstring_view fileByName; // created next to the model, or none
         AlphaMode alphaMode;
         std::wstring_view opacityMap; // the file the material should name, or none
+        bool doubleSided;
     };
     constexpr Case kCases[] = {
-        {"map_Kd engine_test_leaf_albedo.png\n", L"", AlphaMode::Opaque, L""},
+        {"map_Kd engine_test_leaf_albedo.png\n", L"", AlphaMode::Opaque, L"", false},
         {"map_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Mask,
-         L"engine_test_leaf_mask.png"},
+         L"engine_test_leaf_mask.png", false},
         {"d 0.5\nmap_Kd engine_test_leaf_albedo.png\nmap_d engine_test_leaf_mask.png\n", L"", AlphaMode::Blend,
-         L"engine_test_leaf_mask.png"},
-        {"map_Kd engine_test_leaf_albedo.png\n", L"engine_test_leaf_d.png", AlphaMode::Mask, L"engine_test_leaf_d.png"},
+         L"engine_test_leaf_mask.png", true},
+        {"map_Kd engine_test_leaf_albedo.png\n", L"engine_test_leaf_d.png", AlphaMode::Mask, L"engine_test_leaf_d.png",
+         false},
     };
     for (const Case &test : kCases) {
         std::optional<TempFile> byName;
@@ -324,6 +327,7 @@ TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
 
         EXPECT_EQ(material.alphaMode, test.alphaMode) << test.mtl;
         EXPECT_FLOAT_EQ(material.alphaCutoff, 0.5f) << test.mtl;
+        EXPECT_EQ(material.doubleSided, test.doubleSided) << test.mtl;
         EXPECT_EQ(FileOf(material.opacityMap),
                   test.opacityMap.empty() ? std::wstring{} : Normalized(MissingFile(test.opacityMap)))
             << test.mtl;

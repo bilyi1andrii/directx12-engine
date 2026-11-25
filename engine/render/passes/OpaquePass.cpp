@@ -1,7 +1,6 @@
 #include "render/passes/OpaquePass.h"
 
 #include <array>
-#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <ranges>
@@ -10,74 +9,13 @@
 
 #include "core/Assert.h"
 #include "render/FrameInputs.h"
-#include "renderdata/Vertex.h"
-#include "rhi/BindlessHeap.h"
+#include "render/passes/DrawConstantPacking.h"
+#include "render/passes/VertexLayout.h"
 #include "rhi/CommandContext.h"
 #include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"
 
-#include "common/root_signature.hlsli"
-#include "common/shared_types.hlsli"
-
 namespace engine::render {
-    namespace {
-        static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
-                      "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
-        // Position of DrawConstants::instanceOffset in b0, in 32-bit values
-        constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
-
-        static_assert(rhi::BindlessHeap::kDefaultCapacity <= (1u << 24),
-                      "DrawConstants::alphaInfo holds a bindless index in 24 bits");
-
-        // The material's mask and alpha cutoff, packed into one root constant (layout: DrawConstants in
-        // shared_types.hlsli)
-        [[nodiscard]] uint32_t PackAlphaInfo(const MaterialInfo &material) {
-            ENGINE_ASSERT_MSG(material.opacityMap.index < (1u << 24), "Opacity map index {} does not fit in 24 bits",
-                              material.opacityMap.index);
-            return (material.opacityMap.index << 8) | material.alphaCutoff;
-        }
-
-        // How the GPU reads one Vertex (renderdata/Vertex.h): must match VSInput in vs_mesh.hlsl
-        constexpr std::array kVertexLayout{
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "POSITION",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(Vertex, position),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "TEXCOORD",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(Vertex, uv),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "NORMAL",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(Vertex, normal),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-            D3D12_INPUT_ELEMENT_DESC{
-                .SemanticName = "TANGENT",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = offsetof(Vertex, tangent),
-                .InputSlotClass = D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA,
-                .InstanceDataStepRate = 0,
-            },
-        };
-    } // namespace
-
     OpaquePass::OpaquePass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines), m_pipelinesByKey{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
@@ -138,9 +76,13 @@ namespace engine::render {
         rhi::PipelineHandle currentPipeline;
         uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
         for (const InstanceDraw &draw : drawSets | std::views::join) {
+            const MaterialInfo &material = resources.Material(draw.key.material);
+            // TransparentPass draws these
+            if (material.alphaMode == AlphaMode::Blend) {
+                continue;
+            }
             const GpuMesh &mesh = resources.Mesh(draw.key.mesh);
             const GpuGeometry &geometry = resources.Geometry(mesh.geometry);
-            const MaterialInfo &material = resources.Material(draw.key.material);
             // Switch PSOs only when needed: it costs CPU and GPU time. The PSO depends on the geometry's vertex
             // format and on the material, so it is checked for every draw.
             const rhi::PipelineHandle pipeline = PipelineFor(geometry.vertexFormat, material);
@@ -180,8 +122,7 @@ namespace engine::render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        // Transparent materials are drawn solid here until there is a transparent pass. The unlit shader has no
-        // alpha-test build, so an unlit cut-out material is drawn solid too (Debug builds reject it when it is made).
+        // Unlit has no alpha-test build; CreateMaterial rejects unlit cut-out materials in Debug
         const PipelineKey key{.format = format,
                               .shading = material.shading,
                               .doubleSided = material.doubleSided,

@@ -287,22 +287,32 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     AssetCache cache(gpu);
     const TextureHandle texture{.index = 7};
 
-    const MaterialHandle lit = cache.Material(texture);
-    const MaterialHandle unlit = cache.Material(texture, Shading::Unlit);
-    const MaterialHandle twoSided = cache.Material(texture, Shading::Lit, true);
-    const MaterialHandle otherTexture = cache.Material(TextureHandle{.index = 8});
+    const MaterialHandle lit = cache.Material({.albedo = texture});
+    const MaterialHandle unlit = cache.Material({.albedo = texture, .shading = Shading::Unlit});
+    const MaterialHandle twoSided = cache.Material({.albedo = texture, .doubleSided = true});
+    const MaterialHandle otherTexture = cache.Material({.albedo = TextureHandle{.index = 8}});
     const MaterialInfo mask{.albedo = texture, .alphaMode = AlphaMode::Mask, .opacityMap = TextureHandle{.index = 9}};
     MaterialInfo otherCutoff = mask;
     otherCutoff.alphaCutoff = 77;
     const MaterialHandle masked = cache.Material(mask);
     const MaterialHandle maskedOtherCutoff = cache.Material(otherCutoff);
+    MaterialInfo blend = mask;
+    blend.alphaMode = AlphaMode::Blend;
+    blend.opacity = 64;
+    blend.alphaCutoff = 77;
+    const MaterialHandle blended = cache.Material(blend);
 
-    EXPECT_EQ(cache.Material(texture), lit);
-    EXPECT_EQ(cache.Material(texture, Shading::Unlit), unlit);
-    EXPECT_EQ(cache.Material(texture, Shading::Lit, true), twoSided);
+    EXPECT_EQ(cache.Material({.albedo = texture}), lit);
+    EXPECT_EQ(cache.Material({.albedo = texture, .shading = Shading::Unlit}), unlit);
+    EXPECT_EQ(cache.Material({.albedo = texture, .doubleSided = true}), twoSided);
     EXPECT_EQ(cache.Material(mask), masked);
-    // Six different materials, each created once (material 0 was there before)
-    EXPECT_EQ(gpu.materials.size(), 7u);
+    // Each mode ignores the alpha value it does not use: a cutoff for Blend, an opacity for Mask and Opaque
+    MaterialInfo blendOtherCutoff = blend;
+    blendOtherCutoff.alphaCutoff = 200;
+    EXPECT_EQ(cache.Material(blendOtherCutoff), blended);
+    EXPECT_EQ(cache.Material(MaterialInfo{.albedo = texture, .opacity = 10}), lit);
+    // Seven different materials, each created once (material 0 was there before)
+    EXPECT_EQ(gpu.materials.size(), 8u);
     EXPECT_NE(lit, unlit);
     EXPECT_NE(lit, twoSided);
     EXPECT_NE(lit, otherTexture);
@@ -312,8 +322,6 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     EXPECT_EQ(gpu.Material(twoSided), (MaterialInfo{.albedo = texture, .doubleSided = true}));
 }
 
-// A Mask material gets its opacity map, read as data (not sRGB), and its cutoff. A map that fails to load is left
-// out: the grey texture would cut out the whole surface, so the material gets the white texture instead.
 TEST(AssetCache, MaskMaterialGetsItsOpacityMapOrWhite) {
     const TempFile albedo(L"engine_test_cache_leaf.tga", Tga2x2());
     const TempFile mask(L"engine_test_cache_leaf_mask.tga", Tga2x2());
@@ -343,7 +351,6 @@ TEST(AssetCache, MaskMaterialGetsItsOpacityMapOrWhite) {
     EXPECT_EQ(gpu.textures.size(), textures) << "the white texture was made for the material";
 }
 
-// glTF's "doubleSided" reaches the renderer; a material without it stays one-sided
 TEST(AssetCache, ModelMaterialsPassDoubleSidedOn) {
     std::string text(kEmbeddedTextureGltf);
     const std::string_view material = R"("materials": [{)";

@@ -5,6 +5,8 @@
 #include <string_view>
 #include <vector>
 
+#include <DirectXMath.h>
+
 #include "core/Assert.h"
 #include "rhi/Buffer.h"
 #include "rhi/Texture.h"
@@ -16,6 +18,7 @@
 #include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/TextureData.h"
+#include "renderdata/TransparentSort.h"
 
 namespace engine::rhi {
     class Allocator;
@@ -46,14 +49,22 @@ namespace engine::render {
         uint32_t geometry = 0; // GpuResources::Geometry(geometry) holds its buffers
         uint32_t firstIndex = 0;
         uint32_t indexCount = 0;
-        int32_t baseVertex = 0; // added by the GPU to every index of this mesh
+        int32_t baseVertex = 0;     // added by the GPU to every index of this mesh
+        DirectX::XMFLOAT3 center{}; // of the mesh's bounds; transparent objects are sorted by it
+    };
+
+    struct StaticTransparentObject {
+        BatchKey key;
+        uint32_t element = 0;         // in the list's instance buffer
+        DirectX::XMFLOAT3 position{};
     };
 
     // A static list in GPU memory: its instances, their view and its draws
     struct GpuStaticList {
         rhi::Buffer instances;            // empty if the list has no objects
         uint32_t instanceBufferIndex = 0; // bindless index of the view; only valid if `instances` is
-        std::vector<InstanceDraw> draws;
+        std::vector<InstanceDraw> draws;  // every object, transparent ones too
+        std::vector<StaticTransparentObject> transparent;
     };
 
     // Every mesh, texture, material and static list the renderer can draw. Asset loading creates them through

@@ -71,22 +71,6 @@ namespace engine::assets {
             return bounds;
         }
 
-        // The box around one submesh, in its own space
-        [[nodiscard]] render::Aabb SubmeshBounds(const render::MeshData &mesh, const render::SubmeshData &submesh) {
-            using namespace DirectX;
-
-            XMVECTOR low = XMVectorReplicate(FLT_MAX);
-            XMVECTOR high = XMVectorReplicate(-FLT_MAX);
-            for (uint32_t i = submesh.firstIndex; i < submesh.firstIndex + submesh.indexCount; ++i) {
-                const XMVECTOR position = XMLoadFloat3(&mesh.vertices[submesh.baseVertex + mesh.indices[i]].position);
-                low = XMVectorMin(low, position);
-                high = XMVectorMax(high, position);
-            }
-            render::Aabb bounds;
-            XMStoreFloat3(&bounds.min, low);
-            XMStoreFloat3(&bounds.max, high);
-            return bounds;
-        }
     } // namespace
 
     std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const std::filesystem::path &path) {
@@ -121,12 +105,12 @@ namespace engine::assets {
             }
             std::optional<MaterialHandle> &material = materials[submesh.materialIndex];
             if (!material) {
-                material = Material(*data, data->materials[submesh.materialIndex], embedded, name);
+                material = MaterialFromFile(*data, data->materials[submesh.materialIndex], embedded, name);
             }
             model.parts.push_back(render::ModelPart{.mesh = meshes[node.submesh],
                                                     .material = *material,
                                                     .transform = node.transform,
-                                                    .bounds = SubmeshBounds(data->mesh, submesh)});
+                                                    .bounds = render::SubmeshBounds(data->mesh, submesh)});
             model.triangleCount += submesh.indexCount / 3;
         }
 
@@ -144,7 +128,7 @@ namespace engine::assets {
         }
         render::Model model;
         model.parts.push_back(
-            render::ModelPart{.mesh = *m_cubeMesh, .material = Material(texture), .bounds = kCubeBounds});
+            render::ModelPart{.mesh = *m_cubeMesh, .material = Material({.albedo = texture}), .bounds = kCubeBounds});
         model.bounds = kCubeBounds;
         model.triangleCount = kCubeTriangleCount;
         return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
@@ -181,8 +165,8 @@ namespace engine::assets {
         return handle;
     }
 
-    MaterialHandle AssetCache::Material(const render::ModelData &model, const render::MaterialDesc &material,
-                                        EmbeddedTextures &embedded, std::wstring_view modelName) {
+    MaterialHandle AssetCache::MaterialFromFile(const render::ModelData &model, const render::MaterialDesc &material,
+                                                EmbeddedTextures &embedded, std::wstring_view modelName) {
         const std::optional<TextureHandle> albedo =
             MaterialTexture(model, material.albedo, TextureUsage::Diffuse, embedded, modelName);
         render::MaterialInfo info{
@@ -191,11 +175,10 @@ namespace engine::assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials ignore alpha. They keep the default alpha settings, so equal-looking opaque materials stay
-        // one material whatever their file says about alpha. Blend materials load the mask too, for the transparent
-        // pass to come.
+        // Opaque materials ignore alpha, so they need no mask
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
+            info.opacity = ToByte(material.baseColor.w);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
             // A mask that failed to load comes back as the grey fallback texture. Grey is dark enough to cut out the
@@ -238,26 +221,32 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
-        if (const auto it = m_materials.find(material); it != m_materials.end()) {
+        render::MaterialInfo used = material;
+        const render::MaterialInfo defaults;
+        if (used.alphaMode != render::AlphaMode::Mask) {
+            used.alphaCutoff = defaults.alphaCutoff;
+        }
+        if (used.alphaMode != render::AlphaMode::Blend) {
+            used.opacity = defaults.opacity;
+        }
+
+        if (const auto it = m_materials.find(used); it != m_materials.end()) {
             return it->second;
         }
-        const MaterialHandle handle = m_gpu->CreateMaterial(material);
-        m_materials.emplace(material, handle);
+        const MaterialHandle handle = m_gpu->CreateMaterial(used);
+        m_materials.emplace(used, handle);
         return handle;
-    }
-
-    MaterialHandle AssetCache::Material(TextureHandle albedo, render::Shading shading, bool doubleSided) {
-        return Material(render::MaterialInfo{.albedo = albedo, .shading = shading, .doubleSided = doubleSided});
     }
 
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
         // Copies every field into a small array without gaps and hashes its bytes. The struct itself has padding
         // bytes of unknown value, so hashing it directly would give equal materials different hashes.
-        const std::array<uint32_t, 3> words{
+        const std::array<uint32_t, 4> words{
             material.albedo.index,
             material.opacityMap.index,
             uint32_t{std::to_underlying(material.shading)} | (uint32_t{material.doubleSided} << 8) |
                 (uint32_t{std::to_underlying(material.alphaMode)} << 16) | (uint32_t{material.alphaCutoff} << 24),
+            material.opacity,
         };
         return std::hash<std::string_view>{}(
             std::string_view(reinterpret_cast<const char *>(words.data()), sizeof(words)));

@@ -17,15 +17,18 @@ namespace engine::rhi {
     // Fixed-function PSO settings (blending, culling, depth)
     enum class BlendMode : uint8_t {
         Opaque,
+        AlphaBlend,
     };
 
     enum class CullMode : uint8_t {
         Back,
         None,
+        Front,
     };
 
     enum class DepthMode : uint8_t {
         TestAndWrite,
+        TestOnly,
     };
 
     // Everything required to build a PSO. Uses views/spans to avoid copying,

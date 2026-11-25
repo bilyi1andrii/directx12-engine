@@ -210,6 +210,11 @@ namespace engine::assets {
                     material.Get(AI_MATKEY_GLTF_ALPHACUTOFF, desc.alphaCutoff);
                 } else if (desc.baseColor.w < 1.0f) {
                     desc.alphaMode = AlphaMode::Blend;
+                    // OBJ cannot say whether a material is two-sided. A see-through one is, so its far side shows.
+                    int twoSided = 0;
+                    if (material.Get(AI_MATKEY_TWOSIDED, twoSided) != AI_SUCCESS) {
+                        desc.doubleSided = true;
+                    }
                 } else if (hasOpacityMap) {
                     desc.alphaMode = AlphaMode::Mask;
                 }

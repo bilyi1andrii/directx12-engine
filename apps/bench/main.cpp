@@ -84,9 +84,11 @@ namespace {
         uint32_t height = 0;
         bool tearingSupported = false;
         size_t objectCount = 0;
-        size_t partCount = 0;       // of one object
-        uint64_t triangleCount = 0; // of all objects: what one frame draws
-        std::string lights;         // how many lights of each kind shine
+        size_t partCount = 0;                 // of one object
+        size_t transparentPartCount = 0;      // of one object
+        size_t transparentDrawsPerObject = 0; // two for a two-sided material
+        uint64_t triangleCount = 0;           // of all objects: what one frame draws
+        std::string lights;                   // how many lights of each kind shine
     };
 
     // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
@@ -161,6 +163,13 @@ namespace {
                      .partCount = (*model)->parts.size(),
                      .triangleCount = grid.ObjectCount() * (*model)->triangleCount,
                      .lights = DescribeLights(lights)};
+        for (const engine::render::ModelPart &part : (*model)->parts) {
+            const engine::render::MaterialInfo &material = renderer.Resources().Material(part.material);
+            if (material.alphaMode == engine::render::AlphaMode::Blend) {
+                ++run.transparentPartCount;
+                run.transparentDrawsPerObject += material.doubleSided ? 2 : 1;
+            }
+        }
         LogInfo("Bench: {}x{}, {} warm-up + {} measured frames", run.width, run.height, options.warmupFrames,
                 options.frames);
 
@@ -263,6 +272,8 @@ namespace {
             {"model", options.modelPath ? engine::core::ToUtf8(options.modelPath->native()) : "cube"},
             {"parts", std::format("{}", run.partCount)},
             {"instances", std::format("{}", run.objectCount * run.partCount)},
+            {"transparent_parts", std::format("{}", run.transparentPartCount)},
+            {"transparent_draws", std::format("{}", run.objectCount * run.transparentDrawsPerObject)},
             {"triangles", std::format("{}", run.triangleCount)},
             {"lights", run.lights},
             {"draw_path", instanced ? "instanced" : "non-instanced"},
