@@ -30,13 +30,14 @@ add_library(engine_render STATIC
         TransientTexturePool.h
         UiRenderer.cpp
         UiRenderer.h
-        passes/MeshDrawing.h
+        passes/DrawConstantPacking.h
         passes/OpaquePass.cpp
         passes/OpaquePass.h
         passes/TransparentPass.cpp
         passes/TransparentPass.h
         passes/UiPass.cpp
-        passes/UiPass.h)
+        passes/UiPass.h
+        passes/VertexLayout.h)
 
 engine_target_defaults(engine_render)
 

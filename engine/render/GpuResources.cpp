@@ -123,8 +123,6 @@ namespace engine::render {
     }
 
     StaticListHandle GpuResources::CreateStaticList(const RenderList &list, std::wstring_view name) {
-        // Before the bindless slot is taken, because it allocates. All objects go into one chunk in bucket order, so
-        // an object's element is its place in that order.
         std::vector<StaticTransparentObject> transparent;
         uint32_t element = 0;
         for (const BatchBucket &bucket : list.Buckets()) {

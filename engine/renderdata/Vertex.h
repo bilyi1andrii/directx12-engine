@@ -5,7 +5,7 @@
 
 namespace engine::render {
     // A mesh vertex, with the same layout as in the DX11 engine.
-    // Must match VSInput in vs_mesh.hlsl and kVertexLayout in render/passes/OpaquePass.cpp.
+    // Must match VSInput in vs_mesh.hlsl and kVertexLayout in render/passes/VertexLayout.h.
     // It is not in shared_types.hlsli because shaders receive it through the input layout, not by reading memory.
     struct Vertex {
         DirectX::XMFLOAT3 position;

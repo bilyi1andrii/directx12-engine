@@ -9,7 +9,8 @@
 
 #include "core/Assert.h"
 #include "render/FrameInputs.h"
-#include "render/passes/MeshDrawing.h"
+#include "render/passes/DrawConstantPacking.h"
+#include "render/passes/VertexLayout.h"
 #include "rhi/CommandContext.h"
 #include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"

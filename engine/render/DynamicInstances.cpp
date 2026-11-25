@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "core/Assert.h"
 #include "render/GpuResources.h"
 #include "render/InstanceUpload.h"
 #include "rhi/BindlessHeap.h"

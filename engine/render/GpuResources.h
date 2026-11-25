@@ -49,17 +49,14 @@ namespace engine::render {
         uint32_t geometry = 0; // GpuResources::Geometry(geometry) holds its buffers
         uint32_t firstIndex = 0;
         uint32_t indexCount = 0;
-        int32_t baseVertex = 0; // added by the GPU to every index of this mesh
-        // The middle of the mesh's bounds, in its own space. Transparent objects are sorted by where it lies.
-        DirectX::XMFLOAT3 center{};
+        int32_t baseVertex = 0;     // added by the GPU to every index of this mesh
+        DirectX::XMFLOAT3 center{}; // of the mesh's bounds; transparent objects are sorted by it
     };
 
-    // An object of a static list with a transparent material. Transparent objects are sorted again every frame, so
-    // their positions stay in CPU memory.
     struct StaticTransparentObject {
         BatchKey key;
         uint32_t element = 0;         // in the list's instance buffer
-        DirectX::XMFLOAT3 position{}; // the point it is sorted by (SortPoint), in world space
+        DirectX::XMFLOAT3 position{};
     };
 
     // A static list in GPU memory: its instances, their view and its draws
@@ -111,8 +108,7 @@ namespace engine::render {
         [[nodiscard]] MaterialHandle CreateMaterial(const MaterialInfo &material) override;
 
         // Uploads the objects of `list` once into GPU memory. Pass the handle to Renderer::Render every frame to
-        // draw them; `list` can be cleared afterwards. The positions of objects with a transparent material also
-        // stay in CPU memory, because the renderer sorts them again every frame.
+        // draw them; `list` can be cleared afterwards.
         [[nodiscard]] StaticListHandle CreateStaticList(const RenderList &list, std::wstring_view name);
 
         // Lookups for recording. Defined here so they inline: the non-instanced path calls them once per object.
