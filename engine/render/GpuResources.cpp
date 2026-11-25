@@ -76,7 +76,7 @@ namespace engine::render {
                 .firstIndex = submesh.firstIndex,
                 .indexCount = submesh.indexCount,
                 .baseVertex = submesh.baseVertex,
-                .center = submesh.indexCount > 0 ? Center(SubmeshBounds(mesh, submesh)) : DirectX::XMFLOAT3{},
+                .center = Center(SubmeshBounds(mesh, submesh)),
             }));
         }
         return handles;

@@ -5,7 +5,6 @@
 #include <limits>
 #include <optional>
 
-#include "core/Assert.h"
 #include "render/FrameInputs.h"
 #include "render/passes/DrawConstantPacking.h"
 #include "render/passes/VertexLayout.h"
@@ -47,9 +46,6 @@ namespace engine::render {
 
     void TransparentPass::Record(rhi::CommandContext &context, const GpuResources &resources,
                                  std::span<const TransparentObject> objects) const {
-        if (objects.empty()) {
-            return;
-        }
         context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         rhi::PipelineHandle currentPipeline;
         uint32_t currentGeometry = std::numeric_limits<uint32_t>::max();
@@ -65,8 +61,6 @@ namespace engine::render {
             const GpuMesh &mesh = resources.Mesh(object.key.mesh);
             const GpuGeometry &geometry = resources.Geometry(mesh.geometry);
             const MaterialInfo &material = resources.Material(object.key.material);
-            ENGINE_ASSERT_MSG(material.alphaMode == AlphaMode::Blend && material.shading == Shading::Lit,
-                              "The transparent pass draws lit Blend materials only");
             if (mesh.geometry != currentGeometry) {
                 context.SetVertexBuffer(geometry.vertices.VertexBufferView(geometry.vertexStride));
                 context.SetIndexBuffer(geometry.indices.IndexBufferView(geometry.indexFormat));

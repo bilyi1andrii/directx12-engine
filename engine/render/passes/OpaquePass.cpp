@@ -122,7 +122,6 @@ namespace engine::render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        ENGINE_ASSERT_MSG(material.alphaMode != AlphaMode::Blend, "Transparent materials have no opaque PSO");
         // Unlit has no alpha-test build; CreateMaterial rejects unlit cut-out materials in Debug
         const PipelineKey key{.format = format,
                               .shading = material.shading,

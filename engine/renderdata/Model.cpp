@@ -3,13 +3,13 @@
 #include <cfloat>
 #include <cstdint>
 
-#include "core/Assert.h"
-
 namespace engine::render {
     Aabb SubmeshBounds(const MeshData &mesh, const SubmeshData &submesh) {
         using namespace DirectX;
 
-        ENGINE_ASSERT_MSG(submesh.indexCount > 0, "Bounds of a submesh without indices");
+        if (submesh.indexCount == 0) {
+            return {};
+        }
         XMVECTOR low = XMVectorReplicate(FLT_MAX);
         XMVECTOR high = XMVectorReplicate(-FLT_MAX);
         for (uint32_t i = submesh.firstIndex; i < submesh.firstIndex + submesh.indexCount; ++i) {
