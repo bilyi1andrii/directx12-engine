@@ -18,11 +18,9 @@ namespace engine::render {
         // FrameConstants (b1) in this frame's upload ring. The graph binds it before every pass.
         D3D12_GPU_VIRTUAL_ADDRESS frameConstants = 0;
         DrawPath drawPath = DrawPath::Instanced;
-        // The opaque draws: each static list's draws, then those of the moving objects. Draws with a transparent
-        // material are in here too; the opaque pass skips them.
+        // The opaque draws: each static list's draws, then those of the moving objects (the opaque pass skips Blend)
         std::span<const std::span<const InstanceDraw>> drawSets;
-        // Every object with a transparent material, static and moving, sorted back to front
-        std::span<const TransparentObject> transparentObjects;
+        std::span<const TransparentObject> transparentObjects; // static and moving, sorted back to front
         // Null when the app draws no UI this frame
         ImDrawData *ui = nullptr;
     };

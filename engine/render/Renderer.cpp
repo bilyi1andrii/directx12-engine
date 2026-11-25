@@ -152,7 +152,6 @@ namespace engine::render {
         }
         m_drawSets.emplace_back(m_dynamicInstances.Draws());
 
-        // Transparent objects of both kinds in one order. Each one's depth is computed once, here.
         m_transparentObjects.clear();
         for (const StaticListHandle handle : staticLists) {
             const GpuStaticList &staticList = m_resources.StaticList(handle);
@@ -197,7 +196,7 @@ namespace engine::render {
                                                                           .shaderRead = false});
 
         m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
-        // After the solid surfaces, which it blends over and tests depth against
+        // After Opaque: it blends over the solid surfaces and tests against their depth
         m_transparent.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, m_resources);
         if (m_ui) {
             // Last: on top of the scene

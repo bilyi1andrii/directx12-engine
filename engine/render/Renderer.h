@@ -75,8 +75,7 @@ namespace engine::render {
         }
 
         // Records the frame: draws the static lists, then `list` (uploaded again every frame), seen from `view`
-        // and lit by `lights`, then the objects with transparent materials of both, back to front, then the UI's draw
-        // data `ui` on top (needs EnableUi; null draws no UI)
+        // and lit by `lights`, transparent objects last, then the UI's draw data `ui` (needs EnableUi; null: no UI)
         void Render(const FrameView &view, const LightSet &lights, const RenderList &list,
                     std::span<const StaticListHandle> staticLists = {}, ImDrawData *ui = nullptr);
 
@@ -174,7 +173,7 @@ namespace engine::render {
         FgTexture m_backBuffer;
         // This frame's opaque draws: the static lists' and the moving objects'. Kept so its memory is reused.
         std::vector<std::span<const InstanceDraw>> m_drawSets;
-        // This frame's transparent objects, static and moving, sorted back to front. Kept so its memory is reused.
+        // This frame's, sorted back to front; kept so its memory is reused
         std::vector<TransparentObject> m_transparentObjects;
 
         RendererSettings m_settings; // this frame's copy, taken in BeginFrame
