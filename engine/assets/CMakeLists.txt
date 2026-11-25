@@ -1,5 +1,5 @@
-# engine_assets: TextureLoader, ModelImporter, AssetCache, Primitives. Reaches the GPU only through
-# render::GpuUploader; must never link engine_render, engine_rhi, d3d12 or dxgi.
+# The asset library: model and image import, and the cache, which reaches the GPU only through the renderer's
+# uploader.
 
 add_library(engine_assets STATIC
         AssetCache.cpp
@@ -20,9 +20,7 @@ target_include_directories(engine_assets PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 target_link_libraries(engine_assets
         PUBLIC
         engine_core
-        # TextureLoader.h returns render::TextureData
         engine_renderdata
-        # PRIVATE: DirectXTex and Assimp headers are used only in .cpp files
         PRIVATE
         Microsoft::DirectXTex
         assimp::assimp)

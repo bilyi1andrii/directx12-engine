@@ -31,8 +31,6 @@ namespace assets {
             return static_cast<uint8_t>(std::clamp(value, 0.0f, 1.0f) * 255.0f + 0.5f);
         }
 
-        // A word for what a texture was read as. One image read as colour and as a mask becomes two textures, and
-        // their debug names should tell them apart.
         [[nodiscard]] std::wstring_view UsageName(TextureUsage usage) noexcept {
             switch (usage) {
             case TextureUsage::Diffuse:
@@ -44,13 +42,11 @@ namespace assets {
             }
         }
 
-        // The box around every placed submesh, in model space
         [[nodiscard]] render::Aabb Bounds(const render::ModelData &model) {
             using namespace DirectX;
 
             XMVECTOR low = XMVectorReplicate(FLT_MAX);
             XMVECTOR high = XMVectorReplicate(-FLT_MAX);
-            bool any = false;
             const render::MeshData &mesh = model.mesh;
             for (const render::MeshNode &node : model.nodes) {
                 const XMMATRIX transform = XMLoadFloat4x4(&node.transform);
@@ -60,14 +56,11 @@ namespace assets {
                     const XMVECTOR position = XMVector3TransformCoord(XMLoadFloat3(&vertex.position), transform);
                     low = XMVectorMin(low, position);
                     high = XMVectorMax(high, position);
-                    any = true;
                 }
             }
             render::Aabb bounds;
-            if (any) {
-                XMStoreFloat3(&bounds.min, low);
-                XMStoreFloat3(&bounds.max, high);
-            }
+            XMStoreFloat3(&bounds.min, low);
+            XMStoreFloat3(&bounds.max, high);
             return bounds;
         }
 
@@ -85,11 +78,9 @@ namespace assets {
             return std::unexpected(data.error());
         }
 
-        // Folder/stem: model files are often all named scene.gltf
         const std::wstring name = (path.parent_path().filename() / path.stem()).generic_wstring();
         const std::vector<render::MeshHandle> meshes = m_gpu->CreateMesh(data->mesh, L"Model/" + name);
 
-        // Only the materials a part uses get textures; each embedded image is decoded once
         std::vector<std::optional<MaterialHandle>> materials(data->materials.size());
         EmbeddedTextures embedded;
         const size_t texturesBefore = TextureCount();
@@ -100,7 +91,7 @@ namespace assets {
         for (const render::MeshNode &node : data->nodes) {
             const render::SubmeshData &submesh = data->mesh.submeshes[node.submesh];
             if (submesh.indexCount == 0) {
-                continue; // only points or lines: nothing the renderer draws
+                continue;
             }
             std::optional<MaterialHandle> &material = materials[submesh.materialIndex];
             if (!material) {
@@ -174,21 +165,17 @@ namespace assets {
             .doubleSided = material.doubleSided,
             .alphaMode = material.alphaMode,
         };
-        // Opaque materials ignore alpha, so they need no mask
         if (material.alphaMode != render::AlphaMode::Opaque) {
             info.alphaCutoff = ToByte(material.alphaCutoff);
             info.opacity = ToByte(material.baseColor.w);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
-            // A mask that failed to load comes back as the grey fallback texture. Grey is dark enough to cut out the
-            // whole surface, so the material is drawn without a mask instead.
             if (mask == m_gpu->UnloadedTexture()) {
                 core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
                                  "without one.",
                                  material.name, core::ToUtf8(modelName));
                 mask.reset();
             }
-            // A white mask leaves the albedo's alpha as it is
             info.opacityMap = mask ? *mask : SolidColor(255, 255, 255);
         }
         return Material(info);
@@ -238,8 +225,6 @@ namespace assets {
     }
 
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {
-        // Copies every field into a small array without gaps and hashes its bytes. The struct itself has padding
-        // bytes of unknown value, so hashing it directly would give equal materials different hashes.
         const std::array<uint32_t, 4> words{
             material.albedo.index,
             material.opacityMap.index,
@@ -252,11 +237,9 @@ namespace assets {
     }
 
     TextureHandle AssetCache::SolidColor(const render::MaterialDesc &material) {
-        // The colour as is: Kd * 255 into an sRGB texture, no linear -> sRGB conversion
         const uint8_t red = ToByte(material.baseColor.x);
         const uint8_t green = ToByte(material.baseColor.y);
         const uint8_t blue = ToByte(material.baseColor.z);
-        // A black material shows the grey unloaded texture
         if (red == 0 && green == 0 && blue == 0) {
             return m_gpu->UnloadedTexture();
         }
@@ -269,10 +252,8 @@ namespace assets {
             return it->second;
         }
         const std::array pixel{std::byte{red}, std::byte{green}, std::byte{blue}, std::byte{255}};
-        TextureHandle handle = m_gpu->UnloadedTexture();
-        if (const auto data = MakeTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse)) {
-            handle = CreateTexture(*data, std::format(L"Color/{:02X}{:02X}{:02X}", red, green, blue));
-        }
+        const TextureHandle handle = CreateTexture(MakeTextureFromPixels(pixel, 1, 1, TextureUsage::Diffuse).value(),
+                                                   std::format(L"Color/{:02X}{:02X}{:02X}", red, green, blue));
         m_solidColors.emplace(key, handle);
         return handle;
     }
@@ -283,12 +264,7 @@ namespace assets {
 
     TextureHandle AssetCache::CheckerboardTexture() {
         if (!m_checkerboard) {
-            if (const std::expected<render::TextureData, core::Error> data = MakeCheckerboard()) {
-                m_checkerboard = CreateTexture(*data, L"Checkerboard");
-            } else {
-                core::LogWarning("AssetCache: {}. Using the grey texture.", data.error().message);
-                m_checkerboard = m_gpu->UnloadedTexture();
-            }
+            m_checkerboard = CreateTexture(MakeCheckerboard().value(), L"Checkerboard");
         }
         return *m_checkerboard;
     }

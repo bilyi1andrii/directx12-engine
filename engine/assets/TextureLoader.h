@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_TEXTURELOADER_H
 #define D3D12_ENGINE_TEXTURELOADER_H
 
+// Decodes image files and in-memory images into textures with all their mips, read as colour (sRGB) or as plain
+// data, depending on what the texture holds.
+
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -12,15 +15,12 @@
 #include "renderdata/TextureData.h"
 
 namespace assets {
-    // What a texture holds, which decides how its bytes are read.
     enum class TextureUsage {
         Unknown,
-        // Colour: sRGB
         Diffuse,
         BaseColor,
         Emissive,
         Specular,
-        // Data: plain numbers, UNORM
         Normals,
         Height,
         Opacity,
@@ -31,16 +31,12 @@ namespace assets {
 
     [[nodiscard]] bool IsSrgbUsage(TextureUsage usage) noexcept;
 
-    // Decodes a .dds, .tga, .png, .jpg, ... file and generates its mips. Needs a core::ComScope on this thread.
-    // Only plain 2D textures: arrays, cube maps and 3D textures return UnsupportedFormat.
-    // No cache and no GPU upload: AssetCache::LoadTexture does both.
     [[nodiscard]] std::expected<render::TextureData, core::Error> ImportTexture(const std::filesystem::path &path,
                                                                                 TextureUsage usage);
 
     [[nodiscard]] std::expected<render::TextureData, core::Error>
     ImportTextureFromMemory(std::span<const std::byte> bytes, std::string_view formatHint, TextureUsage usage);
 
-    // Builds a texture from RGBA8 pixels made in code (exactly width * height * 4 bytes) and generates its mips
     [[nodiscard]] std::expected<render::TextureData, core::Error>
     MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage);
 } // namespace assets
