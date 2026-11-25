@@ -12,7 +12,7 @@
 #include "rhi/GpuTimes.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class CommandContext;
     class GpuProfiler {
     public:
@@ -77,6 +77,6 @@ namespace engine::rhi {
         GpuProfiler &m_profiler;
         uint32_t m_scope;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_GPUPROFILER_H

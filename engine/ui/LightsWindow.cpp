@@ -4,7 +4,7 @@
 
 #include <imgui.h>
 
-namespace engine::ui {
+namespace ui {
     namespace {
         // Gap between the window and the main window's edges, before DPI scaling (as in DebugUI.cpp)
         constexpr float kPanelMargin = 10.0f;
@@ -75,4 +75,4 @@ namespace engine::ui {
         ImGui::End();
         return colorEditEnded;
     }
-} // namespace engine::ui
+} // namespace ui

@@ -12,8 +12,8 @@ namespace sandbox {
     namespace {
         using DirectX::XMFLOAT3;
         using DirectX::XMFLOAT4X4;
-        using engine::render::LightType;
-        using engine::render::LocalLight;
+        using render::LightType;
+        using render::LocalLight;
 
         // Where both spot lights point: down and away from the camera's starting place
         constexpr XMFLOAT3 kSpotDirection{-0.3f, -1.0f, 1.2f};
@@ -39,13 +39,12 @@ namespace sandbox {
         }
 
         // Unlit, so the sphere shows the light's own colour whatever shines on it
-        [[nodiscard]] engine::render::MaterialHandle MarkerMaterial(engine::assets::AssetCache &cache,
-                                                                    const XMFLOAT3 &color) {
-            return cache.Material({.albedo = cache.SolidColor(color), .shading = engine::render::Shading::Unlit});
+        [[nodiscard]] render::MaterialHandle MarkerMaterial(assets::AssetCache &cache, const XMFLOAT3 &color) {
+            return cache.Material({.albedo = cache.SolidColor(color), .shading = render::Shading::Unlit});
         }
     } // namespace
 
-    void AddDefaultLights(engine::scene::Scene &scene, engine::assets::AssetCache &cache, float z) {
+    void AddDefaultLights(scene::Scene &scene, assets::AssetCache &cache, float z) {
         const auto addLight = [&](const char *name, const LocalLight &light, const XMFLOAT3 &position,
                                   const XMFLOAT3 &direction) {
             scene.AddLight(name, cache.SphereModel(MarkerMaterial(cache, light.color)),
@@ -68,7 +67,7 @@ namespace sandbox {
         addSpot("Spot light 2", {0.0f, 1.0f, 0.0f}, {-5.0f, 2.0f, 12.0f});
     }
 
-    void RecolorMarker(engine::scene::Scene &scene, engine::assets::AssetCache &cache, engine::scene::ObjectId id) {
+    void RecolorMarker(scene::Scene &scene, assets::AssetCache &cache, scene::ObjectId id) {
         if (const LocalLight *const light = scene.Light(id)) {
             scene.SetObjectMaterial(id, MarkerMaterial(cache, light->color));
         }

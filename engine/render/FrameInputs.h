@@ -12,7 +12,7 @@
 // ImGui's per-frame draw data; opaque here
 struct ImDrawData;
 
-namespace engine::render {
+namespace render {
     // This frame's data, which the frame graph's passes read through PassContext::Inputs(). The renderer fills it
     // before FrameGraph::Execute. Everything it points to is valid only during that Execute.
     struct FrameInputs {
@@ -26,6 +26,6 @@ namespace engine::render {
         // Null when the app draws no UI this frame
         ImDrawData *ui = nullptr;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_FRAMEINPUTS_H

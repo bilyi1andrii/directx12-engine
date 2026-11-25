@@ -7,7 +7,7 @@
 
 #include "renderdata/Model.h"
 
-namespace engine::render {
+namespace render {
     inline constexpr uint32_t kShadowMapSize = 2048;
 
     struct ShadowView {
@@ -21,6 +21,6 @@ namespace engine::render {
     [[nodiscard]] Aabb TransformBox(const Aabb &local, const DirectX::XMFLOAT4X4 &world);
 
     [[nodiscard]] Aabb Union(const Aabb &a, const Aabb &b);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_SHADOWVIEW_H

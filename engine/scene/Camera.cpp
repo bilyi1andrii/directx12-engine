@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace engine::scene {
+namespace scene {
     using namespace DirectX;
 
     namespace {
@@ -71,4 +71,4 @@ namespace engine::scene {
 
         camera.rotation = {pitch, yaw, 0.0f};
     }
-} // namespace engine::scene
+} // namespace scene

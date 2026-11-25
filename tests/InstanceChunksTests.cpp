@@ -9,9 +9,9 @@
 #include "renderdata/InstanceChunks.h"
 #include "renderdata/RenderList.h"
 
-using engine::render::BatchBucket;
-using engine::render::InstanceRange;
-using engine::render::SplitIntoChunks;
+using render::BatchBucket;
+using render::InstanceRange;
+using render::SplitIntoChunks;
 
 namespace {
     // Buckets with the given object counts; only the counts matter for the split

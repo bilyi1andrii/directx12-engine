@@ -32,11 +32,11 @@
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
-using engine::bench::FrameTiming;
-using engine::bench::RunField;
-using engine::core::LogError;
-using engine::core::LogInfo;
-using engine::core::LogWarning;
+using bench::FrameTiming;
+using bench::RunField;
+using core::LogError;
+using core::LogInfo;
+using core::LogWarning;
 
 ENGINE_EXPORT_AGILITY_SDK()
 
@@ -71,10 +71,10 @@ namespace {
         return *middle;
     }
 
-    static_assert(engine::bench::kMaxGpuPasses == engine::rhi::kMaxGpuScopes);
+    static_assert(bench::kMaxGpuPasses == rhi::kMaxGpuScopes);
 
     struct BenchRun {
-        engine::apps::RunResult result;
+        apps::RunResult result;
         std::vector<FrameTiming> timings;   // one per measured frame
         std::vector<std::string> gpuPasses;
         // For run.txt: the window and the renderer are gone when RunBench returns
@@ -92,14 +92,14 @@ namespace {
     };
 
     // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
-    std::string DescribeLights(const engine::render::LightSet &lights) {
-        const engine::render::PackedLightCounts counts = engine::render::CountPackedLights(lights);
+    std::string DescribeLights(const render::LightSet &lights) {
+        const render::PackedLightCounts counts = render::CountPackedLights(lights);
         return std::format("{} directional, {} point, {} spot", counts.directional, counts.points, counts.spots);
     }
 
     // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
-    std::expected<const engine::render::Model *, std::string> LoadGridModel(const BenchOptions &options,
-                                                                            engine::assets::AssetCache &assets) {
+    std::expected<const render::Model *, std::string> LoadGridModel(const BenchOptions &options,
+                                                                    assets::AssetCache &assets) {
         if (!options.modelPath) {
             return &assets.CubeModel(assets.CheckerboardTexture());
         }
@@ -109,20 +109,19 @@ namespace {
         }
         if ((*model)->parts.empty()) {
             return std::unexpected(
-                std::format("'{}' has no triangles to draw", engine::core::ToUtf8(options.modelPath->native())));
+                std::format("'{}' has no triangles to draw", core::ToUtf8(options.modelPath->native())));
         }
         return *model;
     }
 
     // Renders the warm-up frames, then the measured ones, in borderless fullscreen with vsync off and the camera on
     // its path. Nothing is logged or written while measuring. Esc stops the run. An error if the model cannot be used.
-    std::expected<BenchRun, std::string> RunBench(const BenchOptions &options,
-                                                  engine::rhi::ValidationStats &validation) {
-        engine::core::Input input;
-        engine::core::Window window({.title = L"D3D12 Engine - bench", .width = 1280, .height = 720});
+    std::expected<BenchRun, std::string> RunBench(const BenchOptions &options, rhi::ValidationStats &validation) {
+        core::Input input;
+        core::Window window({.title = L"D3D12 Engine - bench", .width = 1280, .height = 720});
         window.SetCallbacks({
             .onMessage =
-                [&input](const engine::core::WindowMessage &message) {
+                [&input](const core::WindowMessage &message) {
                     input.HandleMessage(message);
                     return false; // let the window handle it as well
                 },
@@ -130,29 +129,29 @@ namespace {
         // Before the renderer, so the swap chain starts at the monitor's size
         window.SetFullscreen(true);
 
-        engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
+        render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
         if (!renderer.TearingSupported()) {
             LogWarning("Tearing not supported: Present without vsync may still wait for the display");
         }
 
         // Destroyed before the renderer, which owns what the cache created
-        engine::assets::AssetCache assets(renderer.Resources());
-        const std::expected<const engine::render::Model *, std::string> model = LoadGridModel(options, assets);
+        assets::AssetCache assets(renderer.Resources());
+        const std::expected<const render::Model *, std::string> model = LoadGridModel(options, assets);
         if (!model) {
             return std::unexpected(model.error());
         }
 
         // Only the grid, no spinning cube
-        engine::render::RenderList renderList; // empty for a static grid
-        const engine::bench::StressGrid grid(renderer.Resources(), options.gridMode, options.count, **model);
+        render::RenderList renderList; // empty for a static grid
+        const bench::StressGrid grid(renderer.Resources(), options.gridMode, options.count, **model);
         const std::array path = grid.CameraPath();
-        engine::scene::Camera camera;
+        scene::Camera camera;
         camera.fovDegrees = 60.0f; // as in the sandbox
         // The default far plane (1000) would cut off the far side of a big grid
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
-        const engine::render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
-        const engine::render::LightSet lights = grid.Lights();
+        const render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
+        const render::LightSet lights = grid.Lights();
 
         BenchRun run{.adapterName = renderer.AdapterName(),
                      .driverVersion = renderer.DriverVersion(),
@@ -163,9 +162,9 @@ namespace {
                      .partCount = (*model)->parts.size(),
                      .triangleCount = grid.ObjectCount() * (*model)->triangleCount,
                      .lights = DescribeLights(lights)};
-        for (const engine::render::ModelPart &part : (*model)->parts) {
-            const engine::render::MaterialInfo &material = renderer.Resources().Material(part.material);
-            if (material.alphaMode == engine::render::AlphaMode::Blend) {
+        for (const render::ModelPart &part : (*model)->parts) {
+            const render::MaterialInfo &material = renderer.Resources().Material(part.material);
+            if (material.alphaMode == render::AlphaMode::Blend) {
                 ++run.transparentPartCount;
                 run.transparentDrawsPerObject += material.doubleSided ? 2 : 1;
             }
@@ -180,7 +179,7 @@ namespace {
 
         uint64_t nextGpuFrame = options.warmupFrames;
         std::optional<std::string> gpuError;
-        const auto takeGpuTimes = [&](const engine::rhi::GpuFrameTimes &times) {
+        const auto takeGpuTimes = [&](const rhi::GpuFrameTimes &times) {
             if (gpuError || times.frame < nextGpuFrame || times.frame >= totalFrames) {
                 return;
             }
@@ -188,12 +187,12 @@ namespace {
                 gpuError = std::format("no GPU times for frame {}", nextGpuFrame);
                 return;
             }
-            const std::span<const engine::rhi::GpuScopeTime> passes = times.Scopes();
+            const std::span<const rhi::GpuScopeTime> passes = times.Scopes();
             if (nextGpuFrame == options.warmupFrames) {
-                for (const engine::rhi::GpuScopeTime &pass : passes) {
+                for (const rhi::GpuScopeTime &pass : passes) {
                     run.gpuPasses.emplace_back(pass.name);
                 }
-            } else if (!std::ranges::equal(passes, run.gpuPasses, {}, &engine::rhi::GpuScopeTime::name)) {
+            } else if (!std::ranges::equal(passes, run.gpuPasses, {}, &rhi::GpuScopeTime::name)) {
                 gpuError = std::format("the frame graph's passes changed at frame {}", times.frame);
                 return;
             }
@@ -224,18 +223,18 @@ namespace {
             // The warm-up stays at the path's first pose
             const uint32_t pathFrame =
                 frame < options.warmupFrames ? 0 : static_cast<uint32_t>(frame - options.warmupFrames);
-            const engine::scene::CameraPose pose = engine::scene::EvaluateCameraPath(path, pathFrame);
+            const scene::CameraPose pose = scene::EvaluateCameraPath(path, pathFrame);
             camera.position = pose.position;
-            engine::scene::LookAt(camera, pose.target);
+            scene::LookAt(camera, pose.target);
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            if (const std::optional<engine::rhi::GpuFrameTimes> &gpu = renderer.GpuTimes()) {
+            if (const std::optional<rhi::GpuFrameTimes> &gpu = renderer.GpuTimes()) {
                 takeGpuTimes(*gpu);
             }
             const Clock::time_point recordStart = Clock::now();
             renderList.Clear();
             grid.Submit(renderList); // dynamic mode only
-            renderer.Render(engine::scene::MakeFrameView(camera, renderer.AspectRatio()), lights, renderList,
+            renderer.Render(scene::MakeFrameView(camera, renderer.AspectRatio()), lights, renderList,
                             grid.StaticLists());
             const Clock::time_point recordEnd = Clock::now();
             if (frame >= options.warmupFrames) {
@@ -245,7 +244,7 @@ namespace {
             ++frame;
         }
 
-        for (const engine::rhi::GpuFrameTimes &times : renderer.FinishGpuTimes()) {
+        for (const rhi::GpuFrameTimes &times : renderer.FinishGpuTimes()) {
             takeGpuTimes(times);
         }
         run.result = {.exitCode = window.ExitCode(), .framesRendered = frame};
@@ -263,13 +262,13 @@ namespace {
     // The lines of run.txt: settings, machine and the medians
     std::vector<RunField> RunInfo(const BenchOptions &options, const BenchRun &run, std::string_view started,
                                   double medianFrameMs, double medianRecordMs, double medianGpuMs) {
-        const bool instanced = options.drawPath == engine::render::DrawPath::Instanced;
+        const bool instanced = options.drawPath == render::DrawPath::Instanced;
         std::vector<RunField> fields{
-            {"engine", std::string(engine::bench::kEngineName)},
-            {"scene", engine::core::ToUtf8(BenchSceneName(options).native())},
-            {"grid", std::string(engine::apps::ToString(options.gridMode))},
+            {"engine", std::string(bench::kEngineName)},
+            {"scene", core::ToUtf8(BenchSceneName(options).native())},
+            {"grid", std::string(apps::ToString(options.gridMode))},
             {"objects", std::format("{} (--count {})", run.objectCount, options.count)},
-            {"model", options.modelPath ? engine::core::ToUtf8(options.modelPath->native()) : "cube"},
+            {"model", options.modelPath ? core::ToUtf8(options.modelPath->native()) : "cube"},
             {"parts", std::format("{}", run.partCount)},
             {"instances", std::format("{}", run.objectCount * run.partCount)},
             {"transparent_parts", std::format("{}", run.transparentPartCount)},
@@ -293,8 +292,7 @@ namespace {
         };
         for (size_t pass = 0; pass < run.gpuPasses.size(); ++pass) {
             const double median = Median(run.timings, [pass](const FrameTiming &t) { return t.gpuPassMs[pass]; });
-            fields.push_back(
-                {"median_" + engine::bench::GpuPassColumn(run.gpuPasses[pass]), std::format("{:.4f}", median)});
+            fields.push_back({"median_" + bench::GpuPassColumn(run.gpuPasses[pass]), std::format("{:.4f}", median)});
         }
         return fields;
     }
@@ -304,28 +302,27 @@ namespace {
 // results/dx12/<scene>/<timestamp>/. Runs unattended, so it never shows a dialog.
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
     // Always unattended: a failed D3D12MA assert must end the run, not wait at a dialog
-    engine::apps::RouteCrtAssertsToStderr();
+    apps::RouteCrtAssertsToStderr();
     try {
-        const std::expected<BenchOptions, std::string> options = ParseBenchOptions(engine::core::CommandLineArgs());
+        const std::expected<BenchOptions, std::string> options = ParseBenchOptions(core::CommandLineArgs());
         if (!options) {
             LogError("{}", options.error());
             LogInfo("{}", kBenchUsage);
-            return engine::apps::kExitBadCommandLine;
+            return apps::kExitBadCommandLine;
         }
-        LogInfo("Bench: {}, grid {}, --count {}, {}, results in '{}'",
-                engine::core::ToUtf8(BenchSceneName(*options).native()), engine::apps::ToString(options->gridMode),
-                options->count,
-                options->drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced",
-                engine::core::ToUtf8(options->outDir.native()));
+        LogInfo("Bench: {}, grid {}, --count {}, {}, results in '{}'", core::ToUtf8(BenchSceneName(*options).native()),
+                apps::ToString(options->gridMode), options->count,
+                options->drawPath == render::DrawPath::Instanced ? "instanced" : "non-instanced",
+                core::ToUtf8(options->outDir.native()));
         const std::chrono::system_clock::time_point started = std::chrono::system_clock::now();
 
         // Image files are decoded through WIC, which needs COM
-        const engine::core::ComScope com;
+        const core::ComScope com;
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
-        engine::rhi::ValidationStats validation;
+        rhi::ValidationStats validation;
         const std::expected<BenchRun, std::string> outcome = RunBench(*options, validation);
-        engine::apps::LogValidationSummary(validation);
+        apps::LogValidationSummary(validation);
         if (!outcome) {
             LogError("{}; nothing written", outcome.error());
             return kExitBenchFailed;
@@ -345,20 +342,20 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         LogInfo("Measured {} frames: medians cpu_frame_ms {:.3f}, cpu_record_ms {:.3f}, gpu_total_ms {:.3f}",
                 run.timings.size(), medianFrameMs, medianRecordMs, medianGpuMs);
 
-        const std::string timestamp = engine::bench::FolderTimestamp(started);
+        const std::string timestamp = bench::FolderTimestamp(started);
         const std::vector<RunField> fields =
             RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs, medianGpuMs);
-        const std::expected<std::filesystem::path, std::string> folder = engine::bench::WriteResults(
+        const std::expected<std::filesystem::path, std::string> folder = bench::WriteResults(
             options->outDir, BenchSceneName(*options), timestamp, run.gpuPasses, run.timings, fields);
         if (!folder) {
             LogError("Results not written: {}", folder.error());
             return kExitBenchFailed;
         }
-        LogInfo("Results: {}", engine::core::ToUtf8(folder->native()));
+        LogInfo("Results: {}", core::ToUtf8(folder->native()));
 
 #if defined(_DEBUG)
         // With the debug layer, a run with errors or leaks fails like the sandbox's smoke test
-        return engine::apps::SmokeTestExitCode(expectedFrames, run.result, validation);
+        return apps::SmokeTestExitCode(expectedFrames, run.result, validation);
 #else
         return run.result.exitCode;
 #endif

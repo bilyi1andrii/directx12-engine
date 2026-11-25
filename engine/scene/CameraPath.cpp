@@ -5,7 +5,7 @@
 
 #include "core/Assert.h"
 
-namespace engine::scene {
+namespace scene {
     namespace {
         [[nodiscard]] DirectX::XMFLOAT3 Lerp(const DirectX::XMFLOAT3 &a, const DirectX::XMFLOAT3 &b, float t) {
             DirectX::XMFLOAT3 result{};
@@ -34,4 +34,4 @@ namespace engine::scene {
         const float t = static_cast<float>(frame - from.frame) / static_cast<float>(to.frame - from.frame);
         return {.position = Lerp(from.position, to.position, t), .target = Lerp(from.target, to.target, t)};
     }
-} // namespace engine::scene
+} // namespace scene

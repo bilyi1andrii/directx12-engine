@@ -13,7 +13,7 @@
 #include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"
 
-namespace engine::render {
+namespace render {
     TransparentPass::TransparentPass(rhi::PipelineCache &pipelines) : m_cache(pipelines), m_pipelines{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
         for (const bool farSide : {false, true}) {
@@ -81,4 +81,4 @@ namespace engine::render {
             drawWith(Pipeline(geometry.vertexFormat, false), mesh);
         }
     }
-} // namespace engine::render
+} // namespace render

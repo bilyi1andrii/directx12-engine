@@ -12,12 +12,12 @@
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class BindlessHeap;
     class FrameContext;
-} // namespace engine::rhi
+} // namespace rhi
 
-namespace engine::render {
+namespace render {
     // What a frame graph's transient texture is. Textures with equal descriptions are interchangeable.
     struct TransientTextureDesc {
         enum class Target : uint8_t {
@@ -103,6 +103,6 @@ namespace engine::render {
         std::vector<Entry> m_entries;
         std::vector<bool> m_acquired; // scratch for Acquire
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_TRANSIENTTEXTUREPOOL_H

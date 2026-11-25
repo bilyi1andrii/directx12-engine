@@ -8,7 +8,7 @@
 
 #include "renderdata/Vertex.h"
 
-namespace engine::render {
+namespace render {
     // A part of a model drawn with one material: a range of the model's index array
     struct SubmeshData {
         uint32_t firstIndex = 0;
@@ -34,6 +34,6 @@ namespace engine::render {
                                       0.0f, 0.0f, 1.0f, 0.0f, //
                                       0.0f, 0.0f, 0.0f, 1.0f};
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MESHDATA_H

@@ -13,7 +13,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // Fixed-function PSO settings (blending, culling, depth)
     enum class BlendMode : uint8_t {
         Opaque,
@@ -134,6 +134,6 @@ namespace engine::rhi {
         std::unordered_map<Key, uint32_t, KeyHash> m_indexByKey;
         std::unordered_map<std::wstring, std::vector<std::byte>> m_shaders; // by file name
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_PIPELINECACHE_H

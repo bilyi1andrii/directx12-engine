@@ -12,7 +12,7 @@
 
 #include "common/root_signature.hlsli"
 
-namespace engine::render {
+namespace render {
     namespace {
         // The one place that turns the compiler's accesses into D3D12 resource states
         [[nodiscard]] D3D12_RESOURCE_STATES ToState(fg::Access access) {
@@ -319,4 +319,4 @@ namespace engine::render {
         const fg::GraphDesc::Texture &desc = m_desc.textures[texture.index];
         return desc.imported ? nullptr : &m_transientDescs[desc.descId];
     }
-} // namespace engine::render
+} // namespace render

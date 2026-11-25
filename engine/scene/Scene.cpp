@@ -8,7 +8,7 @@
 #include "core/Assert.h"
 #include "renderdata/ShadowView.h"
 
-namespace engine::scene {
+namespace scene {
     ObjectId Scene::AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
                               Mobility mobility, DirectX::XMFLOAT3 pivot) {
         using namespace DirectX;
@@ -147,4 +147,4 @@ namespace engine::scene {
             }
         }
     }
-} // namespace engine::scene
+} // namespace scene

@@ -6,9 +6,9 @@
 
 #include "renderdata/ShadowView.h"
 
-using engine::render::Aabb;
-using engine::render::MakeShadowView;
-using engine::render::ShadowView;
+using render::Aabb;
+using render::MakeShadowView;
+using render::ShadowView;
 
 namespace {
     constexpr float kTolerance = 1e-4f;
@@ -57,7 +57,7 @@ TEST(ShadowView, TransformBoxHoldsTheTurnedBox) {
     using namespace DirectX;
     XMFLOAT4X4 world{};
     XMStoreFloat4x4(&world, XMMatrixRotationY(XM_PIDIV4) * XMMatrixTranslation(5.0f, 0.0f, 0.0f));
-    const Aabb box = engine::render::TransformBox({.min = {-1.0f, -1.0f, -1.0f}, .max = {1.0f, 1.0f, 1.0f}}, world);
+    const Aabb box = render::TransformBox({.min = {-1.0f, -1.0f, -1.0f}, .max = {1.0f, 1.0f, 1.0f}}, world);
     const float half = std::sqrt(2.0f);
     EXPECT_NEAR(box.min.x, 5.0f - half, kTolerance);
     EXPECT_NEAR(box.max.x, 5.0f + half, kTolerance);

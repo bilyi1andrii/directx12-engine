@@ -10,7 +10,7 @@
 
 #include <DirectXMath.h>
 
-namespace engine::gpu {
+namespace gpu {
     using uint = uint32_t;
     using float3 = DirectX::XMFLOAT3;
     using float4x4 = DirectX::XMFLOAT4X4;
@@ -92,7 +92,7 @@ struct InstanceData
     static_assert(sizeof(PointLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(sizeof(SpotLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");
-} // namespace engine::gpu
+} // namespace gpu
 #endif
 
 #endif // SHARED_TYPES_HLSLI

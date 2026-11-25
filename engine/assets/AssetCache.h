@@ -23,7 +23,7 @@
 #include "renderdata/Model.h"
 #include "renderdata/ModelData.h"
 
-namespace engine::assets {
+namespace assets {
     // Loads each model and texture file once and keeps the GPU handles.
     // From a model's materials it uses the albedo texture, two-sidedness, and how the surface uses alpha (cut-out
     // or transparent, with its cutoff and mask). A material without a texture gets a 1x1 texture of its base colour;
@@ -112,6 +112,6 @@ namespace engine::assets {
         std::optional<render::TextureHandle> m_checkerboard;
         size_t m_createdTextures = 0;
     };
-} // namespace engine::assets
+} // namespace assets
 
 #endif // D3D12_ENGINE_ASSETCACHE_H

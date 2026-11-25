@@ -7,7 +7,7 @@
 #include "rhi/BindlessHeap.h"
 #include "rhi/CommandQueue.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     FrameContext::FrameContext(NativeDevice *device, rhi::Allocator &allocator, D3D12_COMMAND_LIST_TYPE type,
@@ -47,4 +47,4 @@ namespace engine::rhi {
         }
         m_deferredIndices.clear();
     }
-} // namespace engine::rhi
+} // namespace rhi

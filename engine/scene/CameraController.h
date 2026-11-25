@@ -4,7 +4,7 @@
 #include "core/Input.h"
 #include "scene/Camera.h"
 
-namespace engine::scene {
+namespace scene {
     // Which input the camera controller may use this frame. The app withholds what the debug UI is using
     // (mouse over an ImGui window, keys typed into a widget).
     struct CameraInputs {
@@ -37,6 +37,6 @@ namespace engine::scene {
     private:
         float m_speedScale = 1.0f;
     };
-} // namespace engine::scene
+} // namespace scene
 
 #endif // D3D12_ENGINE_CAMERACONTROLLER_H

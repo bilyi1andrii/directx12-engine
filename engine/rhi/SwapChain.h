@@ -7,7 +7,7 @@
 #include "rhi/DescriptorAllocator.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class CommandQueue;
     class Device;
 
@@ -74,6 +74,6 @@ namespace engine::rhi {
         bool m_tearingSupported = false;
         UINT m_flags = 0; // creation flags; ResizeBuffers must get the same ones
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_SWAPCHAIN_H

@@ -7,7 +7,7 @@
 
 #include "core/Log.h"
 
-namespace engine::apps {
+namespace apps {
     namespace {
         // The debug layer exists only in Debug builds (rhi::Device checks the same macro)
 #if defined(_DEBUG)
@@ -81,4 +81,4 @@ namespace engine::apps {
         core::LogError("Smoke test FAILED: {}", reasons);
         return kExitSmokeTestFailed;
     }
-} // namespace engine::apps
+} // namespace apps

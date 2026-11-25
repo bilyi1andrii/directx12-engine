@@ -10,7 +10,7 @@
 #include "rhi/RhiCommon.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::rhi {
+namespace rhi {
     class CommandQueue;
 
     // Uploads static data (meshes, textures) into GPU memory. The copies are recorded into one command
@@ -62,6 +62,6 @@ namespace engine::rhi {
         std::vector<Allocation> m_submittedStaging; // staging buffers of the last submitted batch, until its fence
         uint64_t m_submittedFenceValue = 0;         // 0: nothing submitted yet, always complete
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_UPLOADCONTEXT_H

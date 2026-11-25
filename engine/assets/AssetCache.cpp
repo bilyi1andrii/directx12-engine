@@ -22,7 +22,7 @@
 #include "core/Timer.h"
 #include "core/Utf8.h"
 
-namespace engine::assets {
+namespace assets {
     namespace {
         using render::MaterialHandle;
         using render::TextureHandle;
@@ -299,4 +299,4 @@ namespace engine::assets {
         ++m_createdTextures;
         return handle;
     }
-} // namespace engine::assets
+} // namespace assets

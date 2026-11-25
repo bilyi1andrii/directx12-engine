@@ -7,7 +7,7 @@
 
 #include "renderdata/RenderList.h"
 
-namespace engine::render {
+namespace render {
     // Consecutive objects of one bucket that lie in one chunk: one instanced draw.
     //
     // The renderer writes instance data in chunks of at most `chunkCapacity` objects, because a shader view
@@ -34,6 +34,6 @@ namespace engine::render {
     // memory is reused every frame.
     void SplitIntoChunks(std::span<const BatchBucket> buckets, uint32_t chunkCapacity,
                          std::vector<InstanceRange> &ranges);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_INSTANCECHUNKS_H

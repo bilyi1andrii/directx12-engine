@@ -5,11 +5,11 @@
 
 #include "renderdata/Lights.h"
 
-namespace engine::gpu {
+namespace gpu {
     struct FrameConstants; // common/shared_types.hlsli
 }
 
-namespace engine::render {
+namespace render {
     // Writes `lights` into the light fields of `constants`, in the form the shaders expect:
     // - only enabled point and spot lights, the first gpu::kMaxPointLights / gpu::kMaxSpotLights of them;
     // - directions at unit length (a zero direction points straight down);
@@ -26,6 +26,6 @@ namespace engine::render {
         uint32_t spots = 0;
     };
     [[nodiscard]] PackedLightCounts CountPackedLights(const LightSet &lights);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_LIGHTPACKING_H

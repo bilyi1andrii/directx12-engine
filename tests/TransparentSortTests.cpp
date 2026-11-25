@@ -11,10 +11,10 @@
 
 #include "renderdata/TransparentSort.h"
 
-using engine::render::SortBackToFront;
-using engine::render::SortPoint;
-using engine::render::TransparentObject;
-using engine::render::ViewDepth;
+using render::SortBackToFront;
+using render::SortPoint;
+using render::TransparentObject;
+using render::ViewDepth;
 
 namespace {
     struct Object {

@@ -4,7 +4,7 @@
 #include <chrono>
 #include <cstdint>
 
-namespace engine::core {
+namespace core {
     class Timer {
     public:
         using Clock = std::chrono::steady_clock;
@@ -57,6 +57,6 @@ namespace engine::core {
         double m_fpsWindowSeconds = 0.0;
         uint32_t m_fpsWindowFrames = 0;
     };
-} // namespace engine::core
+} // namespace core
 
 #endif //D3D12_ENGINE_TIMER_H

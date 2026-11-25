@@ -10,7 +10,7 @@
 #include "common/OptionValues.h"
 #include "core/Utf8.h"
 
-using engine::apps::ParseUint32;
+using apps::ParseUint32;
 
 namespace {
     // Each of them takes one value
@@ -39,9 +39,9 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             if (value.empty()) {
                 return std::unexpected("--model needs a file");
             }
-            options.modelPath = engine::core::PathFromUtf8(value);
+            options.modelPath = core::PathFromUtf8(value);
         } else if (arg == "--grid") {
-            const std::optional<engine::apps::GridMode> mode = engine::apps::ParseGridMode(value);
+            const std::optional<apps::GridMode> mode = apps::ParseGridMode(value);
             if (!mode) {
                 return std::unexpected(std::format("--grid needs static or dynamic, got '{}'", value));
             }
@@ -56,8 +56,7 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             if (value != "0" && value != "1") {
                 return std::unexpected(std::format("--instanced needs 1 or 0, got '{}'", value));
             }
-            options.drawPath =
-                value == "1" ? engine::render::DrawPath::Instanced : engine::render::DrawPath::NonInstanced;
+            options.drawPath = value == "1" ? render::DrawPath::Instanced : render::DrawPath::NonInstanced;
         } else if (arg == "--frames") {
             const std::optional<uint32_t> frames = ParseUint32(value);
             if (!frames || *frames == 0) {
@@ -74,7 +73,7 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
             if (value.empty()) {
                 return std::unexpected("--out needs a folder");
             }
-            options.outDir = engine::core::PathFromUtf8(value);
+            options.outDir = core::PathFromUtf8(value);
         }
     }
     // The default suits a cube: 50,000 copies of a detailed model are billions of triangles per frame

@@ -8,7 +8,7 @@
 #include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
 
-namespace engine::core {
+namespace core {
     namespace {
         // CommandLineToArgvW returns one LocalAlloc block that holds the array and the strings
         struct LocalFreeDeleter {
@@ -28,4 +28,4 @@ namespace engine::core {
         }
         return args;
     }
-} // namespace engine::core
+} // namespace core

@@ -10,7 +10,7 @@
 #include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
 
-namespace engine::core {
+namespace core {
     std::filesystem::path ExecutableDirectory() {
         // GetModuleFileNameW truncates silently when the buffer is too small (it returns the buffer
         // size), so grow it until the whole path fits
@@ -50,4 +50,4 @@ namespace engine::core {
         }
         return data;
     }
-} // namespace engine::core
+} // namespace core

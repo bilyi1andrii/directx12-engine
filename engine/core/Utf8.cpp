@@ -4,7 +4,7 @@
 
 #include "core/ThrowIfFailed.h"
 
-namespace engine::core {
+namespace core {
     std::string ToUtf8(std::wstring_view text) {
         if (text.empty()) {
             return {};
@@ -23,4 +23,4 @@ namespace engine::core {
         // Copied into a u8string: reading the chars through a char8_t pointer would break the aliasing rules
         return std::filesystem::path(std::u8string(text.begin(), text.end()));
     }
-} // namespace engine::core
+} // namespace core

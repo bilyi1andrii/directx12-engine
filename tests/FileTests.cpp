@@ -6,10 +6,10 @@
 #include "TestFiles.h"
 #include "core/File.h"
 
-using engine::core::ErrorCode;
-using engine::core::ReadBinaryFile;
-using engine::tests::MissingFile;
-using engine::tests::TempFile;
+using core::ErrorCode;
+using core::ReadBinaryFile;
+using tests::MissingFile;
+using tests::TempFile;
 
 TEST(ReadBinaryFile, ReturnsTheFileContent) {
     constexpr std::array content{std::byte{1}, std::byte{0}, std::byte{255}};

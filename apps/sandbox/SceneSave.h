@@ -33,15 +33,15 @@ namespace sandbox {
     };
 
     struct SandboxSave {
-        uint32_t gridCount = 0; 
-        std::string gridMode;  // static or dynamic
+        uint32_t gridCount = 0;
+        std::string gridMode; // static or dynamic
         std::vector<SavedGridCube> gridCubes;
         std::vector<SavedCube> cubes;
         std::vector<SavedModel> models;
     };
 
-    [[nodiscard]] std::expected<SandboxSave, engine::core::Error> ReadSandboxSave(const std::filesystem::path &file,
-                                                                                  const std::filesystem::path &root);
+    [[nodiscard]] std::expected<SandboxSave, core::Error> ReadSandboxSave(const std::filesystem::path &file,
+                                                                          const std::filesystem::path &root);
 
     [[nodiscard]] std::expected<void, std::string>
     WriteSandboxSave(const std::filesystem::path &file, const SandboxSave &save, const std::filesystem::path &root);

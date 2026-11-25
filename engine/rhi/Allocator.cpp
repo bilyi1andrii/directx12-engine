@@ -5,7 +5,7 @@
 #include "core/ThrowIfFailed.h"
 #include "rhi/Device.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     Allocator::Allocator(const Device &device) {
@@ -37,4 +37,4 @@ namespace engine::rhi {
         allocation->SetName(nameString.c_str()); // shows up in D3D12MA's statistics and leak reports
         return allocation;
     }
-} // namespace engine::rhi
+} // namespace rhi

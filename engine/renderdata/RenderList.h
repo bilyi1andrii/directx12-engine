@@ -13,7 +13,7 @@
 #include "renderdata/Handles.h"
 #include "renderdata/Model.h"
 
-namespace engine::render {
+namespace render {
     // Objects with the same key can be drawn together: same mesh, same material
     struct BatchKey {
         MeshHandle mesh;
@@ -76,6 +76,6 @@ namespace engine::render {
     // world = part.transform * base * translation(GridCellOffset(row, col, ...)).
     void SubmitGrid(RenderList &list, std::span<const ModelPart> parts, const DirectX::XMFLOAT4X4 &base, uint32_t rows,
                     uint32_t cols, float spacingX, float spacingZ);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_RENDERLIST_H

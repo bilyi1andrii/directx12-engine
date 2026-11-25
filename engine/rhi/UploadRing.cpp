@@ -8,7 +8,7 @@
 #include "core/Assert.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     namespace {
@@ -93,4 +93,4 @@ namespace engine::rhi {
     bool UploadRing::Page::HasSpace(uint64_t sizeBytes, uint64_t alignment, uint64_t pageSize) const noexcept {
         return AlignUp(offset, alignment) + AlignUp(sizeBytes, alignment) <= pageSize;
     }
-} // namespace engine::rhi
+} // namespace rhi

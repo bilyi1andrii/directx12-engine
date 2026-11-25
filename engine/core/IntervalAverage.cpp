@@ -1,6 +1,6 @@
 #include "core/IntervalAverage.h"
 
-namespace engine::core {
+namespace core {
     void IntervalAverage::Add(double value, double deltaSeconds) {
         m_sum += value;
         m_seconds += deltaSeconds;
@@ -19,4 +19,4 @@ namespace engine::core {
         m_seconds = 0.0;
         m_count = 0;
     }
-} // namespace engine::core
+} // namespace core

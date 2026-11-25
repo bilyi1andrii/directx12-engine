@@ -7,7 +7,7 @@
 #include "render/GpuResources.h"
 #include "rhi/PipelineCache.h"
 
-namespace engine::render {
+namespace render {
     class ShadowPass {
     public:
         explicit ShadowPass(rhi::PipelineCache &pipelines);
@@ -26,6 +26,6 @@ namespace engine::render {
     };
 
     void BindShadowConstants(PassContext &context, uint32_t shadowMapIndex);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_SHADOWPASS_H

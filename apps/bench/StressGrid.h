@@ -17,11 +17,11 @@
 #include "renderdata/RenderList.h"
 #include "scene/CameraPath.h"
 
-namespace engine::render {
+namespace render {
     class GpuResources;
-} // namespace engine::render
+} // namespace render
 
-namespace engine::bench {
+namespace bench {
     // Length of the grid's camera path in frames, the same as the bench's default --frames
     inline constexpr uint32_t kStressPathFrames = 1000;
 
@@ -56,6 +56,6 @@ namespace engine::bench {
         DirectX::XMFLOAT4X4 m_base;
         std::optional<render::StaticListHandle> m_staticList; // static mode only
     };
-} // namespace engine::bench
+} // namespace bench
 
 #endif // D3D12_ENGINE_STRESSGRID_H

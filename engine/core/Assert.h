@@ -5,10 +5,10 @@
 #include <source_location>
 #include <string_view>
 
-namespace engine::core::detail {
+namespace core::detail {
     // Logs the failed check, then breaks into the debugger, or aborts when no debugger is attached.
     void AssertFailed(std::string_view expression, std::string_view message, std::source_location location);
-} // namespace engine::core::detail
+} // namespace core::detail
 
 // ENGINE_ASSERT(condition)
 // ENGINE_ASSERT_MSG(condition, "format {}", args...)
@@ -18,16 +18,15 @@ namespace engine::core::detail {
 // Release builds remove the check entirely and do not evaluate the condition.
 // For failures that can happen at runtime (file not found, device removed) use ThrowIfFailed / std::expected.
 #if defined(_DEBUG)
-#define ENGINE_ASSERT(condition)                                                                   \
-    do {                                                                                           \
-        if (!(condition))                                                                          \
-            ::engine::core::detail::AssertFailed(#condition, {}, std::source_location::current()); \
+#define ENGINE_ASSERT(condition)                                                           \
+    do {                                                                                   \
+        if (!(condition))                                                                  \
+            ::core::detail::AssertFailed(#condition, {}, std::source_location::current()); \
     } while (false)
-#define ENGINE_ASSERT_MSG(condition, ...)                                              \
-    do {                                                                               \
-        if (!(condition))                                                              \
-            ::engine::core::detail::AssertFailed(#condition, std::format(__VA_ARGS__), \
-                                                 std::source_location::current());     \
+#define ENGINE_ASSERT_MSG(condition, ...)                                                                        \
+    do {                                                                                                         \
+        if (!(condition))                                                                                        \
+            ::core::detail::AssertFailed(#condition, std::format(__VA_ARGS__), std::source_location::current()); \
     } while (false)
 #else
 // sizeof(...) is never evaluated, but it still "uses" the variables in the condition, so variables that only

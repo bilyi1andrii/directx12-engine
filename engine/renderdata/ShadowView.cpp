@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
-namespace engine::render {
+namespace render {
     using namespace DirectX;
 
     ShadowView MakeShadowView(const XMFLOAT3 &lightDirection, const Aabb &bounds, uint32_t mapSize) {
@@ -51,4 +51,4 @@ namespace engine::render {
         XMStoreFloat3(&box.max, XMVectorMax(XMLoadFloat3(&a.max), XMLoadFloat3(&b.max)));
         return box;
     }
-} // namespace engine::render
+} // namespace render

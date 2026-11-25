@@ -15,16 +15,16 @@
 #include "assets/ModelImporter.h"
 #include "core/Utf8.h"
 
-using engine::assets::ImportModel;
-using engine::assets::IsModelFile;
-using engine::core::ErrorCode;
-using engine::render::AlphaMode;
-using engine::render::EmbeddedTexture;
-using engine::render::MaterialDesc;
-using engine::render::ModelData;
-using engine::render::TextureSource;
-using engine::tests::MissingFile;
-using engine::tests::TempFile;
+using assets::ImportModel;
+using assets::IsModelFile;
+using core::ErrorCode;
+using render::AlphaMode;
+using render::EmbeddedTexture;
+using render::MaterialDesc;
+using render::ModelData;
+using render::TextureSource;
+using tests::MissingFile;
+using tests::TempFile;
 
 namespace {
     // The bytes of a text file, for TempFile
@@ -116,7 +116,7 @@ TEST(ImportModel, MissingFileReturnsFileNotFound) {
 
     ASSERT_FALSE(result.has_value());
     EXPECT_EQ(result.error().code, ErrorCode::FileNotFound) << result.error().message;
-    EXPECT_NE(result.error().message.find(engine::core::ToUtf8(path.filename().native())), std::string::npos)
+    EXPECT_NE(result.error().message.find(core::ToUtf8(path.filename().native())), std::string::npos)
         << result.error().message;
 }
 

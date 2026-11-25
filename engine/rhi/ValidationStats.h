@@ -4,7 +4,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace engine::rhi {
+namespace rhi {
     // What the D3D12 debug layer and the DXGI debug layer reported during a run (Debug builds).
     // Owned by the app and filled in by rhi::Device. Must outlive the Device: ~Device writes the
     // live-object count after the device is released.
@@ -18,6 +18,6 @@ namespace engine::rhi {
         // Always false in Release builds, which have no debug layer.
         bool active = false;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif //D3D12_ENGINE_VALIDATIONSTATS_H

@@ -1,7 +1,7 @@
 #ifndef D3D12_ENGINE_COMSCOPE_H
 #define D3D12_ENGINE_COMSCOPE_H
 
-namespace engine::core {
+namespace core {
     // Starts COM on this thread while it exists. Loading images (WIC, used by DirectXTex) needs it.
     //
     // Create one per thread for the whole run, never one per load: DirectXTex keeps a COM object for the
@@ -15,6 +15,6 @@ namespace engine::core {
         ComScope(const ComScope &) = delete;
         ComScope &operator=(const ComScope &) = delete;
     };
-} // namespace engine::core
+} // namespace core
 
 #endif // D3D12_ENGINE_COMSCOPE_H

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace engine::render {
+namespace render {
     // Where one mip level lies in TextureData::pixels
     struct TextureMip {
         uint32_t width = 0;
@@ -23,6 +23,6 @@ namespace engine::render {
         std::vector<TextureMip> mips; // [0] is the full-size level
         std::vector<std::byte> pixels;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_TEXTUREDATA_H

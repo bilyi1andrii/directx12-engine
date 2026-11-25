@@ -15,11 +15,11 @@
 #include "renderdata/TransparentSort.h"
 #include "rhi/PipelineCache.h"
 
-namespace engine::rhi {
+namespace rhi {
     class CommandContext;
-} // namespace engine::rhi
+} // namespace rhi
 
-namespace engine::render {
+namespace render {
     class TransparentPass {
     public:
         explicit TransparentPass(rhi::PipelineCache &pipelines);
@@ -47,6 +47,6 @@ namespace engine::render {
         static constexpr size_t kPipelineCount = size_t{std::to_underlying(VertexFormat::Count)} * 2;
         std::array<rhi::PipelineHandle, kPipelineCount> m_pipelines;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_TRANSPARENTPASS_H

@@ -24,7 +24,7 @@
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 
-namespace engine::render {
+namespace render {
     using core::ThrowIfFailed;
 
     namespace {
@@ -248,4 +248,4 @@ namespace engine::render {
         m_device.DrainDxgiMessages();
         ++m_frameNumber;
     }
-} // namespace engine::render
+} // namespace render

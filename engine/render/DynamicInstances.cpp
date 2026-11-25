@@ -9,7 +9,7 @@
 #include "rhi/FrameContext.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::render {
+namespace render {
     void DynamicInstances::Upload(const RenderList &list, rhi::FrameContext &frame, rhi::BindlessHeap &heap) {
         const auto beginChunk = [&](uint32_t elementCount) {
             // Aligned to the element size, so the view can start at a whole element
@@ -50,4 +50,4 @@ namespace engine::render {
             }
         }
     }
-} // namespace engine::render
+} // namespace render

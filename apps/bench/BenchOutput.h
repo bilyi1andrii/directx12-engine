@@ -12,7 +12,7 @@
 #include <string_view>
 
 // The files a benchmark run writes. CPU only, so the unit tests can check them.
-namespace engine::bench {
+namespace bench {
     inline constexpr size_t kMaxGpuPasses = 16;
 
     // One measured frame, in milliseconds
@@ -53,6 +53,6 @@ namespace engine::bench {
     WriteResults(const std::filesystem::path &outDir, const std::filesystem::path &scene, std::string_view timestamp,
                  std::span<const std::string> gpuPasses, std::span<const FrameTiming> timings,
                  std::span<const RunField> fields);
-} // namespace engine::bench
+} // namespace bench
 
 #endif // D3D12_ENGINE_BENCHOUTPUT_H

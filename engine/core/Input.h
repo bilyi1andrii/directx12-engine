@@ -6,7 +6,7 @@
 
 #include "core/Window.h"
 
-namespace engine::core {
+namespace core {
     struct Int2 {
         int x = 0;
         int y = 0;
@@ -53,6 +53,6 @@ namespace engine::core {
         Int2 m_rawMouseDelta;
         float m_wheelDelta = 0.0f;
     };
-} // namespace engine::core
+} // namespace core
 
 #endif //D3D12_ENGINE_INPUT_H

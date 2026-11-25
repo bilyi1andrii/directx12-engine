@@ -11,15 +11,15 @@
 #include "assets/TextureLoader.h"
 #include "core/Utf8.h"
 
-using engine::assets::ImportTexture;
-using engine::assets::ImportTextureFromMemory;
-using engine::assets::IsSrgbUsage;
-using engine::assets::MakeTextureFromPixels;
-using engine::assets::TextureUsage;
-using engine::core::ErrorCode;
-using engine::render::TextureData;
-using engine::tests::MissingFile;
-using engine::tests::TempFile;
+using assets::ImportTexture;
+using assets::ImportTextureFromMemory;
+using assets::IsSrgbUsage;
+using assets::MakeTextureFromPixels;
+using assets::TextureUsage;
+using core::ErrorCode;
+using render::TextureData;
+using tests::MissingFile;
+using tests::TempFile;
 
 namespace {
     // DXGI_FORMAT values: the tests, like the assets layer, do not include DXGI headers
@@ -233,7 +233,7 @@ TEST(ImportTexture, MissingFileReturnsFileNotFound) {
 
         ASSERT_FALSE(result.has_value());
         EXPECT_EQ(result.error().code, ErrorCode::FileNotFound) << result.error().message;
-        EXPECT_NE(result.error().message.find(engine::core::ToUtf8(name)), std::string::npos) << result.error().message;
+        EXPECT_NE(result.error().message.find(core::ToUtf8(name)), std::string::npos) << result.error().message;
     }
 }
 

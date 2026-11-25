@@ -7,7 +7,7 @@
 
 #include <Windows.h>
 
-namespace engine::core {
+namespace core {
     class HResultError : public std::runtime_error {
     public:
         HResultError(HRESULT hr, const std::string &message);
@@ -27,6 +27,6 @@ namespace engine::core {
 
     void ThrowIfWin32Failed(bool succeeded, std::source_location location = std::source_location::current());
 
-} // namespace engine::core
+} // namespace core
 
 #endif //D3D12_ENGINE_THROWIFFAILED_H

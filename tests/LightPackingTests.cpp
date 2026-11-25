@@ -9,13 +9,13 @@
 
 #include "common/shared_types.hlsli"
 
-using engine::gpu::FrameConstants;
-using engine::render::LightSet;
-using engine::render::LightType;
-using engine::render::LocalLight;
-using engine::render::PackLights;
-using engine::render::PointLight;
-using engine::render::SpotLight;
+using gpu::FrameConstants;
+using render::LightSet;
+using render::LightType;
+using render::LocalLight;
+using render::PackLights;
+using render::PointLight;
+using render::SpotLight;
 
 namespace {
     constexpr float kTolerance = 1e-5f;
@@ -97,8 +97,8 @@ TEST(PackLights, KeepsTheFirstEightPointAndFourSpotLights) {
     FrameConstants constants{};
     PackLights(lights, constants);
 
-    ASSERT_EQ(constants.pointLightCount, engine::gpu::kMaxPointLights);
-    ASSERT_EQ(constants.spotLightCount, engine::gpu::kMaxSpotLights);
+    ASSERT_EQ(constants.pointLightCount, gpu::kMaxPointLights);
+    ASSERT_EQ(constants.spotLightCount, gpu::kMaxSpotLights);
     EXPECT_EQ(constants.pointLights[0].strength, 0.0f);
     EXPECT_EQ(constants.pointLights[7].strength, 7.0f);
     EXPECT_EQ(constants.spotLights[3].strength, 3.0f);
@@ -114,10 +114,10 @@ TEST(CountPackedLights, CountsEnabledLightsUpToTheLimits) {
     }
     lights.spots = {Spot(1.0f), Spot(1.0f, false)};
 
-    const engine::render::PackedLightCounts counts = engine::render::CountPackedLights(lights);
+    const render::PackedLightCounts counts = render::CountPackedLights(lights);
 
     EXPECT_EQ(counts.directional, 0u);
-    EXPECT_EQ(counts.points, engine::gpu::kMaxPointLights);
+    EXPECT_EQ(counts.points, gpu::kMaxPointLights);
     EXPECT_EQ(counts.spots, 1u);
 }
 

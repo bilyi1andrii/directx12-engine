@@ -6,11 +6,11 @@
 #include "scene/Camera.h"
 #include "scene/CameraController.h"
 
-using engine::core::Input;
-using engine::core::WindowMessage;
-using engine::scene::Camera;
-using engine::scene::CameraController;
-using engine::scene::CameraInputs;
+using core::Input;
+using core::WindowMessage;
+using scene::Camera;
+using scene::CameraController;
+using scene::CameraInputs;
 
 namespace {
     constexpr double kFrameSeconds = 0.016;

@@ -4,7 +4,7 @@
 
 #include "core/ThrowIfFailed.h"
 
-namespace engine::core {
+namespace core {
     namespace {
         // Bits of lParam in WM_KEYDOWN/WM_KEYUP
         constexpr LPARAM kExtendedKeyBit = LPARAM{1} << 24;   // right-hand Ctrl/Alt
@@ -170,4 +170,4 @@ namespace engine::core {
             m_rawMouseDelta.y += raw.data.mouse.lLastY;
         }
     }
-} // namespace engine::core
+} // namespace core

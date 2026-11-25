@@ -10,7 +10,7 @@
 #include "rhi/UploadContext.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::rhi {
+namespace rhi {
     namespace {
         D3D12_RESOURCE_DESC BufferDesc(uint64_t size) {
             return {
@@ -93,4 +93,4 @@ namespace engine::rhi {
             .Format = format,
         };
     }
-} // namespace engine::rhi
+} // namespace rhi

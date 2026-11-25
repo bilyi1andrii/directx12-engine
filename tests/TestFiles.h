@@ -8,7 +8,7 @@
 #include <system_error>
 #include <utility>
 
-namespace engine::tests {
+namespace tests {
     // A file in the system temp folder, deleted at the end of the test. Tests use no asset files from the repo.
     class TempFile {
     public:
@@ -35,6 +35,6 @@ namespace engine::tests {
     [[nodiscard]] inline std::filesystem::path MissingFile(const std::filesystem::path &name) {
         return std::filesystem::temp_directory_path() / name;
     }
-} // namespace engine::tests
+} // namespace tests
 
 #endif // D3D12_ENGINE_TESTFILES_H

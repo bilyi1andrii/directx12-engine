@@ -10,7 +10,7 @@
 #include "renderdata/Handles.h"
 #include "renderdata/MaterialDesc.h"
 
-namespace engine::render {
+namespace render {
     enum class Shading : uint8_t {
         Lit,
         Unlit,
@@ -30,6 +30,6 @@ namespace engine::render {
 
         bool operator==(const MaterialInfo &) const = default;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MATERIAL_H

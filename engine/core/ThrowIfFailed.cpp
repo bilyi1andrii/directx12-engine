@@ -2,7 +2,7 @@
 #include <format>
 #include <system_error>
 
-namespace engine::core {
+namespace core {
     HResultError::HResultError(HRESULT hr, const std::string &message) : std::runtime_error(message), m_hr(hr) {}
 
     void ThrowHResult(HRESULT hr, std::source_location location) {
@@ -17,4 +17,4 @@ namespace engine::core {
         const DWORD error = ::GetLastError();
         ThrowHResult(error != ERROR_SUCCESS ? HRESULT_FROM_WIN32(error) : E_FAIL, location);
     }
-} // namespace engine::core
+} // namespace core

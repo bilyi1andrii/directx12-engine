@@ -7,7 +7,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class DescriptorAllocator;
 
     // One slot in a CPU-only descriptor heap. Gives the slot back to its allocator when destroyed.
@@ -75,6 +75,6 @@ namespace engine::rhi {
         std::vector<uint32_t> m_freeIndices; // stack: the next Allocate() takes back()
         std::vector<bool> m_allocated;       // catches double frees
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_DESCRIPTORALLOCATOR_H

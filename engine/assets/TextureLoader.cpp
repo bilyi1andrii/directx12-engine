@@ -15,7 +15,7 @@
 #include "core/Assert.h"
 #include "core/Utf8.h"
 
-namespace engine::assets {
+namespace assets {
     namespace {
         using core::Error;
         using core::ErrorCode;
@@ -201,4 +201,4 @@ namespace engine::assets {
         }
         return FinishTexture(std::move(image), usage, kSource);
     }
-} // namespace engine::assets
+} // namespace assets

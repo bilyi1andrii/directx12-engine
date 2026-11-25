@@ -3,9 +3,9 @@
 
 #include "renderdata/GridLayout.h"
 
-using engine::render::Aabb;
-using engine::render::FitToCell;
-using engine::render::GridCellOffset;
+using render::Aabb;
+using render::FitToCell;
+using render::GridCellOffset;
 
 namespace {
     [[nodiscard]] DirectX::XMFLOAT4X4 Translation(float x, float y, float z) {

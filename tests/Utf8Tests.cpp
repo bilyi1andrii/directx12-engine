@@ -4,7 +4,7 @@
 
 #include "core/Utf8.h"
 
-using engine::core::PathFromUtf8;
+using core::PathFromUtf8;
 
 TEST(PathFromUtf8, KeepsNonAsciiNames) {
     // "Жовтий.png" in UTF-8; read in the ANSI code page it would come out garbled

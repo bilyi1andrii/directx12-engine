@@ -15,9 +15,9 @@
 // Command-line options of the bench app, with their defaults
 struct BenchOptions {
     std::optional<std::filesystem::path> modelPath;                          // --model FILE; a cube without it
-    engine::apps::GridMode gridMode = engine::apps::GridMode::Dynamic;       // --grid static|dynamic
+    apps::GridMode gridMode = apps::GridMode::Dynamic;                       // --grid static|dynamic
     uint32_t count = 50'000;                                                 // --count N; required with --model
-    engine::render::DrawPath drawPath = engine::render::DrawPath::Instanced; // --instanced 1|0
+    render::DrawPath drawPath = render::DrawPath::Instanced;                 // --instanced 1|0
     uint32_t frames = 1000;                                                  // --frames N, measured
     uint32_t warmupFrames = 200;                                             // --warmup N, not measured
     std::filesystem::path outDir = "results";                                // --out DIR

@@ -11,7 +11,7 @@
 
 #include "core/ThrowIfFailed.h"
 
-namespace engine::core {
+namespace core {
     namespace {
         constexpr wchar_t kClassName[] = L"EngineWindow";
         constexpr DWORD kWindowedStyle = WS_OVERLAPPEDWINDOW;
@@ -242,4 +242,4 @@ namespace engine::core {
         }
         return ::DefWindowProcW(msg.hwnd, msg.message, msg.wParam, msg.lParam);
     }
-} // namespace engine::core
+} // namespace core

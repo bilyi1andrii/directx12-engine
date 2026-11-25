@@ -13,7 +13,7 @@
 #include "renderdata/Handles.h"
 #include "renderdata/MeshData.h"
 
-namespace engine::render {
+namespace render {
     struct Aabb {
         DirectX::XMFLOAT3 min{0.0f, 0.0f, 0.0f};
         DirectX::XMFLOAT3 max{0.0f, 0.0f, 0.0f};
@@ -41,6 +41,6 @@ namespace engine::render {
         Aabb bounds;
         uint64_t triangleCount = 0;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MODEL_H

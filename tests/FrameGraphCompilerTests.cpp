@@ -7,13 +7,13 @@
 
 #include "render/FrameGraphCompiler.h"
 
-using engine::render::fg::Access;
-using engine::render::fg::Compile;
-using engine::render::fg::CompiledGraph;
-using engine::render::fg::GraphDesc;
-using engine::render::fg::kNoIndex;
-using engine::render::fg::TextureUse;
-using engine::render::fg::Transition;
+using render::fg::Access;
+using render::fg::Compile;
+using render::fg::CompiledGraph;
+using render::fg::GraphDesc;
+using render::fg::kNoIndex;
+using render::fg::TextureUse;
+using render::fg::Transition;
 
 namespace {
     // Description ids of the transients in these tests: equal ids mean the same size, format and usage

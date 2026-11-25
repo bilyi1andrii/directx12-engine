@@ -22,25 +22,24 @@
 #include "core/Utf8.h"
 #include "renderdata/GridLayout.h"
 
-using engine::core::LogInfo;
-using engine::core::LogWarning;
+using core::LogInfo;
+using core::LogWarning;
 
 namespace sandbox {
-    GridObjects AddGrid(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
-                        engine::render::TextureHandle texture, engine::apps::GridMode mode, uint32_t count) {
+    GridObjects AddGrid(scene::Scene &scene, assets::AssetCache &assets, render::TextureHandle texture,
+                        apps::GridMode mode, uint32_t count) {
         using namespace DirectX;
 
-        const engine::render::Model &cube = assets.CubeModel(texture);
-        const GridObjects grid{.mode = mode,
-                               .side = engine::apps::GridSide(count),
-                               .firstObject = static_cast<uint32_t>(scene.Objects().size())};
-        const engine::scene::Mobility mobility =
-            mode == engine::apps::GridMode::Static ? engine::scene::Mobility::Static : engine::scene::Mobility::Movable;
+        const render::Model &cube = assets.CubeModel(texture);
+        const GridObjects grid{
+            .mode = mode, .side = apps::GridSide(count), .firstObject = static_cast<uint32_t>(scene.Objects().size())};
+        const scene::Mobility mobility =
+            mode == apps::GridMode::Static ? scene::Mobility::Static : scene::Mobility::Movable;
         const std::vector<XMFLOAT4X4> placement = GridPlacement(grid.side);
         for (const XMFLOAT4X4 &world : placement) {
             scene.AddObject("Grid cube", cube, world, mobility);
         }
-        LogInfo("Grid: {} x {} = {} cubes, {}", grid.side, grid.side, placement.size(), engine::apps::ToString(mode));
+        LogInfo("Grid: {} x {} = {} cubes, {}", grid.side, grid.side, placement.size(), apps::ToString(mode));
         return grid;
     }
 
@@ -50,17 +49,17 @@ namespace sandbox {
         std::vector<XMFLOAT4X4> worlds(size_t{side} * side);
         for (uint32_t row = 0; row < side; ++row) {
             for (uint32_t col = 0; col < side; ++col) {
-                const XMFLOAT3 offset = engine::render::GridCellOffset(row, col, side, side, engine::apps::kGridSpacing,
-                                                                       engine::apps::kGridSpacing);
+                const XMFLOAT3 offset =
+                    render::GridCellOffset(row, col, side, side, apps::kGridSpacing, apps::kGridSpacing);
                 XMStoreFloat4x4(&worlds[size_t{row} * side + col],
-                                XMMatrixTranslation(offset.x, engine::apps::kGridHeight, offset.z));
+                                XMMatrixTranslation(offset.x, apps::kGridHeight, offset.z));
             }
         }
         return worlds;
     }
 
     std::filesystem::path RepositoryRoot() {
-        return (engine::core::ExecutableDirectory() / L"../../..").lexically_normal();
+        return (core::ExecutableDirectory() / L"../../..").lexically_normal();
     }
 
     std::vector<std::filesystem::path> FindAssetModels() {
@@ -69,7 +68,7 @@ namespace sandbox {
         std::error_code ec;
         for (auto it = std::filesystem::recursive_directory_iterator(root, ec);
              !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
-            if (engine::assets::IsModelFile(it->path())) {
+            if (assets::IsModelFile(it->path())) {
                 models.push_back(it->path());
             }
         }
@@ -77,7 +76,7 @@ namespace sandbox {
         return models;
     }
 
-    std::optional<PlacedModel> AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
+    std::optional<PlacedModel> AddModel(scene::Scene &scene, assets::AssetCache &assets,
                                         const std::filesystem::path &path, float x, float z,
                                         const std::optional<DirectX::XMFLOAT4X4> &savedWorld) {
         using namespace DirectX;
@@ -87,25 +86,24 @@ namespace sandbox {
             LogWarning("Model: {}", model.error().message);
             return std::nullopt;
         }
-        const engine::render::Aabb &bounds = (*model)->bounds;
+        const render::Aabb &bounds = (*model)->bounds;
         const float extent =
             std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
         const float scale = kModelSize / extent;
         // The pivot is the model's bottom centre, so the model stands on the grid at (x, z)
         const XMFLOAT3 pivot{(bounds.min.x + bounds.max.x) / 2, bounds.min.y, (bounds.min.z + bounds.max.z) / 2};
         XMFLOAT4X4 world{};
-        XMStoreFloat4x4(&world,
-                        XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, engine::apps::kGridTop, z));
+        XMStoreFloat4x4(&world, XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, apps::kGridTop, z));
         // Include the folder: model files are often all named scene.gltf
-        std::string name = engine::core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring());
+        std::string name = core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring());
         LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}{}", name, (*model)->parts.size(), extent,
                 scale, savedWorld ? " (placed as saved)" : "");
-        const engine::scene::ObjectId id = scene.AddObject(std::move(name), **model, savedWorld.value_or(world),
-                                                           engine::scene::Mobility::Movable, pivot);
+        const scene::ObjectId id =
+            scene.AddObject(std::move(name), **model, savedWorld.value_or(world), scene::Mobility::Movable, pivot);
         return PlacedModel{.id = id, .path = path};
     }
 
-    std::vector<PlacedModel> AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
+    std::vector<PlacedModel> AddModels(scene::Scene &scene, assets::AssetCache &assets,
                                        std::span<const std::filesystem::path> paths, std::optional<float> firstX) {
         std::vector<PlacedModel> added;
         for (size_t i = 0; i < paths.size(); ++i) {
@@ -119,15 +117,14 @@ namespace sandbox {
     }
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
-                         engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid,
-                         std::vector<PlacedModel> &models) {
-        engine::core::Timer timer;
+                         const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,
+                         float &nextModelX, const GridObjects &grid, std::vector<PlacedModel> &models) {
+        core::Timer timer;
         timer.Start();
-        const std::string name = engine::core::ToUtf8(path.filename().wstring());
+        const std::string name = core::ToUtf8(path.filename().wstring());
         LogInfo("Dropped {}: loading...", name);
 
-        if (engine::assets::IsModelFile(path)) {
+        if (assets::IsModelFile(path)) {
             const float x = dropPoint ? dropPoint->x : nextModelX;
             const float z = dropPoint ? dropPoint->z : 0.0f;
             if (std::optional<PlacedModel> model = AddModel(scene, assets, path, x, z)) {
@@ -139,17 +136,17 @@ namespace sandbox {
             }
             return;
         }
-        if (grid.mode != engine::apps::GridMode::Dynamic) {
+        if (grid.mode != apps::GridMode::Dynamic) {
             LogWarning("Dropped {}: a static grid keeps its texture (start with --grid dynamic)", name);
             return;
         }
 
-        const engine::render::TextureHandle texture = assets.LoadTexture(path, engine::assets::TextureUsage::Diffuse);
+        const render::TextureHandle texture = assets.LoadTexture(path, assets::TextureUsage::Diffuse);
         if (texture == gpu.UnloadedTexture()) {
             LogWarning("Dropped {}: neither a model (.gltf, .glb, .obj, .fbx) nor a readable image", name);
             return;
         }
-        const engine::render::MaterialHandle material = assets.Material({.albedo = texture});
+        const render::MaterialHandle material = assets.Material({.albedo = texture});
         for (uint32_t i = 0; i < grid.side * grid.side; ++i) {
             scene.SetObjectMaterial({.index = grid.firstObject + i}, material);
         }
@@ -162,13 +159,13 @@ namespace sandbox {
 
     std::optional<SandboxSave> ReadSave() {
         const std::filesystem::path file = SavePath();
-        std::expected<SandboxSave, engine::core::Error> save = ReadSandboxSave(file, RepositoryRoot());
+        std::expected<SandboxSave, core::Error> save = ReadSandboxSave(file, RepositoryRoot());
         if (save) {
-            LogInfo("Scene: {} ({} models, {} cubes, {} grid cubes)", engine::core::ToUtf8(file.native()),
-                    save->models.size(), save->cubes.size(), save->gridCubes.size());
+            LogInfo("Scene: {} ({} models, {} cubes, {} grid cubes)", core::ToUtf8(file.native()), save->models.size(),
+                    save->cubes.size(), save->gridCubes.size());
             return std::move(*save);
         }
-        if (save.error().code == engine::core::ErrorCode::FileNotFound) {
+        if (save.error().code == core::ErrorCode::FileNotFound) {
             return std::nullopt;
         }
         std::filesystem::path bad = file;
@@ -176,15 +173,15 @@ namespace sandbox {
         std::error_code ec;
         std::filesystem::rename(file, bad, ec);
         LogWarning("Scene: {}. Starting without it; the file is kept as {}", save.error().message,
-                   engine::core::ToUtf8(bad.filename().native()));
+                   core::ToUtf8(bad.filename().native()));
         return std::nullopt;
     }
 
-    SandboxSave MakeSave(const engine::scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
-                         std::span<const engine::scene::ObjectId> namedCubes, std::span<const PlacedModel> models) {
-        SandboxSave save{.gridCount = gridCount, .gridMode = std::string(engine::apps::ToString(grid.mode))};
+    SandboxSave MakeSave(const scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
+                         std::span<const scene::ObjectId> namedCubes, std::span<const PlacedModel> models) {
+        SandboxSave save{.gridCount = gridCount, .gridMode = std::string(apps::ToString(grid.mode))};
         // Only cubes the user changed. A static grid cannot change.
-        if (grid.mode == engine::apps::GridMode::Dynamic) {
+        if (grid.mode == apps::GridMode::Dynamic) {
             const std::vector<DirectX::XMFLOAT4X4> placement = GridPlacement(grid.side);
             for (uint32_t i = 0; i < placement.size(); ++i) {
                 const DirectX::XMFLOAT4X4 &world = scene.Object({.index = grid.firstObject + i}).world;
@@ -193,8 +190,8 @@ namespace sandbox {
                 }
             }
         }
-        for (const engine::scene::ObjectId id : namedCubes) {
-            const engine::scene::SceneObject &cube = scene.Object(id);
+        for (const scene::ObjectId id : namedCubes) {
+            const scene::SceneObject &cube = scene.Object(id);
             save.cubes.push_back({.name = cube.name, .world = cube.world});
         }
         for (const PlacedModel &model : models) {

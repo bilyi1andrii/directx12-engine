@@ -5,7 +5,7 @@
 
 #include "core/Assert.h"
 
-namespace engine::rhi {
+namespace rhi {
     double TicksToMs(uint64_t begin, uint64_t end, uint64_t ticksPerSecond) noexcept {
         ENGINE_ASSERT(ticksPerSecond > 0);
         if (end < begin) {
@@ -46,4 +46,4 @@ namespace engine::rhi {
         ENGINE_ASSERT_MSG(id < m_names.size(), "GPU scope id {} was never registered", id);
         return m_names[id];
     }
-} // namespace engine::rhi
+} // namespace rhi

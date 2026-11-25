@@ -11,7 +11,7 @@
 
 // Selecting objects with the mouse: a ray from the camera through a pixel, tested against the objects' boxes.
 // CPU only (no picking pass on the GPU).
-namespace engine::scene {
+namespace scene {
     // A half-line in world space: the points origin + t * direction for t >= 0. `direction` has length 1, so t is
     // a distance in world units.
     struct Ray {
@@ -35,6 +35,6 @@ namespace engine::scene {
 
     // Where `ray` meets the horizontal plane y = `planeY`.
     [[nodiscard]] std::optional<DirectX::XMFLOAT3> IntersectHorizontalPlane(const Ray &ray, float planeY);
-} // namespace engine::scene
+} // namespace scene
 
 #endif // D3D12_ENGINE_PICKING_H

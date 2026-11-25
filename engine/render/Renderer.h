@@ -38,7 +38,7 @@
 // ImGui's per-frame draw data (ui::DebugUI::Render); opaque here
 struct ImDrawData;
 
-namespace engine::render {
+namespace render {
     class UiRenderer;
 
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
@@ -188,6 +188,6 @@ namespace engine::render {
         uint64_t m_frameNumber = 0;
         FrameStage m_frameStage = FrameStage::Idle;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_RENDERER_H

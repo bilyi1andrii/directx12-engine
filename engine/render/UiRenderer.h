@@ -10,7 +10,7 @@
 struct ImDrawData;
 struct ImGui_ImplDX12_InitInfo;
 
-namespace engine::render {
+namespace render {
     // Draws Dear ImGui's draw data with ImGui's official DirectX 12 backend (imgui_impl_dx12, used unmodified).
     // The backend brings its own root signature and PSO (shaders compiled at runtime with FXC), per-frame
     // vertex/index buffers and font texture (committed resources, outside rhi::Allocator). Its descriptors come
@@ -50,6 +50,6 @@ namespace engine::render {
         // The frame Render last recorded into; receives the descriptors the backend frees
         rhi::FrameContext *m_frame = nullptr;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_UIRENDERER_H

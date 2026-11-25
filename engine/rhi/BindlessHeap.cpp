@@ -7,7 +7,7 @@
 #include "core/Assert.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     BindlessHeap::BindlessHeap(NativeDevice *device, uint32_t capacity, std::wstring_view name)
@@ -108,4 +108,4 @@ namespace engine::rhi {
                           "CPU descriptor handle is not a slot of this heap");
         return static_cast<uint32_t>((handle.ptr - m_cpuStart.ptr) / m_descriptorSize);
     }
-} // namespace engine::rhi
+} // namespace rhi
