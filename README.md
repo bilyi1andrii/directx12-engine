@@ -142,7 +142,6 @@ the driver and the medians. Pressing Esc stops the run and writes nothing.
 
 ## Next Steps
 
-- Frame graph and transparency
 - HDR and tonemapping
 - PBR materials
 - Performance comparison with the DX11 engine
