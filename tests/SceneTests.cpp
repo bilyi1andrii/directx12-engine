@@ -1,3 +1,5 @@
+// Tests adding, moving and drawing scene objects, and handing their lights to the renderer.
+
 #include <numbers>
 #include <vector>
 
@@ -31,7 +33,6 @@ namespace {
         return result;
     }
 
-    // Row-vector convention: the translation is the 4th row
     void ExpectTranslation(const DirectX::XMFLOAT4X4 &matrix, float x, float y, float z) {
         constexpr float kTolerance = 1e-5f;
         EXPECT_NEAR(matrix._41, x, kTolerance);
@@ -39,7 +40,6 @@ namespace {
         EXPECT_NEAR(matrix._43, z, kTolerance);
     }
 
-    // An object with one part, at (x, 0, 0)
     ObjectId AddCube(Scene &scene, ModelPart part, float x, Mobility mobility = Mobility::Movable) {
         return scene.AddObject("cube", Model{.parts = {part}}, Store(DirectX::XMMatrixTranslation(x, 0, 0)), mobility);
     }
@@ -64,7 +64,6 @@ TEST(Scene, ExtractBatchesEntitiesByMeshAndMaterial) {
     EXPECT_EQ(list.InstanceCount(), 3u);
 }
 
-// Static objects go into a static list once, movable ones into the frame's list
 TEST(Scene, ExtractTakesOnlyTheRequestedMobility) {
     Scene scene;
     AddCube(scene, ModelPart{}, 1, Mobility::Static);
@@ -81,15 +80,12 @@ TEST(Scene, ExtractTakesOnlyTheRequestedMobility) {
     ExpectTranslation(fixed.Buckets()[0].worlds[0], 1, 0, 0);
 }
 
-// A part is placed inside the object first, then the object in the world. The object turns 90 degrees around Y
-// (+X becomes -Z) and moves to (10, 0, 0), so the part's offset (1, 0, 0) ends up at (10, 0, -1).
-// The other order would give (11, 0, 0).
 TEST(Scene, AddObjectPlacesPartsInsideTheObject) {
     const std::vector<ModelPart> parts{ModelPart{.mesh = MeshHandle{4},
                                                  .material = MaterialHandle{5},
                                                  .transform = Store(DirectX::XMMatrixTranslation(1, 0, 0)),
                                                  .bounds = Aabb{.min = {-2, -2, -2}, .max = {2, 2, 2}}},
-                                       ModelPart{.mesh = MeshHandle{6}, .material = MaterialHandle{7}}}; // identity
+                                       ModelPart{.mesh = MeshHandle{6}, .material = MaterialHandle{7}}};
     const DirectX::XMFLOAT4X4 world =
         Store(DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) * DirectX::XMMatrixTranslation(10, 0, 0));
 
@@ -98,7 +94,7 @@ TEST(Scene, AddObjectPlacesPartsInsideTheObject) {
 
     EXPECT_EQ(scene.Object(id).name, "model");
     EXPECT_EQ(scene.Object(id).entityCount, 2u);
-    ASSERT_EQ(scene.EntityCount(), 2u);
+    ASSERT_EQ(scene.Transforms().size(), 2u);
     ExpectTranslation(scene.Transforms()[0].world, 10, 0, -1);
     ExpectTranslation(scene.Transforms()[1].world, 10, 0, 0);
     EXPECT_EQ(scene.Renderers()[0].mesh, MeshHandle{4});
@@ -107,8 +103,6 @@ TEST(Scene, AddObjectPlacesPartsInsideTheObject) {
     EXPECT_FLOAT_EQ(scene.Parts()[0].bounds.max.x, 2.0f);
 }
 
-// The pivot (1, 2, 3) lands exactly at the object's translation (10, 0, 0). The part's origin is (-1, -2, -3) away
-// from the pivot, doubled by the scale: (10 - 2, -4, -6).
 TEST(Scene, WorldPlacesThePivot) {
     const ModelPart part{};
     const DirectX::XMFLOAT4X4 world = Store(DirectX::XMMatrixScaling(2, 2, 2) * DirectX::XMMatrixTranslation(10, 0, 0));
@@ -138,8 +132,6 @@ TEST(Scene, SetObjectWorldMovesEveryPartForTheNextExtract) {
     ExpectTranslation(scene.Object(id).world, 0, 7, 0);
 }
 
-// The object is scaled by 2 and turned 90 degrees around Y (+X becomes -Z). A new position moves the pivot there and
-// keeps both, so the part's offset (1, 0, 0) still ends up (0, 0, -2) away from it.
 TEST(Scene, SetObjectPositionKeepsRotationAndScale) {
     const DirectX::XMFLOAT4X4 world =
         Store(DirectX::XMMatrixScaling(2, 2, 2) * DirectX::XMMatrixRotationY(std::numbers::pi_v<float> / 2) *
@@ -162,7 +154,6 @@ TEST(Scene, SetObjectPositionKeepsRotationAndScale) {
     }
 }
 
-// Every part of that object changes, and no other object's
 TEST(Scene, SetObjectMaterialChangesOnlyThatObject) {
     const std::vector<ModelPart> parts{ModelPart{.material = MaterialHandle{1}},
                                        ModelPart{.material = MaterialHandle{2}}};
@@ -178,8 +169,6 @@ TEST(Scene, SetObjectMaterialChangesOnlyThatObject) {
     EXPECT_EQ(scene.Renderers()[2].material, MaterialHandle{3});
 }
 
-// A light stands at its object's translation. The object is scaled unevenly and then turned 90 degrees around Y
-// (+Z becomes +X), so a spot light points along +X, at unit length whatever the scale.
 TEST(Scene, ExtractPlacesLightsWhereTheirObjectsStand) {
     Scene scene;
     scene.AddLight("point", Model{}, Store(DirectX::XMMatrixTranslation(1, 2, 3)),
@@ -207,7 +196,6 @@ TEST(Scene, ExtractPlacesLightsWhereTheirObjectsStand) {
     EXPECT_NEAR(lights.spots[0].direction.z, 0.0f, kTolerance);
 }
 
-// Moving the object moves its light: there is no second copy of the position to keep in step
 TEST(Scene, ExtractFollowsAMovedLightAndReplacesTheOldList) {
     Scene scene;
     scene.Environment().ambientStrength = 0.75f;
@@ -219,13 +207,12 @@ TEST(Scene, ExtractFollowsAMovedLightAndReplacesTheOldList) {
     Extract(scene, lights);
 
     EXPECT_EQ(lights.environment.ambientStrength, 0.75f);
-    ASSERT_EQ(lights.points.size(), 1u); // not added a second time
+    ASSERT_EQ(lights.points.size(), 1u);
     EXPECT_EQ(lights.points[0].position.x, 7.0f);
     EXPECT_EQ(lights.points[0].position.y, 8.0f);
     EXPECT_EQ(lights.points[0].position.z, 9.0f);
 }
 
-// A disabled light is still extracted, so that what the renderer gets is the scene as it is
 TEST(Scene, OnlyLightObjectsHaveALight) {
     Scene scene;
     const ObjectId cube = AddCube(scene, ModelPart{}, 1);
@@ -235,7 +222,7 @@ TEST(Scene, OnlyLightObjectsHaveALight) {
     EXPECT_EQ(scene.Light(cube), nullptr);
     ASSERT_NE(scene.Light(lamp), nullptr);
     EXPECT_EQ(scene.Object(lamp).mobility, Mobility::Movable);
-    EXPECT_EQ(scene.Object(lamp).entityCount, 1u); // its marker is drawn and picked like any object
+    EXPECT_EQ(scene.Object(lamp).entityCount, 1u);
 
     scene.Light(lamp)->enabled = false;
     LightSet lights;

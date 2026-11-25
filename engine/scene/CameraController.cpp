@@ -14,7 +14,6 @@ namespace scene {
         }
         m_speedScale =
             std::clamp(m_speedScale * std::pow(kSpeedStep, input.WheelDelta()), kMinSpeedScale, kMaxSpeedScale);
-        // Rotation first, so this frame's movement already uses the new direction
         const core::Int2 delta = input.RawMouseDelta();
         AdjustRotation(camera, static_cast<float>(delta.y) * kRotationSpeed,
                        static_cast<float>(delta.x) * kRotationSpeed, 0.0f);

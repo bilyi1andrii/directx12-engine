@@ -1,6 +1,4 @@
-# engine_scene: what is drawn and from where (Camera, CameraPath, Picking, Scene with Transform, MeshRenderer and
-# the light objects).
-# CPU only: must never link engine_rhi, d3d12 or dxgi.
+# The scene library: objects, cameras and picking, on the CPU only.
 
 add_library(engine_scene STATIC
         Camera.cpp
@@ -20,5 +18,4 @@ target_include_directories(engine_scene PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 
 target_link_libraries(engine_scene PUBLIC
         engine_core
-        # Scene.h stores handles and fills the RenderList
         engine_renderdata)

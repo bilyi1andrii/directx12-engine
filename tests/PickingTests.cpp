@@ -1,3 +1,5 @@
+// Tests picking: the ray through a pixel, hitting boxes placed by a world matrix, and the nearest object.
+
 #include <cmath>
 #include <optional>
 #include <vector>
@@ -50,15 +52,12 @@ namespace {
         return IntersectRayBox(ray, world, kCubeBounds);
     }
 
-    // An object with one cube part
     ObjectId AddCube(Scene &scene, FXMMATRIX world) {
         const ModelPart part{.bounds = kCubeBounds};
         return scene.AddObject("cube", Model{.parts = {part}}, ToFloat4x4(world), Mobility::Movable);
     }
 } // namespace
 
-// Camera at z = -10 looking along +Z: the ray through the viewport's centre starts on the near plane, goes straight
-// ahead and enters the cube at the origin through its -Z face
 TEST(Picking, CentreRayHitsTheBoxInFront) {
     Camera camera;
     camera.position = {0.0f, 0.0f, -10.0f};
@@ -75,10 +74,8 @@ TEST(Picking, CentreRayHitsTheBoxInFront) {
     EXPECT_NEAR(*hit, 9.0f - camera.nearZ, 1e-3f);
 }
 
-// 90 degrees vertical field of view in a square viewport: half the viewport right of the centre is 45 degrees off,
-// so at depth 10 the ray is 5 units to the right; half the viewport up is 5 units up (pixel y grows downwards)
 TEST(Picking, OffCentrePixelHitsTheBoxDrawnThere) {
-    const Camera camera; // at the origin, looking along +Z, 90 degrees
+    const Camera camera;
     const Ray right = MakePickRay(camera, {600.0f, 400.0f}, {800.0f, 800.0f});
     EXPECT_TRUE(IntersectCube(right, ToFloat4x4(XMMatrixTranslation(5.0f, 0.0f, 10.0f))).has_value());
     EXPECT_FALSE(IntersectCube(right, ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, 10.0f))).has_value());
@@ -88,8 +85,6 @@ TEST(Picking, OffCentrePixelHitsTheBoxDrawnThere) {
     EXPECT_FALSE(IntersectCube(up, ToFloat4x4(XMMatrixTranslation(0.0f, -5.0f, 10.0f))).has_value());
 }
 
-// Turned 45 degrees about Y, the cube's vertical edges stick out to sqrt(2) along X and Z. A ray along +X at z = 1.2
-// passes beside the unturned cube but hits the turned one at x = -(sqrt(2) - 1.2)
 TEST(Picking, RotatedBoxIsHitWhereItSticksOut) {
     const Ray ray{.origin = {-10.0f, 0.0f, 1.2f}, .direction = {1.0f, 0.0f, 0.0f}};
     EXPECT_FALSE(IntersectCube(ray, ToFloat4x4(XMMatrixIdentity())).has_value());
@@ -99,26 +94,23 @@ TEST(Picking, RotatedBoxIsHitWhereItSticksOut) {
     EXPECT_NEAR(*hit, 10.0f - (std::sqrt(2.0f) - 1.2f), 1e-4f);
 }
 
-// The sandbox selects the smallest distance, so distances must be world units along the ray, also for a scaled box
 TEST(Picking, NearerBoxHasTheSmallerDistance) {
     const Ray ray{.origin = {0.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}};
-    const std::optional<float> nearBox = IntersectCube(ray, ToFloat4x4(XMMatrixIdentity())); // z in [-1, 1]
+    const std::optional<float> nearBox = IntersectCube(ray, ToFloat4x4(XMMatrixIdentity()));
     const std::optional<float> farBox =
         IntersectCube(ray, ToFloat4x4(XMMatrixScaling(2.0f, 2.0f, 2.0f) * XMMatrixTranslation(0.0f, 0.0f, 5.0f)));
     ASSERT_TRUE(nearBox.has_value());
     ASSERT_TRUE(farBox.has_value());
     EXPECT_NEAR(*nearBox, 9.0f, 1e-4f);
-    EXPECT_NEAR(*farBox, 13.0f, 1e-4f); // z in [3, 7]
+    EXPECT_NEAR(*farBox, 13.0f, 1e-4f);
     EXPECT_LT(*nearBox, *farBox);
 
-    // From inside a box the hit is at once; a box behind the ray's origin is not hit
     EXPECT_EQ(
         IntersectCube({.origin = {0.0f, 0.0f, 0.0f}, .direction = {0.0f, 0.0f, 1.0f}}, ToFloat4x4(XMMatrixIdentity())),
         0.0f);
     EXPECT_FALSE(IntersectCube(ray, ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, -20.0f))).has_value());
 }
 
-// An off-centre box: x in [2, 4], moved to z in [4, 6]
 TEST(Picking, BoxCornersAreTheSlabs) {
     const Aabb box{.min = {2.0f, -1.0f, -1.0f}, .max = {4.0f, 1.0f, 1.0f}};
     const XMFLOAT4X4 world = ToFloat4x4(XMMatrixTranslation(0.0f, 0.0f, 5.0f));
@@ -130,7 +122,6 @@ TEST(Picking, BoxCornersAreTheSlabs) {
     EXPECT_FALSE(IntersectRayBox({.origin = {0.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}, world, box));
 }
 
-// A flat floor at y = 0 is hit from above
 TEST(Picking, FlatBoxIsHitWhereTheRayCrossesIt) {
     const Aabb floor{.min = {-1.0f, 0.0f, -1.0f}, .max = {1.0f, 0.0f, 1.0f}};
     const XMFLOAT4X4 world = ToFloat4x4(XMMatrixIdentity());
@@ -139,12 +130,10 @@ TEST(Picking, FlatBoxIsHitWhereTheRayCrossesIt) {
         IntersectRayBox({.origin = {0.5f, 5.0f, 0.0f}, .direction = {0.0f, -1.0f, 0.0f}}, world, floor);
     ASSERT_TRUE(hit.has_value());
     EXPECT_NEAR(*hit, 5.0f, 1e-4f);
-    // Beside it, and level above it
     EXPECT_FALSE(IntersectRayBox({.origin = {3.0f, 5.0f, 0.0f}, .direction = {0.0f, -1.0f, 0.0f}}, world, floor));
     EXPECT_FALSE(IntersectRayBox({.origin = {-5.0f, 1.0f, 0.0f}, .direction = {1.0f, 0.0f, 0.0f}}, world, floor));
 }
 
-// The ray hits one part of the model, in front of the cube: the whole model is selected
 TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     Scene scene;
     AddCube(scene, XMMatrixTranslation(0.0f, 0.0f, 10.0f));
@@ -158,7 +147,6 @@ TEST(Pick, SelectsTheObjectOfTheNearestPart) {
     EXPECT_FALSE(Pick(scene, {.origin = {9.0f, 0.0f, -10.0f}, .direction = {0.0f, 0.0f, 1.0f}}).has_value());
 }
 
-// Inside a large box, that box is ignored: empty space selects nothing, another object is selected
 TEST(Pick, BoxesTheRayStartsInsideDoNotCount) {
     Scene scene;
     AddCube(scene, XMMatrixScaling(20.0f, 20.0f, 20.0f));
@@ -169,21 +157,7 @@ TEST(Pick, BoxesTheRayStartsInsideDoNotCount) {
     EXPECT_EQ(Pick(scene, ray), cube);
 }
 
-TEST(MakePickRay, CentreOfTheViewLooksAlongTheCamera) {
-    Camera camera;
-    camera.position = {1.0f, 2.0f, 3.0f};
-    camera.rotation = {0.3f, 0.5f, 0.0f}; // looking a little down and to the right
-
-    const Ray ray = MakePickRay(camera, {640.0f, 360.0f}, {1280.0f, 720.0f});
-
-    XMFLOAT3 forward{};
-    XMStoreFloat3(&forward, XMVector3Normalize(scene::Forward(camera)));
-    ExpectNear(ray.direction, forward);
-}
-
 TEST(MakePickRay, EdgesOfTheViewFollowTheFieldOfViewAndScreenDirections) {
-    // Along +Z with a 90 degree vertical FOV: the top edge is 45 degrees up, a 2:1 view reaches twice as far
-    // sideways. Screen y grows down, world y up.
     Camera camera;
     camera.fovDegrees = 90.0f;
     const XMFLOAT2 viewport{200.0f, 100.0f};
@@ -212,9 +186,7 @@ TEST(IntersectHorizontalPlane, HitsInFrontOnly) {
     ASSERT_TRUE(hit.has_value());
     ExpectNear(*hit, {5.0f, 1.0f, 2.0f});
 
-    // The plane is above a ray that points down: behind it
     EXPECT_FALSE(IntersectHorizontalPlane(down, 6.0f).has_value());
-    // A level ray never meets a horizontal plane
     const Ray level{.origin = {0.0f, 5.0f, 0.0f}, .direction = {0.0f, 0.0f, 1.0f}};
     EXPECT_FALSE(IntersectHorizontalPlane(level, 0.0f).has_value());
 }

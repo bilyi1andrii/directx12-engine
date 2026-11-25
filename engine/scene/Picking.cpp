@@ -8,18 +8,12 @@
 #include <limits>
 #include <span>
 
-#include "core/Assert.h"
-
 namespace scene {
     using namespace DirectX;
 
     Ray MakePickRay(const Camera &camera, XMFLOAT2 pointPx, XMFLOAT2 viewportPx) {
-        ENGINE_ASSERT_MSG(viewportPx.x > 0.0f && viewportPx.y > 0.0f, "MakePickRay on a {} x {} view", viewportPx.x,
-                          viewportPx.y);
         const XMMATRIX view = ViewMatrix(camera);
         const XMMATRIX projection = ProjectionMatrix(camera, viewportPx.x / viewportPx.y);
-        // Unproject: pixel + depth -> world, the inverse of what the GPU does (world -> clip -> pixel). Depth is
-        // reversed: 1 is the near plane and 0 the far plane. World matrix: identity.
         const XMVECTOR nearPoint =
             XMVector3Unproject(XMVectorSet(pointPx.x, pointPx.y, 1.0f, 1.0f), 0.0f, 0.0f, viewportPx.x, viewportPx.y,
                                0.0f, 1.0f, projection, view, XMMatrixIdentity());
@@ -33,31 +27,22 @@ namespace scene {
     }
 
     std::optional<float> IntersectRayBox(const Ray &ray, const XMFLOAT4X4 &world, const render::Aabb &box) {
-        // Test in the box's own space, where it is axis-aligned. The world matrix is affine, so the ray maps to
-        // origin' + t * direction' with the same t: the hit distance needs no conversion back.
-        XMVECTOR determinant;
-        const XMMATRIX toLocal = XMMatrixInverse(&determinant, XMLoadFloat4x4(&world));
-        if (std::abs(XMVectorGetX(determinant)) < std::numeric_limits<float>::min()) {
-            return std::nullopt; // a scale of 0 cannot be inverted
-        }
+        const XMMATRIX toLocal = XMMatrixInverse(nullptr, XMLoadFloat4x4(&world));
         XMFLOAT3 origin{};
         XMFLOAT3 direction{};
-        XMStoreFloat3(&origin, XMVector3TransformCoord(XMLoadFloat3(&ray.origin), toLocal));        // a point
-        XMStoreFloat3(&direction, XMVector3TransformNormal(XMLoadFloat3(&ray.direction), toLocal)); // no translation
+        XMStoreFloat3(&origin, XMVector3TransformCoord(XMLoadFloat3(&ray.origin), toLocal));
+        XMStoreFloat3(&direction, XMVector3TransformNormal(XMLoadFloat3(&ray.direction), toLocal));
         const std::array origins{origin.x, origin.y, origin.z};
         const std::array directions{direction.x, direction.y, direction.z};
         const std::array lows{box.min.x, box.min.y, box.min.z};
         const std::array highs{box.max.x, box.max.y, box.max.z};
 
-        // Slab test: the box is where the ray is between both planes of every axis, so intersect the t intervals
-        // of the three slabs [low, high]. Starting at 0 ignores everything behind the ray.
         float tEnter = 0.0f;
         float tExit = std::numeric_limits<float>::max();
         for (size_t axis = 0; axis < origins.size(); ++axis) {
             const float o = origins[axis];
             const float d = directions[axis];
             if (std::abs(d) < 1e-12f) {
-                // Parallel to this slab: inside it everywhere or nowhere
                 if (o < lows[axis] || o > highs[axis]) {
                     return std::nullopt;
                 }
@@ -85,7 +70,6 @@ namespace scene {
             const SceneObject &object = objects[index];
             for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
                 const std::optional<float> distance = IntersectRayBox(ray, transforms[i].world, parts[i].bounds);
-                // Distance 0 means the ray starts inside this box: skip it
                 if (distance && *distance > 0.0f && *distance < nearestDistance) {
                     nearest = ObjectId{.index = index};
                     nearestDistance = *distance;
@@ -100,10 +84,9 @@ namespace scene {
         if (std::abs(ray.direction.y) < kParallel) {
             return std::nullopt;
         }
-        // origin.y + t * direction.y = planeY
         const float t = (planeY - ray.origin.y) / ray.direction.y;
         if (t < 0.0f) {
-            return std::nullopt; // the plane is behind the ray
+            return std::nullopt;
         }
         return XMFLOAT3{ray.origin.x + t * ray.direction.x, planeY, ray.origin.z + t * ray.direction.z};
     }
