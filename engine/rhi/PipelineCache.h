@@ -16,19 +16,19 @@
 namespace engine::rhi {
     // Fixed-function PSO settings (blending, culling, depth)
     enum class BlendMode : uint8_t {
-        Opaque,     // the pixel's colour replaces the target's
-        AlphaBlend, // the pixel covers the target by its alpha: colour * alpha + target * (1 - alpha)
+        Opaque,
+        AlphaBlend,
     };
 
     enum class CullMode : uint8_t {
-        Back,  // draws the triangles that face the camera
-        None,  // draws both sides
-        Front, // draws only the triangles that face away: the far side of a closed shape
+        Back,
+        None,
+        Front,
     };
 
     enum class DepthMode : uint8_t {
-        TestAndWrite, // hides what is behind the depth already drawn, and stores its own depth
-        TestOnly,     // hides what is behind, but leaves the depth as it is (transparent surfaces)
+        TestAndWrite,
+        TestOnly,
     };
 
     // Everything required to build a PSO. Uses views/spans to avoid copying,

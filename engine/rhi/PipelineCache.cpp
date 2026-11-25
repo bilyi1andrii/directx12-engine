@@ -71,8 +71,7 @@ namespace engine::rhi {
             return D3D12_DEPTH_WRITE_MASK_ALL;
         }
 
-        // Blending happens after the pixel shader, in fixed-function hardware: it mixes the shader's colour with the
-        // colour already in the render target. The PSO fixes how.
+        // Blending is fixed-function: after the pixel shader, it mixes its colour with the target's as the PSO says
         [[nodiscard]] D3D12_BLEND_DESC NativeBlend(BlendMode mode) noexcept {
             D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
             if (mode == BlendMode::AlphaBlend) {
@@ -81,7 +80,7 @@ namespace engine::rhi {
                 target.SrcBlend = D3D12_BLEND_SRC_ALPHA;
                 target.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
                 target.BlendOp = D3D12_BLEND_OP_ADD;
-                // The target's alpha is not shown, so it takes the shader's alpha unmixed
+                // The back buffer's alpha is never shown, so it just takes the shader's
                 target.SrcBlendAlpha = D3D12_BLEND_ONE;
                 target.DestBlendAlpha = D3D12_BLEND_ZERO;
                 target.BlendOpAlpha = D3D12_BLEND_OP_ADD;
