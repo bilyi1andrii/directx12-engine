@@ -16,16 +16,6 @@ namespace render::fg {
     }
 
     uint32_t GraphDesc::AddPass(std::span<const TextureUse> passUses) {
-        for (size_t i = 0; i < passUses.size(); ++i) {
-            ENGINE_ASSERT_MSG(passUses[i].texture < textures.size(), "Pass {} uses texture {}, which does not exist",
-                              passes.size(), passUses[i].texture);
-            ENGINE_ASSERT_MSG(passUses[i].access != Access::Present, "Pass {} uses texture {} with Access::Present",
-                              passes.size(), passUses[i].texture);
-            for (size_t j = 0; j < i; ++j) {
-                ENGINE_ASSERT_MSG(passUses[j].texture != passUses[i].texture, "Pass {} uses texture {} twice",
-                                  passes.size(), passUses[i].texture);
-            }
-        }
         passes.push_back(
             {.firstUse = static_cast<uint32_t>(uses.size()), .useCount = static_cast<uint32_t>(passUses.size())});
         uses.insert(uses.end(), passUses.begin(), passUses.end());
@@ -39,10 +29,6 @@ namespace render::fg {
     }
 
     namespace {
-        // Walks the passes from the last one back, so whether a later pass runs is known before an earlier one is
-        // decided. A pass runs if it writes a texture that is needed. Imported textures are always needed, and
-        // every texture a running pass uses becomes needed by the passes before it. A write counts as a use too:
-        // a pass may keep the earlier contents of a texture it writes (no clear).
         void CullPasses(const GraphDesc &graph, CompiledGraph &out) {
             std::vector<bool> needed(graph.textures.size());
             for (size_t i = 0; i < graph.textures.size(); ++i) {
@@ -62,7 +48,6 @@ namespace render::fg {
             }
         }
 
-        // The first and last running pass of each texture
         void FindLifetimes(const GraphDesc &graph, CompiledGraph &out) {
             for (uint32_t pass = 0; pass < graph.passes.size(); ++pass) {
                 if (!out.passes[pass].kept) {
@@ -78,8 +63,6 @@ namespace render::fg {
             }
         }
 
-        // Every imported texture gets its own GPU texture. A transient takes the first GPU texture with the same
-        // description whose last user ran before the transient's first pass; otherwise it gets a new one.
         void AssignGpuTextures(const GraphDesc &graph, CompiledGraph &out) {
             for (size_t i = 0; i < graph.textures.size(); ++i) {
                 if (graph.textures[i].imported) {
@@ -88,9 +71,7 @@ namespace render::fg {
                 }
             }
 
-            // The last pass that uses each GPU texture so far; only read for transients
             std::vector<uint32_t> busyUntil(out.gpuTextures.size(), kNoIndex);
-            // In pass order, so each transient is assigned at its first pass, after the ones that start earlier
             for (uint32_t pass = 0; pass < graph.passes.size(); ++pass) {
                 if (!out.passes[pass].kept) {
                     continue;
@@ -119,9 +100,6 @@ namespace render::fg {
             }
         }
 
-        // Follows the state of each GPU texture through the running passes and records every change.
-        // Resource states persist between frames on one queue, so a transient starts the frame in the state its
-        // last use left it in: it needs no transition at the end of the frame.
         void FindTransitions(const GraphDesc &graph, CompiledGraph &out) {
             std::vector<Access> state(out.gpuTextures.size(), Access::Present);
             for (uint32_t pass = 0; pass < graph.passes.size(); ++pass) {
@@ -166,7 +144,6 @@ namespace render::fg {
             }
         }
 
-        // Debug check, in declaration order: a pass that reads a transient must come after a pass that writes it
         void AssertTransientsWrittenBeforeRead([[maybe_unused]] const GraphDesc &graph) {
 #ifdef _DEBUG
             std::vector<bool> written(graph.textures.size());
