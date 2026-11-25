@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_PIPELINECACHE_H
 #define D3D12_ENGINE_PIPELINECACHE_H
 
+// Builds each pipeline state once from its description and returns it from the cache afterwards. It also loads
+// the shaders and the root signature that every pipeline shares.
+
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -14,7 +17,6 @@
 #include "rhi/RhiCommon.h"
 
 namespace rhi {
-    // Fixed-function PSO settings (blending, culling, depth)
     enum class BlendMode : uint8_t {
         Opaque,
         AlphaBlend,
@@ -38,10 +40,8 @@ namespace rhi {
         bool operator==(const DepthBias &) const = default;
     };
 
-    // Everything required to build a PSO. Uses views/spans to avoid copying,
-    // so the underlying data must remain valid during the PipelineCache::Get() call.
     struct GraphicsPipelineDesc {
-        std::wstring_view vertexShader; // compiled .cso file path/name
+        std::wstring_view vertexShader; // .cso file name
         std::wstring_view pixelShader;
 
         std::span<const D3D12_INPUT_ELEMENT_DESC> inputLayout;
@@ -49,24 +49,19 @@ namespace rhi {
         CullMode cull = CullMode::Back;
         DepthMode depth = DepthMode::TestAndWrite;
         DepthBias depthBias;
-        D3D12_PRIMITIVE_TOPOLOGY_TYPE topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 
         std::span<const DXGI_FORMAT> renderTargetFormats;
         DXGI_FORMAT depthFormat = DXGI_FORMAT_UNKNOWN;
         std::wstring_view name;
     };
 
-    // A pipeline in the cache, as an index. Resolve it with PipelineCache::Native when recording.
     struct PipelineHandle {
-        uint32_t index = std::numeric_limits<uint32_t>::max(); // default: invalid
+        uint32_t index = std::numeric_limits<uint32_t>::max();
 
         [[nodiscard]] bool IsValid() const noexcept { return index != std::numeric_limits<uint32_t>::max(); }
         bool operator==(const PipelineHandle &) const = default;
     };
 
-    // Caches PSOs to avoid slow on-the-fly compilation.
-    // Also owns the shared root signature and loaded shader bytecode.
-    // Not thread-safe, non-copyable.
     class PipelineCache {
     public:
         PipelineCache(NativeDevice *device, std::filesystem::path shaderDirectory);
@@ -76,18 +71,15 @@ namespace rhi {
         PipelineCache(PipelineCache &&) = delete;
         PipelineCache &operator=(PipelineCache &&) = delete;
 
-        // Returns an existing PSO or creates a new one if the description is unique
         [[nodiscard]] PipelineHandle Get(const GraphicsPipelineDesc &desc);
 
         [[nodiscard]] ID3D12PipelineState *Native(PipelineHandle handle) const;
 
-        // Global root signature, shared across all PSOs in the engine
         [[nodiscard]] ID3D12RootSignature *RootSignature() const noexcept { return m_rootSignature.Get(); }
 
         [[nodiscard]] size_t PipelineCount() const noexcept { return m_pipelines.size(); }
 
     private:
-        // Owns a copy of input layout element data to be stored as a unique map key
         struct InputElement {
             std::string semanticName;
             uint32_t semanticIndex = 0;
@@ -100,7 +92,6 @@ namespace rhi {
             bool operator==(const InputElement &) const = default;
         };
 
-        // Full key with owned memory for fast PSO lookup in the unordered_map
         struct Key {
             std::wstring vertexShader;
             std::wstring pixelShader;
@@ -109,7 +100,6 @@ namespace rhi {
             CullMode cull = CullMode::Back;
             DepthMode depth = DepthMode::TestAndWrite;
             DepthBias depthBias;
-            D3D12_PRIMITIVE_TOPOLOGY_TYPE topology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
             std::vector<DXGI_FORMAT> renderTargetFormats;
             DXGI_FORMAT depthFormat = DXGI_FORMAT_UNKNOWN;
 
@@ -124,15 +114,14 @@ namespace rhi {
 
         [[nodiscard]] ComPtr<ID3D12PipelineState> Create(const GraphicsPipelineDesc &desc);
 
-        // Reads and caches shader bytecode from disk upon the first request
         [[nodiscard]] const std::vector<std::byte> &Shader(std::wstring_view fileName);
 
         NativeDevice *m_device;
         std::filesystem::path m_shaderDirectory;
         ComPtr<ID3D12RootSignature> m_rootSignature;
-        std::vector<ComPtr<ID3D12PipelineState>> m_pipelines; // PipelineHandle::index points here
+        std::vector<ComPtr<ID3D12PipelineState>> m_pipelines;
         std::unordered_map<Key, uint32_t, KeyHash> m_indexByKey;
-        std::unordered_map<std::wstring, std::vector<std::byte>> m_shaders; // by file name
+        std::unordered_map<std::wstring, std::vector<std::byte>> m_shaders;
     };
 } // namespace rhi
 
