@@ -1,28 +1,18 @@
-# Compiles every shaders/{vs,ps,cs,rs}_*.hlsl with DXC into <bin>/shaders/<name>.cso.
-# The file prefix picks the profile:
-#   vs_/ps_/cs_  shader stage, Shader Model 6.6, entry point main
-#   rs_          root signature only (rootsig_1_1); the entry is the #define that holds the root
-#                signature string, GLOBAL_ROOT_SIGNATURE (common/root_signature.hlsli)
-# A shader error or warning fails the build.
-#
-# SHADER_VARIANTS compiles some shaders a second time with a #define, each into its own .cso. A PSO picks a variant
-# by its file name. Each entry is three values: the source's name, the variant's name, the define.
+# Compiles every shader in this folder into <bin>/shaders/<name>.cso.
+# The file name's prefix picks the stage (vs_, ps_, cs_) or marks a root signature (rs_).
+# SHADER_VARIANTS compiles some shaders again with a #define, each into its own file per entry.
 
 file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.hlsl")
 file(GLOB_RECURSE SHADER_INCLUDES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.hlsli")
 
 set(SHADER_VARIANTS
-        # Discards the pixels whose alpha is below the material's cutoff
         ps_light ps_light_alpha_test ALPHA_TEST=1
-        # Outputs the material's alpha, for the transparent pass to blend with
         ps_light ps_light_blend ALPHA_BLEND=1
 )
 
 set(SHADER_OUTPUT_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders")
 set(COMPILED_SHADERS)
 
-# Compiles one shader file into <OUT_NAME>.cso in the shader output folder, with an optional NAME=VALUE define, and
-# adds the result to what compile_shaders builds.
 function(compile_shader SHADER OUT_NAME DEFINE)
     get_filename_component(NAME_WE "${SHADER}" NAME_WE)
 
@@ -33,7 +23,7 @@ function(compile_shader SHADER OUT_NAME DEFINE)
     elseif (NAME_WE MATCHES "^rs_")
         set(PROFILE rootsig_1_1)
         set(ENTRY GLOBAL_ROOT_SIGNATURE)
-        set(HAS_CODE 0) # no code to optimise or debug; DXC warns about -Zi here
+        set(HAS_CODE 0)
     else ()
         message(FATAL_ERROR "Unknown shader stage (expected vs_/ps_/cs_/rs_ prefix): ${SHADER}")
     endif ()
@@ -50,7 +40,6 @@ function(compile_shader SHADER OUT_NAME DEFINE)
             COMMAND "${DIRECTX_DXC_TOOL}" -nologo -T ${PROFILE} -E ${ENTRY} -WX
             -I "${CMAKE_CURRENT_SOURCE_DIR}"
             ${DEFINE_ARGS}
-            # Debug: no optimisation, debug info embedded in the .cso so PIX can show HLSL source.
             "$<$<BOOL:${HAS_CODE}>:$<IF:$<CONFIG:Debug>,-Od;-Zi;-Qembed_debug,-O3>>"
             -Fo "${OUT_CSO}" "${SHADER}"
             DEPENDS "${SHADER}" ${SHADER_INCLUDES}

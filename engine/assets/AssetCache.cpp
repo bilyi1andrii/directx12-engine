@@ -105,7 +105,7 @@ namespace engine::assets {
             }
             std::optional<MaterialHandle> &material = materials[submesh.materialIndex];
             if (!material) {
-                material = Material(*data, data->materials[submesh.materialIndex], embedded, name);
+                material = MaterialFromFile(*data, data->materials[submesh.materialIndex], embedded, name);
             }
             model.parts.push_back(render::ModelPart{.mesh = meshes[node.submesh],
                                                     .material = *material,
@@ -128,7 +128,7 @@ namespace engine::assets {
         }
         render::Model model;
         model.parts.push_back(
-            render::ModelPart{.mesh = *m_cubeMesh, .material = Material(texture), .bounds = kCubeBounds});
+            render::ModelPart{.mesh = *m_cubeMesh, .material = Material({.albedo = texture}), .bounds = kCubeBounds});
         model.bounds = kCubeBounds;
         model.triangleCount = kCubeTriangleCount;
         return m_cubeModels.emplace(texture.index, std::move(model)).first->second;
@@ -165,8 +165,8 @@ namespace engine::assets {
         return handle;
     }
 
-    MaterialHandle AssetCache::Material(const render::ModelData &model, const render::MaterialDesc &material,
-                                        EmbeddedTextures &embedded, std::wstring_view modelName) {
+    MaterialHandle AssetCache::MaterialFromFile(const render::ModelData &model, const render::MaterialDesc &material,
+                                                EmbeddedTextures &embedded, std::wstring_view modelName) {
         const std::optional<TextureHandle> albedo =
             MaterialTexture(model, material.albedo, TextureUsage::Diffuse, embedded, modelName);
         render::MaterialInfo info{
@@ -221,7 +221,6 @@ namespace engine::assets {
     }
 
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
-        // The alpha value a mode does not read goes back to its default, so materials that look the same share a handle
         render::MaterialInfo used = material;
         const render::MaterialInfo defaults;
         if (used.alphaMode != render::AlphaMode::Mask) {
@@ -237,10 +236,6 @@ namespace engine::assets {
         const MaterialHandle handle = m_gpu->CreateMaterial(used);
         m_materials.emplace(used, handle);
         return handle;
-    }
-
-    MaterialHandle AssetCache::Material(TextureHandle albedo, render::Shading shading, bool doubleSided) {
-        return Material(render::MaterialInfo{.albedo = albedo, .shading = shading, .doubleSided = doubleSided});
     }
 
     size_t AssetCache::MaterialInfoHash::operator()(const render::MaterialInfo &material) const noexcept {

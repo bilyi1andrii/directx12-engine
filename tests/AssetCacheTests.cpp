@@ -287,10 +287,10 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     AssetCache cache(gpu);
     const TextureHandle texture{.index = 7};
 
-    const MaterialHandle lit = cache.Material(texture);
-    const MaterialHandle unlit = cache.Material(texture, Shading::Unlit);
-    const MaterialHandle twoSided = cache.Material(texture, Shading::Lit, true);
-    const MaterialHandle otherTexture = cache.Material(TextureHandle{.index = 8});
+    const MaterialHandle lit = cache.Material({.albedo = texture});
+    const MaterialHandle unlit = cache.Material({.albedo = texture, .shading = Shading::Unlit});
+    const MaterialHandle twoSided = cache.Material({.albedo = texture, .doubleSided = true});
+    const MaterialHandle otherTexture = cache.Material({.albedo = TextureHandle{.index = 8}});
     const MaterialInfo mask{.albedo = texture, .alphaMode = AlphaMode::Mask, .opacityMap = TextureHandle{.index = 9}};
     MaterialInfo otherCutoff = mask;
     otherCutoff.alphaCutoff = 77;
@@ -302,9 +302,9 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     blend.alphaCutoff = 77;
     const MaterialHandle blended = cache.Material(blend);
 
-    EXPECT_EQ(cache.Material(texture), lit);
-    EXPECT_EQ(cache.Material(texture, Shading::Unlit), unlit);
-    EXPECT_EQ(cache.Material(texture, Shading::Lit, true), twoSided);
+    EXPECT_EQ(cache.Material({.albedo = texture}), lit);
+    EXPECT_EQ(cache.Material({.albedo = texture, .shading = Shading::Unlit}), unlit);
+    EXPECT_EQ(cache.Material({.albedo = texture, .doubleSided = true}), twoSided);
     EXPECT_EQ(cache.Material(mask), masked);
     // Each mode ignores the alpha value it does not use: a cutoff for Blend, an opacity for Mask and Opaque
     MaterialInfo blendOtherCutoff = blend;

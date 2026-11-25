@@ -62,13 +62,9 @@ namespace engine::assets {
         // The light and dark grey checkerboard, made on the first call. A failure gives the grey texture.
         [[nodiscard]] render::TextureHandle CheckerboardTexture();
 
-        // The material with these settings. Each distinct combination is created once, then reused. The cutoff counts
-        // only for Mask and the opacity only for Blend; the material is created with the other one at its default.
+        // The material with these settings. Each distinct combination is created once, then reused. The alpha value
+        // its mode does not use is reset to its default.
         [[nodiscard]] render::MaterialHandle Material(const render::MaterialInfo &material);
-        // The opaque material with this texture, shading and culling
-        [[nodiscard]] render::MaterialHandle Material(render::TextureHandle albedo,
-                                                      render::Shading shading = render::Shading::Lit,
-                                                      bool doubleSided = false);
 
         [[nodiscard]] size_t ModelCount() const noexcept { return m_models.size(); }
         // Textures the cache created: files, embedded images and solid colours
@@ -83,9 +79,9 @@ namespace engine::assets {
         };
 
         // The handle for a model's material
-        [[nodiscard]] render::MaterialHandle Material(const render::ModelData &model,
-                                                      const render::MaterialDesc &material, EmbeddedTextures &embedded,
-                                                      std::wstring_view modelName);
+        [[nodiscard]] render::MaterialHandle MaterialFromFile(const render::ModelData &model,
+                                                              const render::MaterialDesc &material,
+                                                              EmbeddedTextures &embedded, std::wstring_view modelName);
 
         // The texture a material slot points to, read as the given kind of data, or nothing if the slot is empty. A
         // file or image that fails to load gives the grey texture, with a warning.
