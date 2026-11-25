@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string_view>
 
 #include <DirectXMath.h>
@@ -15,9 +16,17 @@ struct ImDrawData;
 struct ImGuiContext;
 
 namespace engine::ui {
+    struct PassTime {
+        std::string_view name;
+        double ms = 0.0;
+    };
+
     // What the renderer window shows about the current frame
     struct FrameStats {
         double fps = 0.0; // 0 until the first measurement
+        double cpuRecordMs = 0.0;
+        double gpuTotalMs = 0.0;
+        std::span<const PassTime> gpuPasses;
         size_t objectCount = 0;
         std::string_view sceneInfo; // one line about what is drawn, e.g. "grid 20 x 20, dynamic"
         DirectX::XMFLOAT3 cameraPosition{};

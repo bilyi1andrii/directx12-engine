@@ -94,6 +94,12 @@ namespace engine::rhi {
         void BeginEvent(const char *name);
         void EndEvent();
 
+        // When the GPU gets here, after the commands before it have finished, it writes its tick counter into
+        // timestamp `index` of `heap`.
+        void WriteTimestamp(ID3D12QueryHeap *heap, uint32_t index);
+        void ResolveTimestamps(ID3D12QueryHeap *heap, uint32_t first, uint32_t count, ID3D12Resource *destination,
+                               uint64_t offset);
+
         // Flushes barriers and ends recording; the list can then be executed
         void Close();
 
@@ -113,9 +119,7 @@ namespace engine::rhi {
     // A named region of commands from construction to destruction (CommandContext::BeginEvent / EndEvent)
     class ScopedGpuEvent {
     public:
-        ScopedGpuEvent(CommandContext &context, const char *name) : m_context(context) {
-            m_context.BeginEvent(name);
-        }
+        ScopedGpuEvent(CommandContext &context, const char *name) : m_context(context) { m_context.BeginEvent(name); }
         ~ScopedGpuEvent() { m_context.EndEvent(); }
 
         ScopedGpuEvent(const ScopedGpuEvent &) = delete;

@@ -8,6 +8,7 @@
 #include "rhi/CommandContext.h"
 #include "rhi/DepthFormat.h"
 #include "rhi/FrameContext.h"
+#include "rhi/GpuProfiler.h"
 
 #include "common/root_signature.hlsli"
 
@@ -100,8 +101,14 @@ namespace engine::render {
     void FrameGraph::AddPass(std::string_view name, const std::function<void(PassBuilder &)> &setup,
                              ExecuteFn execute) {
         ENGINE_ASSERT_MSG(!m_isCompiled && !m_executing, "AddPass of {} after Compile", name);
+        ENGINE_ASSERT_MSG(m_passes.size() < rhi::kMaxGpuScopes, "Pass {}: a frame graph has at most {} passes", name,
+                          rhi::kMaxGpuScopes);
         const auto passIndex = static_cast<uint32_t>(m_passes.size());
-        m_passes.push_back({.name = std::string(name), .execute = std::move(execute), .colors = {}, .depth = {}});
+        m_passes.push_back({.name = std::string(name),
+                            .timerId = m_profiler.RegisterScope(name),
+                            .execute = std::move(execute),
+                            .colors = {},
+                            .depth = {}});
 
         m_setupUses.clear();
         PassBuilder builder(*this, passIndex);
@@ -176,7 +183,7 @@ namespace engine::render {
 
             // Everything the pass records shows up under its name in PIX
             const rhi::ScopedGpuEvent event(commands, pass.name.c_str());
-            // TODO: ScopedGpuTimer(commands, profiler, pass.name) once the GPU profiler exists
+            const rhi::ScopedGpuTimer timer(commands, m_profiler, pass.timerId);
             BindTargetsAndClear(pass, commands);
             // Setting a root signature clears every root argument, so the frame constants are bound again for each
             // pass. Each pass starts from this state, whatever the previous one set (ImGui sets its own).

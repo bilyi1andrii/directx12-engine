@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cfloat>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -25,6 +26,7 @@
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
 #include "core/File.h"
+#include "core/IntervalAverage.h"
 #include "core/Log.h"
 #include "core/Timer.h"
 #include "core/Utf8.h"
@@ -57,6 +59,42 @@ namespace {
             LogInfo("VSync {}", after.vsync ? "on" : "off");
         }
     }
+
+    class FrameTimeAverages {
+    public:
+        void Add(double deltaSeconds, double cpuRecordMs, const std::optional<engine::rhi::GpuFrameTimes> &gpu) {
+            m_cpuRecord.Add(cpuRecordMs, deltaSeconds);
+            if (!gpu) {
+                return;
+            }
+            m_gpuTotal.Add(gpu->totalMs, deltaSeconds);
+
+            const std::span<const engine::rhi::GpuScopeTime> passes = gpu->Scopes();
+            if (passes.size() != m_passCount) {
+                for (engine::core::IntervalAverage &average : m_passAverages) {
+                    average.Reset();
+                }
+                m_passCount = passes.size();
+            }
+            for (size_t i = 0; i < passes.size(); ++i) {
+                m_passAverages[i].Add(passes[i].ms, deltaSeconds);
+                m_passes[i] = {.name = passes[i].name, .ms = m_passAverages[i].Value()};
+            }
+        }
+
+        [[nodiscard]] double CpuRecordMs() const noexcept { return m_cpuRecord.Value(); }
+        [[nodiscard]] double GpuTotalMs() const noexcept { return m_gpuTotal.Value(); }
+        [[nodiscard]] std::span<const engine::ui::PassTime> GpuPasses() const noexcept {
+            return std::span(m_passes).first(m_passCount);
+        }
+
+    private:
+        engine::core::IntervalAverage m_cpuRecord;
+        engine::core::IntervalAverage m_gpuTotal;
+        std::array<engine::core::IntervalAverage, engine::rhi::kMaxGpuScopes> m_passAverages;
+        std::array<engine::ui::PassTime, engine::rhi::kMaxGpuScopes> m_passes{};
+        size_t m_passCount = 0;
+    };
 
     // A dropped file and its drop point (client pixels, (0, 0) top-left)
     struct DroppedFile {
@@ -238,6 +276,7 @@ namespace {
 
         // Game loop: handle all pending window messages, update, render
         engine::core::FrameTimer frameTimer;
+        FrameTimeAverages frameTimes;
         uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
             frameTimer.Tick();
@@ -320,6 +359,9 @@ namespace {
             }
 
             ui.ShowRendererWindow({.fps = frameTimer.Fps(),
+                                   .cpuRecordMs = frameTimes.CpuRecordMs(),
+                                   .gpuTotalMs = frameTimes.GpuTotalMs(),
+                                   .gpuPasses = frameTimes.GpuPasses(),
                                    .objectCount = scene.Objects().size(),
                                    .sceneInfo = sceneInfo,
                                    .cameraPosition = camera.position,
@@ -356,12 +398,14 @@ namespace {
                                          renderer.Resources(), assets, scene, nextModelX, grid, models);
             }
 
+            renderer.BeginFrame(window.Width(), window.Height(), settings);
+            const auto recordStart = std::chrono::steady_clock::now();
             renderList.Clear();
             engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
             engine::scene::Extract(scene, lights);
-
-            renderer.BeginFrame(window.Width(), window.Height(), settings);
             renderer.Render(frameView, lights, renderList, staticLists, uiDrawData); // the UI on top of the scene
+            const std::chrono::duration<double, std::milli> recordMs = std::chrono::steady_clock::now() - recordStart;
+            frameTimes.Add(frameTimer.DeltaSeconds(), recordMs.count(), renderer.GpuTimes());
             renderer.EndFrame();
             ++framesRendered;
 

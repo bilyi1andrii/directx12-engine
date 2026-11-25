@@ -181,6 +181,20 @@ namespace engine::rhi {
         m_list->EndEvent();
     }
 
+    void CommandContext::WriteTimestamp(ID3D12QueryHeap *heap, uint32_t index) {
+        ENGINE_ASSERT(m_recording);
+        FlushBarriers();
+        m_list->EndQuery(heap, D3D12_QUERY_TYPE_TIMESTAMP, index);
+    }
+
+    void CommandContext::ResolveTimestamps(ID3D12QueryHeap *heap, uint32_t first, uint32_t count,
+                                           ID3D12Resource *destination, uint64_t offset) {
+        ENGINE_ASSERT(m_recording);
+        ENGINE_ASSERT_MSG(offset % sizeof(uint64_t) == 0, "timestamp offset {} is not a multiple of 8", offset);
+        FlushBarriers();
+        m_list->ResolveQueryData(heap, D3D12_QUERY_TYPE_TIMESTAMP, first, count, destination, offset);
+    }
+
     void CommandContext::Close() {
         ENGINE_ASSERT_MSG(m_recording, "CommandContext::Close called without Begin");
         FlushBarriers();
