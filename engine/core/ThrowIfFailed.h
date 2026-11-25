@@ -1,22 +1,13 @@
 #ifndef D3D12_ENGINE_THROWIFFAILED_H
 #define D3D12_ENGINE_THROWIFFAILED_H
 
+// Turns failed Windows and D3D12 calls into exceptions that say what failed and where.
+
 #include <source_location>
-#include <stdexcept>
-#include <string>
 
 #include <Windows.h>
 
 namespace core {
-    class HResultError : public std::runtime_error {
-    public:
-        HResultError(HRESULT hr, const std::string &message);
-        [[nodiscard]] HRESULT Code() const noexcept { return m_hr; }
-
-    private:
-        HRESULT m_hr;
-    };
-
     void ThrowHResult(HRESULT hr, std::source_location location);
 
     inline void ThrowIfFailed(HRESULT hr, std::source_location location = std::source_location::current()) {

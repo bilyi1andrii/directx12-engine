@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_WINDOW_H
 #define D3D12_ENGINE_WINDOW_H
 
+// The application's window: it handles Windows' messages, resizing, borderless fullscreen and files dropped onto
+// it, and passes every message on to the app first.
+
 #include <cstdint>
 #include <exception>
 #include <filesystem>
@@ -25,16 +28,11 @@ namespace core {
     };
 
     struct WindowCallbacks {
-        // Sees every message before the window handles it.
-        // Return true to skip the window's own handling
         std::function<bool(const WindowMessage &)> onMessage;
-
-        // Files dropped from Explorer at (x, y): client pixels, (0, 0) top-left. Called from PumpMessages.
-        std::function<void(std::span<const std::filesystem::path> paths, int32_t x, int32_t y)> onFilesDropped;
+        std::function<void(std::span<const std::filesystem::path> paths, int32_t clientX, int32_t clientY)>
+            onFilesDropped;
     };
 
-    // The application's main window
-    // Not copyable or movable
     class Window {
     public:
         explicit Window(const WindowDesc &desc);
@@ -47,26 +45,18 @@ namespace core {
 
         void SetCallbacks(WindowCallbacks callbacks);
 
-        // Handles all pending messages without blocking.
-        // Returns false once window has been closed
         [[nodiscard]] bool PumpMessages();
 
-        // Asks the window to close
         void Close();
 
-        // Borderless fullscreen
         void SetFullscreen(bool fullscreen);
         void ToggleFullscreen() { SetFullscreen(!m_fullscreen); }
 
         [[nodiscard]] HWND Handle() const noexcept { return m_hwnd; }
-        // Client-area size, kept while minimized. Read it once per frame: one fullscreen toggle sends several
-        // WM_SIZE messages, so following each of them would resize the swap chain several times.
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
         [[nodiscard]] uint32_t Height() const noexcept { return m_height; }
         [[nodiscard]] bool IsMinimized() const noexcept { return m_minimized; }
-        [[nodiscard]] bool IsFullscreen() const noexcept { return m_fullscreen; }
 
-        // The code passed to PostQuitMessage. Valid after PumpMessages() returned false.
         [[nodiscard]] int ExitCode() const noexcept { return m_exitCode; }
 
     private:
@@ -79,9 +69,9 @@ namespace core {
         uint32_t m_height = 0;
         bool m_minimized = false;
         bool m_fullscreen = false;
-        WINDOWPLACEMENT m_windowedPlacement{.length = sizeof(WINDOWPLACEMENT)}; // restored when leaving fullscreen
+        WINDOWPLACEMENT m_windowedPlacement{.length = sizeof(WINDOWPLACEMENT)};
         int m_exitCode = 0;
-        bool m_inDestructor = false; // the destructor destroys the window: do not post WM_QUIT
+        bool m_inDestructor = false;
         std::exception_ptr m_pendingException;
     };
 } // namespace core

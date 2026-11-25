@@ -120,7 +120,6 @@ namespace sandbox {
                          const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,
                          float &nextModelX, const GridObjects &grid, std::vector<PlacedModel> &models) {
         core::Timer timer;
-        timer.Start();
         const std::string name = core::ToUtf8(path.filename().wstring());
         LogInfo("Dropped {}: loading...", name);
 

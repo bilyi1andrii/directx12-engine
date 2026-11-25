@@ -1,20 +1,17 @@
 #ifndef D3D12_ENGINE_UNIQUEHANDLE_H
 #define D3D12_ENGINE_UNIQUEHANDLE_H
 
+// Owns a Windows handle, such as an event, and closes it when it goes out of scope.
+
 #include <memory>
 
 #include <Windows.h>
 
 namespace core {
     struct HandleCloser {
-        void operator()(HANDLE handle) const noexcept {
-            if (handle != nullptr && handle != INVALID_HANDLE_VALUE) {
-                ::CloseHandle(handle);
-            }
-        }
+        void operator()(HANDLE handle) const noexcept { ::CloseHandle(handle); }
     };
 
-    // Owns a Win32 kernel HANDLE (event, file, thread, ...) and closes it on destruction.
     using UniqueHandle = std::unique_ptr<void, HandleCloser>;
 } // namespace core
 

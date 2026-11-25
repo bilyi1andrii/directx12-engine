@@ -1,3 +1,5 @@
+// Tests reading whole files into memory.
+
 #include <array>
 #include <cstddef>
 

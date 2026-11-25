@@ -44,7 +44,7 @@ namespace render {
     // Owns the GPU objects of the window's frame loop and records one frame at a time.
     //
     // Per frame: BeginFrame(width, height, settings) -> Render(view, lights, list, staticLists, ui) -> EndFrame(),
-    // each once and in this order (asserted). Any of them can throw core::HResultError. If the GPU was lost, the
+    // each once and in this order (asserted). Any of them can throw std::runtime_error. If the GPU was lost, the
     // destructor logs why (and the DRED info in Debug builds).
     //
     // The frame is recorded by a frame graph (FrameGraph), built on the first frame and again when the back

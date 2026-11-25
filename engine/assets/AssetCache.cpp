@@ -80,7 +80,6 @@ namespace assets {
         }
 
         core::Timer timer;
-        timer.Start();
         const std::expected<render::ModelData, core::Error> data = ImportModel(path);
         if (!data) {
             return std::unexpected(data.error());

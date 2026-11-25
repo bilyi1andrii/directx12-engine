@@ -106,7 +106,6 @@ namespace {
     // destroyed before it returns, so `validation` is complete afterwards.
     apps::RunResult RunSandbox(const SandboxOptions &options, rhi::ValidationStats &validation) {
         core::Timer initTimer;
-        initTimer.Start();
 
         core::Input input;
         std::vector<DroppedFile> droppedFiles;
