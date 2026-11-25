@@ -11,8 +11,6 @@ namespace rhi {
     using core::ThrowIfFailed;
 
     CommandQueue::CommandQueue(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name) {
-        // The GPU executes command lists from queues. DIRECT queues accept everything (draw, compute,
-        // copy); COMPUTE and COPY queues accept less but can run in parallel with the direct one.
         const D3D12_COMMAND_QUEUE_DESC desc{
             .Type = type,
             .Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL,
@@ -22,20 +20,14 @@ namespace rhi {
         ThrowIfFailed(device->CreateCommandQueue(&desc, IID_PPV_ARGS(&m_queue)));
         ThrowIfFailed(m_queue->SetName(std::wstring(name).c_str()));
 
-        // A fence is a 64-bit value in GPU-visible memory. The queue writes to it (Signal),
-        // the CPU reads it (GetCompletedValue) or asks to be woken up when it reaches a value.
         ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&m_fence)));
         ThrowIfFailed(m_fence->SetName((std::wstring(name) + L" fence").c_str()));
 
-        // Auto-reset event: after one wait wakes up, it is unsignaled again
         m_fenceEvent.reset(::CreateEventW(nullptr, FALSE, FALSE, nullptr));
         core::ThrowIfWin32Failed(m_fenceEvent != nullptr);
     }
 
     CommandQueue::~CommandQueue() {
-        // Releasing the queue, or anything its pending command lists use, while the GPU is still
-        // running them is an error. Waiting here makes destruction safe even when unwinding from
-        // an exception.
         try {
             Flush();
         } catch (const std::exception &e) {
@@ -55,8 +47,6 @@ namespace rhi {
     }
 
     bool CommandQueue::IsFenceComplete(uint64_t fenceValue) const {
-        // After device removal the fence reports UINT64_MAX, so every value counts as complete
-        // and nothing waits forever
         return m_fence->GetCompletedValue() >= fenceValue;
     }
 
@@ -64,8 +54,6 @@ namespace rhi {
         if (IsFenceComplete(fenceValue)) {
             return;
         }
-        // Ask the fence to signal the event once it reaches fenceValue, then sleep until it does.
-        // Sleeping in the kernel uses no CPU, unlike polling GetCompletedValue() in a loop.
         ThrowIfFailed(m_fence->SetEventOnCompletion(fenceValue, m_fenceEvent.get()));
         core::ThrowIfWin32Failed(::WaitForSingleObject(m_fenceEvent.get(), INFINITE) == WAIT_OBJECT_0);
     }

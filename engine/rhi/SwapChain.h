@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_SWAPCHAIN_H
 #define D3D12_ENGINE_SWAPCHAIN_H
 
+// The window's back buffers: each frame is drawn into one and shown with Present, with tearing when vsync is off.
+// The scene draws through an sRGB view of the buffer, the UI through a plain one.
+
 #include <array>
 #include <cstdint>
 
@@ -11,26 +14,15 @@ namespace rhi {
     class CommandQueue;
     class Device;
 
-    // Number of swap chain images. Independent of kFramesInFlight: with 3 images the GPU can render
-    // the next frame while one image is on screen and another waits for vblank.
     inline constexpr uint32_t kBackBufferCount = 3;
 
-    // The window's swap chain: the back buffers the frame is rendered into and Present() that hands
-    // them to Windows for display. Flip model (DXGI_SWAP_EFFECT_FLIP_DISCARD), 8-bit UNORM, tearing
-    // allowed when supported (vsync off without waiting for vblank).
-    //
-    // Not copyable or movable. The queue and the RTV allocator must outlive it.
     class SwapChain {
     public:
         static constexpr DXGI_FORMAT kFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-        // The format the back buffers are drawn through (their RTVs, and every PSO that draws into them).
-        // sRGB, so the GPU converts the shader's linear colours for the display. A flip-model swap chain
-        // cannot use an sRGB format itself, but its buffers can be viewed as one. To be revisited with tonemapping.
         static constexpr DXGI_FORMAT kRtvFormat = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
 
         SwapChain(const Device &device, CommandQueue &queue, DescriptorAllocator &rtvAllocator, HWND hwnd,
                   uint32_t width, uint32_t height);
-        // Waits for the GPU before releasing the back buffers
         ~SwapChain();
 
         SwapChain(const SwapChain &) = delete;
@@ -38,21 +30,12 @@ namespace rhi {
         SwapChain(SwapChain &&) = delete;
         SwapChain &operator=(SwapChain &&) = delete;
 
-        // Shows the current back buffer. vsync: wait for the next vblank; otherwise present at once
-        // (with tearing if supported)
         void Present(bool vsync);
 
-        // Recreates the back buffers at the new size. Waits until the GPU is idle first.
-        // Does nothing for an unchanged size or 0x0 (minimized), so it is cheap to call every frame.
-        // Returns true if the buffers were recreated (size-dependent targets must follow)
-        bool Resize(uint32_t width, uint32_t height);
+        void Resize(uint32_t width, uint32_t height);
 
-        // The back buffer this frame renders into. Changes after every Present()
         [[nodiscard]] ID3D12Resource *CurrentBackBuffer() const;
-        // Its view in kRtvFormat (sRGB), for the scene
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CurrentRtv() const;
-        // Its view in kFormat (UNORM), for the UI: ImGui's colours are already sRGB-encoded, so they must be
-        // written unchanged, without the linear -> sRGB conversion of the sRGB view (they would look washed out)
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CurrentUiRtv() const;
 
         [[nodiscard]] uint32_t Width() const noexcept { return m_width; }
@@ -72,7 +55,7 @@ namespace rhi {
         uint32_t m_width = 0;
         uint32_t m_height = 0;
         bool m_tearingSupported = false;
-        UINT m_flags = 0; // creation flags; ResizeBuffers must get the same ones
+        UINT m_flags = 0;
     };
 } // namespace rhi
 
