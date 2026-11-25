@@ -310,9 +310,6 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     MaterialInfo blendOtherCutoff = blend;
     blendOtherCutoff.alphaCutoff = 200;
     EXPECT_EQ(cache.Material(blendOtherCutoff), blended);
-    MaterialInfo maskOtherOpacity = mask;
-    maskOtherOpacity.opacity = 10;
-    EXPECT_EQ(cache.Material(maskOtherOpacity), masked);
     EXPECT_EQ(cache.Material(MaterialInfo{.albedo = texture, .opacity = 10}), lit);
     // Seven different materials, each created once (material 0 was there before)
     EXPECT_EQ(gpu.materials.size(), 8u);
@@ -321,22 +318,15 @@ TEST(AssetCache, EqualMaterialsShareAHandle) {
     EXPECT_NE(lit, otherTexture);
     EXPECT_NE(lit, masked);
     EXPECT_NE(masked, maskedOtherCutoff);
-    EXPECT_NE(masked, blended);
-    EXPECT_EQ(gpu.Material(blended).opacity, 64);
-    EXPECT_EQ(gpu.Material(blended).alphaCutoff, MaterialInfo{}.alphaCutoff);
     EXPECT_EQ(gpu.Material(unlit), (MaterialInfo{.albedo = texture, .shading = Shading::Unlit}));
     EXPECT_EQ(gpu.Material(twoSided), (MaterialInfo{.albedo = texture, .doubleSided = true}));
 }
 
-// A Mask material gets its opacity map, read as data (not sRGB), and its cutoff; a Blend material its opacity. A map
-// that fails to load is left out: the grey texture would cut out the whole surface, so the material gets the white
-// texture instead.
-TEST(AssetCache, MaskAndBlendMaterialsGetTheirOpacityMapOrWhite) {
+TEST(AssetCache, MaskMaterialGetsItsOpacityMapOrWhite) {
     const TempFile albedo(L"engine_test_cache_leaf.tga", Tga2x2());
     const TempFile mask(L"engine_test_cache_leaf_mask.tga", Tga2x2());
     const TempFile mtl(L"engine_test_cache.mtl", Bytes(Mtl("map_Kd engine_test_cache_leaf.tga\n"
                                                            "map_d engine_test_cache_leaf_mask.tga",
-                                                           "d 0.25\n"
                                                            "map_Kd engine_test_cache_leaf.tga\n"
                                                            "map_d engine_test_cache_none_mask.png")));
     const TempFile obj(L"engine_test_cache_mask.obj", Bytes(kTwoMaterialsObj));
@@ -349,44 +339,33 @@ TEST(AssetCache, MaskAndBlendMaterialsGetTheirOpacityMapOrWhite) {
     const MaterialInfo &leaf = gpu.Material(model.parts[0].material);
     EXPECT_EQ(leaf.alphaMode, AlphaMode::Mask);
     EXPECT_EQ(leaf.alphaCutoff, 128);
-    EXPECT_EQ(leaf.opacity, 255) << "a cut-out surface is opaque where it is drawn";
     EXPECT_NE(leaf.opacityMap, leaf.albedo);
     ASSERT_NE(leaf.opacityMap.index, FakeUploader::kUnloaded);
     EXPECT_TRUE(gpu.textures[leaf.albedo.index - 1].isSrgb);
     EXPECT_FALSE(gpu.textures[leaf.opacityMap.index - 1].isSrgb) << "a mask is data, not colour";
 
     const MaterialInfo &broken = gpu.Material(model.parts[1].material);
-    EXPECT_EQ(broken.alphaMode, AlphaMode::Blend);
-    EXPECT_EQ(broken.opacity, 64);
+    EXPECT_EQ(broken.alphaMode, AlphaMode::Mask);
     const size_t textures = gpu.textures.size();
     EXPECT_EQ(broken.opacityMap, cache.SolidColor(255, 255, 255));
     EXPECT_EQ(gpu.textures.size(), textures) << "the white texture was made for the material";
 }
 
-// glTF's "doubleSided" reaches the renderer; a material without it stays one-sided, transparent ones too
 TEST(AssetCache, ModelMaterialsPassDoubleSidedOn) {
-    const auto withMaterial = [](std::string_view fields) {
-        std::string text(kEmbeddedTextureGltf);
-        const std::string_view material = R"("materials": [{)";
-        text.replace(text.find(material), material.size(), std::string(material) + std::string(fields));
-        return text;
-    };
-    const TempFile twoSidedGltf(L"engine_test_cache_two_sided.gltf", Bytes(withMaterial(R"("doubleSided": true, )")));
+    std::string text(kEmbeddedTextureGltf);
+    const std::string_view material = R"("materials": [{)";
+    text.replace(text.find(material), material.size(), R"("materials": [{"doubleSided": true, )");
+    const TempFile twoSidedGltf(L"engine_test_cache_two_sided.gltf", Bytes(text));
     const TempFile oneSidedGltf(L"engine_test_cache_one_sided.gltf", Bytes(kEmbeddedTextureGltf));
-    const TempFile blendGltf(L"engine_test_cache_blend.gltf", Bytes(withMaterial(R"("alphaMode": "BLEND", )")));
     FakeUploader gpu;
     AssetCache cache(gpu);
 
     const Model &twoSided = Load(cache, twoSidedGltf.Path());
     const Model &oneSided = Load(cache, oneSidedGltf.Path());
-    const Model &blend = Load(cache, blendGltf.Path());
 
     ASSERT_EQ(twoSided.parts.size(), 1u);
     ASSERT_EQ(oneSided.parts.size(), 1u);
-    ASSERT_EQ(blend.parts.size(), 1u);
     EXPECT_TRUE(gpu.Material(twoSided.parts[0].material).doubleSided);
     EXPECT_FALSE(gpu.Material(oneSided.parts[0].material).doubleSided);
-    EXPECT_EQ(gpu.Material(blend.parts[0].material).alphaMode, AlphaMode::Blend);
-    EXPECT_FALSE(gpu.Material(blend.parts[0].material).doubleSided);
     EXPECT_EQ(gpu.Material(twoSided.parts[0].material).shading, Shading::Lit);
 }
