@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_SHADOWPASS_H
 #define D3D12_ENGINE_SHADOWPASS_H
 
+// Draws every shadow caster's depth, seen from the directional light, into the shadow map. It also binds the shadow
+// map's constants for the passes that sample it.
+
 #include <cstdint>
 
 #include "render/FrameGraph.h"

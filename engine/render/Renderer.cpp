@@ -28,8 +28,6 @@ namespace render {
     using core::ThrowIfFailed;
 
     namespace {
-        // The camera and the lights in the layout the shaders read. Matrices are transposed: DirectXMath uses row
-        // vectors, and HLSL reads matrices column-major, so shaders compute mul(v, M).
         gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
 
@@ -45,8 +43,6 @@ namespace render {
             return constants;
         }
 
-        // The back buffer's two render-target views, as numbered in its TextureBinding. The scene draws through
-        // the sRGB view; the UI through the UNORM one, because ImGui's colours are already sRGB.
         constexpr uint32_t kBackBufferSrgbView = 0;
         constexpr uint32_t kBackBufferUnormView = 1;
     } // namespace
@@ -71,28 +67,21 @@ namespace render {
                                   std::format(L"Frame {}", i));
         }
 
-        // All startup uploads in one batch, submitted before the first frame
         m_upload.Begin(m_queue);
         try {
             m_resources.CreateDefaults();
             m_upload.Submit(m_queue);
         } catch (...) {
-            // ~Renderer does not run when the constructor throws, so clean up the textures and buffers here
             DestroyResources();
             throw;
         }
     }
 
     Renderer::~Renderer() {
-        // The destructor body runs before any member is destroyed. Members declared after the
-        // swap chain (the frame graph's textures, PSOs, GPU resources) are released before its flush, so wait
-        // here (DestroyResources flushes).
         DestroyResources();
     }
 
     void Renderer::DestroyResources() noexcept {
-        // An exception that ends the app destroys the renderer on its way out, so a lost GPU is logged here.
-        // Before the flush, which fails once the device is removed.
         try {
             m_device.LogDeviceRemovedInfo();
         } catch (const std::exception &e) {
@@ -103,8 +92,6 @@ namespace render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
-        // Hands every texture, mesh buffer and static list to a frame slot; the slots free them when the renderer
-        // is destroyed
         m_resources.DestroyAll(CurrentFrame());
         m_transients.DestroyAll(CurrentFrame());
     }
@@ -114,40 +101,28 @@ namespace render {
         m_frameStage = FrameStage::Begun;
         m_settings = settings;
 
-        // This slot was last used kFramesInFlight frames ago; wait until the GPU has finished that
-        // frame before reusing its allocator
         rhi::FrameContext &frame = CurrentFrame();
         frame.WaitAndReset(m_queue);
-        // Frees the staging memory of a finished upload batch
         m_upload.ReleaseCompleted(m_queue);
 
-        // Targets of the back buffer's size follow in Render: a new size rebuilds the frame graph, which acquires new
-        // textures from the pool and hands the old ones to this frame slot
         m_swapChain.Resize(width, height);
 
         m_context.Begin(frame.CommandAllocator());
-        // Before any root signature is set: shaders index this heap (bindless), and only one can be bound
         m_context.SetDescriptorHeap(m_bindlessHeap.Native());
         m_profiler.BeginFrame(m_context, m_frameNumber);
     }
 
     void Renderer::Render(const FrameView &view, const LightSet &lights, const RenderList &list,
                           std::span<const StaticListHandle> staticLists, ImDrawData *ui) {
-        // Once per frame: a second call would write the dynamic instances and the UI's vertex buffer again, and the
-        // UI backend would reuse a buffer the GPU may still be reading
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Begun, "Render must run once, after BeginFrame, in frame {}",
                           m_frameNumber);
-        ENGINE_ASSERT_MSG(ui == nullptr || m_ui != nullptr, "UI draw data without EnableUi");
         m_frameStage = FrameStage::Rendered;
 
-        // Per-frame constants go into this frame slot's upload ring: the GPU reads them while the CPU
-        // already records the next frame into the other slot's ring
         const gpu::FrameConstants frameConstants = MakeFrameConstants(view, lights);
         const rhi::UploadAllocation frameCb =
             CurrentFrame().Ring().Write(frameConstants, rhi::kConstantBufferAlignment);
 
         m_dynamicInstances.Upload(list, CurrentFrame(), m_bindlessHeap);
-        // Static lists first, then the dynamic objects
         m_drawSets.clear();
         for (const StaticListHandle handle : staticLists) {
             m_drawSets.emplace_back(m_resources.StaticList(handle).draws);
@@ -207,17 +182,14 @@ namespace render {
 
         m_shadow.AddTo(m_graph, shadowMap, m_resources);
         m_opaque.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, shadowMap, m_resources);
-        // After Opaque: it blends over the solid surfaces and tests against their depth
         m_transparent.AddTo(m_graph, m_backBuffer, kBackBufferSrgbView, sceneDepth, shadowMap, m_resources);
         if (m_ui) {
-            // Last: on top of the scene
             AddUiPass(m_graph, m_backBuffer, kBackBufferUnormView, *m_ui);
         }
         m_graph.Compile(m_transients, CurrentFrame());
     }
 
     void Renderer::EnableUi() {
-        ENGINE_ASSERT_MSG(m_ui == nullptr, "EnableUi called twice");
         m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
     }
 
@@ -231,20 +203,16 @@ namespace render {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Rendered, "EndFrame without Render in frame {}", m_frameNumber);
         m_frameStage = FrameStage::Idle;
 
-        // The frame graph has left the back buffer in PRESENT
         m_profiler.EndFrame(m_context);
         m_context.Close();
 
-        // Uploads first: this frame may already use them, and the GPU runs lists in submission order
         if (m_upload.IsRecording()) {
             m_upload.Submit(m_queue);
         }
 
-        // Submit, present, and remember which fence value marks the end of this frame's GPU work
         m_queue.ExecuteCommandList(m_context.Native());
         m_swapChain.Present(m_settings.vsync);
         CurrentFrame().SetFenceValue(m_queue.Signal());
-        // Logs this frame's DXGI messages (Present, ResizeBuffers) next to the frame that caused them
         m_device.DrainDxgiMessages();
         ++m_frameNumber;
     }

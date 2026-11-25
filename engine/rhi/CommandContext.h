@@ -28,7 +28,6 @@ namespace rhi {
         void Transition(ID3D12Resource *resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after,
                         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
         void FlushBarriers();
-        [[nodiscard]] bool HasPendingBarriers() const noexcept { return m_pendingBarrierCount != 0; }
 
         void ClearRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::span<const float, 4> color);
 

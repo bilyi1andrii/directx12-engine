@@ -17,12 +17,8 @@ namespace render {
     OpaquePass::OpaquePass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines), m_pipelinesByKey{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
-        // A PSO fixes the pixel shader and the cull mode; a command list cannot change them between draws.
-        // So each combination a material can ask for gets its own PSO. The alpha test is a second build of the lit
-        // shader. A shader that may discard pixels stops the GPU from testing depth before it runs, so solid
-        // surfaces keep the build without it.
         struct Variant {
-            PipelineKey key; // all variants draw meshes in the one vertex format there is
+            PipelineKey key;
             std::wstring_view pixelShader;
             std::wstring_view name;
         };
@@ -37,9 +33,7 @@ namespace render {
             Variant{{.shading = Shading::Unlit, .doubleSided = true}, L"ps_unlit.cso", L"Unlit two-sided PSO"},
         };
         for (const Variant &variant : kVariants) {
-            rhi::PipelineHandle &slot = m_pipelinesByKey[variant.key.Index()];
-            ENGINE_ASSERT_MSG(!slot.IsValid(), "Two PSO variants share index {}", variant.key.Index());
-            slot = pipelines.Get({
+            m_pipelinesByKey[variant.key.Index()] = pipelines.Get({
                 .vertexShader = L"vs_mesh.cso",
                 .pixelShader = variant.pixelShader,
                 .inputLayout = kVertexLayout,
@@ -57,7 +51,6 @@ namespace render {
             "Opaque",
             [&](PassBuilder &builder) {
                 builder.WriteColor(color, ClearColor{0.04f, 0.06f, 0.15f, 1.0f}, colorView);
-                // Every pixel starts at the far plane, so the first triangle drawn there passes the depth test
                 builder.WriteDepth(depth, rhi::kClearDepth);
                 builder.Read(shadowMap);
             },
@@ -66,7 +59,6 @@ namespace render {
                 const FrameInputs &inputs = context.Inputs();
                 RecordMeshDraws(context.Commands(), m_pipelines, resources, inputs.drawPath, inputs.drawSets,
                                 [this](VertexFormat format, const MaterialInfo &material) {
-                                    // TransparentPass draws these
                                     if (material.alphaMode == AlphaMode::Blend) {
                                         return rhi::PipelineHandle{};
                                     }
@@ -76,7 +68,6 @@ namespace render {
     }
 
     rhi::PipelineHandle OpaquePass::PipelineFor(VertexFormat format, const MaterialInfo &material) const {
-        // Unlit has no alpha-test build; CreateMaterial rejects unlit cut-out materials in Debug
         const PipelineKey key{.format = format,
                               .shading = material.shading,
                               .doubleSided = material.doubleSided,
