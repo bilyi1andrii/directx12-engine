@@ -4,8 +4,6 @@ A real-time renderer in C++23 on Direct3D 12, and a sandbox for rendering experi
 [Andrii's](https://github.com/bilyi1andrii/graphics_hw_bilyi), [Ira's](https://github.com/hhafiya/graphics-hw-kyrylova) engines, which it must match in features and beat in speed
 and scaling.
 
-<p align="center"> <img width="1920" height="1080" alt="Screenshot 2026-11-26 223348" src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" /> <br> <em>Assisi courtyard in sunlight: soft shadows of the tree, the drainpipe and the roofs on the stone walls, and a selected object with the move gizmo.</em> </p>
-
 ## Authors
 
 - Andrii ([bilyi1andrii](https://github.com/bilyi1andrii))
@@ -49,6 +47,59 @@ data.
 - Debug layer, GPU-based validation and DRED in Debug builds, plus smoke tests, unit tests and an AddressSanitizer build
 
 There is no tonemapping yet, so very bright areas clip to white.
+
+## Showcase
+ 
+### Soft shadows from the directional light
+ 
+The directional light renders a shadow map that is fitted to the bounds of the scene every frame. The lighting pass
+samples it with 3×3 filtered comparisons, so shadow edges are soft instead of blocky. Trees, balconies, roofs and
+window frames all cast shadows, indoors and outdoors.
+ 
+<p><img src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" width="100%" alt="Shadows in the Assisi courtyard"></p>
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/9e1d123a-e8d5-411a-8813-4938496ec643" width="100%" alt="Shadows on the Assisi square"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/fcd9cabf-bbec-4250-82ae-8cffbe02e7bc" width="100%" alt="Sunlight through the bedroom windows"></td>
+  </tr>
+</table>
+### Point and spot lights
+ 
+Besides the directional light, the scene has two point lights and two spot lights, all in Blinn-Phong. Each light is
+shown as a small sphere: click it to select the light, move it with the gizmo, turn a spot light with the rotate mode,
+and edit its colour, strength, fade-out and cone in the Lights window. Below, spot lights light the pavement of
+streets that the directional light leaves in shadow.
+ 
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/295c6454-5bb5-41aa-9fd0-411242f9a028" width="100%" alt="Spot lights in an Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ed071ed9-4609-4aad-bcbc-61252b157987" width="100%" alt="Spot light behind the gate"></td>
+  </tr>
+</table>
+### Model and texture loading
+ 
+Models load from glTF, OBJ and FBX files through Assimp, and their textures get generated mips through DirectXTex.
+Large scenes with hundreds of meshes and materials load as they are; the renderer batches them by mesh and material
+automatically.
+ 
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/6e22e054-95bf-4305-a487-50371f2d69b8" width="100%" alt="Kyoto street with lanterns"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/566dba9c-a204-4e11-967f-237d41a68603" width="100%" alt="Ducks among lily pads"></td>
+  </tr>
+</table>
+### Several models, selection and the gizmo
+ 
+Any number of models can share one scene: every model in `assets/` is loaded at start, and more can be dropped on
+the window. Clicking an object selects it, and the gizmo moves, rotates and scales it (W / E / R). The layout is
+saved to `saves/sandbox.json` on exit and restored at the next start.
+ 
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/b9efdf82-cdfa-461f-80c0-9e6070855f0c" width="100%" alt="Selected object in the Kyoto scene"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/c3275c8b-4de9-4f2e-bffa-28209b38f557" width="100%" alt="Duck pond placed into the Kyoto scene"></td>
+  </tr>
+</table>
 
 ## How to run
 
