@@ -22,11 +22,7 @@ namespace core {
 
     void WriteLog(LogLevel level, std::string_view message) {
         const std::string line = std::format("[{}] {}\n", LevelTag(level), message);
-
-        // Debugger output
         ::OutputDebugStringA(line.c_str());
-
-        // stderr: shown by the console or IDE terminal that started us
         std::fputs(line.c_str(), stderr);
         std::fflush(stderr);
     }

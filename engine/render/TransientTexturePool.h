@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_TRANSIENTTEXTUREPOOL_H
 #define D3D12_ENGINE_TRANSIENTTEXTUREPOOL_H
 
+// The frame graph's textures that live only inside a frame, such as scene depth and the shadow map. They are kept
+// between frames and rebuilds of the graph, so a texture is created only when no free one matches.
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -18,47 +21,35 @@ namespace rhi {
 } // namespace rhi
 
 namespace render {
-    // What a frame graph's transient texture is. Textures with equal descriptions are interchangeable.
     struct TransientTextureDesc {
         enum class Target : uint8_t {
-            Color, // drawn into through a render-target view (RTV)
-            Depth, // depth-tested through a depth-stencil view (DSV); only rhi::kDepthFormat
+            Color,
+            Depth,
         };
 
         uint32_t width = 0;
         uint32_t height = 0;
-        DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN; // what the views read and write
+        DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
         Target target = Target::Color;
-        bool shaderRead = false; // also sampled by shaders, through a bindless view
+        bool shaderRead = false;
 
         friend bool operator==(const TransientTextureDesc &, const TransientTextureDesc &) = default;
     };
 
-    // The textures of a frame graph that live only inside a frame (scene depth, shadow map), kept between frames
-    // and between rebuilds of the graph, so a texture is created only when no free one matches.
-    //
-    // Resource states persist between command lists on one queue, so the pool remembers the state each texture
-    // is in. Call DestroyAll before destroying it (asserted). The allocators and the bindless heap must outlive it.
     class TransientTexturePool {
     public:
         struct Request {
             TransientTextureDesc desc;
-            // A colour target's clear colour, given to the GPU at creation as its optimized clear value: clearing to
-            // another colour is slower and the debug layer warns. Only a texture with the same one is reused.
-            // Depth textures always get rhi::kClearDepth.
             std::optional<std::array<float, 4>> clearColor;
-            // The state the texture must be in when the next frame starts
             D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
-            std::string_view name; // ASCII; for a new texture's debug name
+            std::string_view name; // ASCII
         };
         struct Texture {
             ID3D12Resource *resource = nullptr;
-            D3D12_CPU_DESCRIPTOR_HANDLE view{}; // RTV or DSV
+            D3D12_CPU_DESCRIPTOR_HANDLE view{};
             uint32_t width = 0;
             uint32_t height = 0;
-            uint32_t srvIndex = kNoSrv; // bindless index, if the desc asks for shader reads
-            // The state the texture is in now. If it differs from the request's state, the caller must change it
-            // before the texture's first use.
+            uint32_t srvIndex = kNoSrv; // bindless
             D3D12_RESOURCE_STATES currentState = D3D12_RESOURCE_STATE_COMMON;
         };
         static constexpr uint32_t kNoSrv = UINT32_MAX;
@@ -73,13 +64,8 @@ namespace render {
         TransientTexturePool(TransientTexturePool &&) = delete;
         TransientTexturePool &operator=(TransientTexturePool &&) = delete;
 
-        // Gives one texture per request (into `textures`, in order): a free pool texture of the same description and
-        // clear colour, or a new one created in the request's state. Each texture goes to at most one request.
-        // Textures no request acquired are destroyed once the GPU has finished `frame`. Afterwards the pool counts
-        // each texture as being in its request's state: the caller makes that true before the texture's first use.
         void Acquire(std::span<const Request> requests, rhi::FrameContext &frame, std::vector<Texture> &textures);
 
-        // Destroys every texture once the GPU has finished `frame`. Call before destruction.
         void DestroyAll(rhi::FrameContext &frame) noexcept;
 
     private:
@@ -101,7 +87,7 @@ namespace render {
         rhi::DescriptorAllocator &m_dsvAllocator;
         rhi::BindlessHeap &m_heap;
         std::vector<Entry> m_entries;
-        std::vector<bool> m_acquired; // scratch for Acquire
+        std::vector<bool> m_acquired;
     };
 } // namespace render
 

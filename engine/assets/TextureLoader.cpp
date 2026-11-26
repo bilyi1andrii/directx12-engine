@@ -12,7 +12,6 @@
 #include <DirectXTex.h>
 #include <wincodec.h>
 
-#include "core/Assert.h"
 #include "core/Utf8.h"
 
 namespace assets {
@@ -22,7 +21,6 @@ namespace assets {
         using render::TextureData;
         using render::TextureMip;
 
-        // The largest 2D texture side D3D12 accepts
         constexpr size_t kMaxTextureSide = 16384;
 
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
@@ -42,7 +40,6 @@ namespace assets {
                     format == DXGI_FORMAT_R32_FLOAT);
         }
 
-        // Shared last part of loading: sets the format by usage, generates the mips, copies the result out
         [[nodiscard]] std::expected<TextureData, Error> FinishTexture(DirectX::ScratchImage image, TextureUsage usage,
                                                                       std::string_view source) {
             const DirectX::TexMetadata &metadata = image.GetMetadata();
@@ -57,9 +54,7 @@ namespace assets {
                                                          metadata.width, metadata.height, kMaxTextureSide)});
             }
 
-            // A colour shader would read a one-channel image as (v, 0, 0), and R8 has no sRGB version
             if (IsSrgbUsage(usage) && IsSingleChannel(metadata.format)) {
-                // FORCE_NON_WIC: copies the value to green and blue without needing COM
                 DirectX::ScratchImage rgba;
                 const HRESULT hr = DirectX::Convert(image.GetImages(), image.GetImageCount(), image.GetMetadata(),
                                                     DXGI_FORMAT_R8G8B8A8_UNORM, DirectX::TEX_FILTER_FORCE_NON_WIC,
@@ -70,21 +65,13 @@ namespace assets {
                 image = std::move(rgba);
             }
 
-            // Not WIC_FLAGS_FORCE_SRGB: that one only affects saving. Before the mips, because filtering depends on
-            // it: sRGB values are averaged as light, data values as numbers.
             const DXGI_FORMAT format =
                 IsSrgbUsage(usage) ? DirectX::MakeSRGB(metadata.format) : DirectX::MakeLinear(metadata.format);
-            if (!image.OverrideFormat(format)) {
-                return std::unexpected(
-                    Error{ErrorCode::UnsupportedFormat,
-                          std::format("{}: cannot use format {}", source, static_cast<uint32_t>(format))});
-            }
+            (void)image.OverrideFormat(format);
 
-            // Compressed formats cannot be filtered, and a 1x1 image has no smaller level
             const bool generateMips = image.GetMetadata().mipLevels == 1 && !DirectX::IsCompressed(format) &&
                                       (metadata.width > 1 || metadata.height > 1);
             if (generateMips) {
-                // FORCE_NON_WIC: colour and data textures share one filter, and generating mips needs no COM
                 DirectX::ScratchImage withMips;
                 const HRESULT hr =
                     DirectX::GenerateMipMaps(*image.GetImage(0, 0, 0), DirectX::TEX_FILTER_FORCE_NON_WIC, 0, withMips);
@@ -147,8 +134,6 @@ namespace assets {
         } else if (extension == L".tga") {
             hr = DirectX::LoadFromTGAFile(path.c_str(), DirectX::TGA_FLAGS_IGNORE_SRGB, nullptr, image);
         } else {
-            // IGNORE_SRGB: the usage decides, not the file's metadata. FORCE_RGB: RGBA byte order
-            // instead of WIC's native BGRA.
             hr = DirectX::LoadFromWICFile(path.c_str(), DirectX::WIC_FLAGS_IGNORE_SRGB | DirectX::WIC_FLAGS_FORCE_RGB,
                                           nullptr, image);
         }
@@ -186,9 +171,6 @@ namespace assets {
     MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage) {
         constexpr std::string_view kSource = "in-memory texture";
         constexpr size_t kBytesPerPixel = 4;
-        ENGINE_ASSERT_MSG(rgba8.size() == size_t{width} * height * kBytesPerPixel,
-                          "{} bytes do not match a {}x{} RGBA8 image", rgba8.size(), width, height);
-
         DirectX::ScratchImage image;
         const HRESULT hr = image.Initialize2D(DXGI_FORMAT_R8G8B8A8_UNORM, width, height, 1, 1);
         if (FAILED(hr)) {

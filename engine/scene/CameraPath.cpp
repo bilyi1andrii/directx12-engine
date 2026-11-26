@@ -1,9 +1,6 @@
 #include "CameraPath.h"
 
 #include <algorithm>
-#include <functional>
-
-#include "core/Assert.h"
 
 namespace scene {
     namespace {
@@ -16,12 +13,6 @@ namespace scene {
     } // namespace
 
     CameraPose EvaluateCameraPath(std::span<const CameraKeyframe> keyframes, uint32_t frame) {
-        ENGINE_ASSERT_MSG(!keyframes.empty(), "a camera path needs at least one keyframe");
-        ENGINE_ASSERT_MSG(std::ranges::adjacent_find(keyframes, std::greater_equal{}, &CameraKeyframe::frame) ==
-                              keyframes.end(),
-                          "camera keyframes must have strictly increasing frames");
-
-        // The first keyframe after `frame`
         const auto next = std::ranges::upper_bound(keyframes, frame, {}, &CameraKeyframe::frame);
         if (next == keyframes.begin()) {
             return {.position = keyframes.front().position, .target = keyframes.front().target};

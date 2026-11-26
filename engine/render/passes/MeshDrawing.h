@@ -1,8 +1,8 @@
 #ifndef D3D12_ENGINE_MESHDRAWING_H
 #define D3D12_ENGINE_MESHDRAWING_H
 
-// Shared draw loop for passes rendering FrameInputs::drawSets.
-// Internal to engine_render: includes shader-matching structs.
+// The draw loop the shadow and opaque passes share: it picks a pipeline per material and draws each group of
+// objects instanced, or one object at a time.
 
 #include <cstdint>
 #include <limits>

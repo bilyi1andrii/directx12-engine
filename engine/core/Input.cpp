@@ -1,16 +1,14 @@
 #include "core/Input.h"
 
-#include <windowsx.h> // GET_X_LPARAM, GET_Y_LPARAM
+#include <windowsx.h>
 
 #include "core/ThrowIfFailed.h"
 
 namespace core {
     namespace {
-        // Bits of lParam in WM_KEYDOWN/WM_KEYUP
-        constexpr LPARAM kExtendedKeyBit = LPARAM{1} << 24;   // right-hand Ctrl/Alt
-        constexpr LPARAM kPreviousStateBit = LPARAM{1} << 30; // the key was already down: auto-repeat
+        constexpr LPARAM kExtendedKeyBit = LPARAM{1} << 24;
+        constexpr LPARAM kPreviousStateBit = LPARAM{1} << 30;
 
-        // Windows reports Shift, Ctrl and Alt without saying which side was used. Turn them into VK_L*/VK_R*.
         uint8_t ResolveSidedKey(WPARAM wParam, LPARAM lParam) {
             const bool extended = (lParam & kExtendedKeyBit) != 0;
             switch (wParam) {
@@ -27,8 +25,6 @@ namespace core {
             }
         }
 
-        // Answers a query for `key` against one of the bitsets, treating
-        // VK_SHIFT/VK_CONTROL/VK_MENU as "either side".
         bool Test(const std::bitset<256> &keys, uint8_t key) {
             switch (key) {
             case VK_SHIFT:
@@ -44,10 +40,9 @@ namespace core {
     } // namespace
 
     Input::Input() {
-        // Raw input delivers WM_INPUT with the mouse's own movement counts.
         const RAWINPUTDEVICE mouse{
-            .usUsagePage = 0x01, // HID "generic desktop" page
-            .usUsage = 0x02,     // mouse
+            .usUsagePage = 0x01,
+            .usUsage = 0x02,
             .dwFlags = 0,
             .hwndTarget = nullptr,
         };
@@ -56,25 +51,20 @@ namespace core {
 
     void Input::HandleMessage(const WindowMessage &message) {
         switch (message.message) {
-        // WM_SYS* arrive instead of WM_KEY* while Alt is held (and for F10).
         case WM_KEYDOWN:
         case WM_SYSKEYDOWN:
-            if ((message.lParam & kPreviousStateBit) == 0) // ignore auto-repeat
-            {
+            if ((message.lParam & kPreviousStateBit) == 0) {
                 Press(ResolveSidedKey(message.wParam, message.lParam));
             }
             break;
         case WM_KEYUP:
         case WM_SYSKEYUP:
-            Release(ResolveSidedKey(message.wParam, message.lParam));
+            m_down.reset(ResolveSidedKey(message.wParam, message.lParam));
             break;
         case WM_KILLFOCUS:
-            // Key-up messages go to the focused window.
-            // Without this, keys held during Alt+Tab would stay "down".
-            ReleaseAll();
+            m_down.reset();
             break;
         case WM_MOUSEMOVE:
-            // GET_X_LPARAM
             m_mousePosition = {GET_X_LPARAM(message.lParam), GET_Y_LPARAM(message.lParam)};
             break;
         case WM_LBUTTONDOWN:
@@ -108,7 +98,6 @@ namespace core {
 
     void Input::EndFrame() {
         m_pressed.reset();
-        m_released.reset();
         m_rawMouseDelta = {};
         m_wheelDelta = 0.0f;
     }
@@ -121,50 +110,26 @@ namespace core {
         return Test(m_pressed, key);
     }
 
-    bool Input::WasKeyReleased(uint8_t key) const {
-        return Test(m_released, key);
-    }
-
     void Input::Press(uint8_t key) {
         m_down.set(key);
         m_pressed.set(key);
-    }
-
-    void Input::Release(uint8_t key) {
-        if (m_down.test(key)) {
-            m_down.reset(key);
-            m_released.set(key);
-        }
-    }
-
-    void Input::ReleaseAll() {
-        m_released |= m_down;
-        m_down.reset();
     }
 
     void Input::OnMouseButton(const WindowMessage &message, uint8_t button, bool down) {
         m_mousePosition = {GET_X_LPARAM(message.lParam), GET_Y_LPARAM(message.lParam)};
         if (down) {
             Press(button);
-            // Capture: keep receiving mouse messages while the button is held, even outside the window,
-            // so the matching button-up is never lost.
             ::SetCapture(message.hwnd);
         } else {
-            Release(button);
-            if (!m_down.test(VK_LBUTTON) && !m_down.test(VK_RBUTTON) && !m_down.test(VK_MBUTTON)) {
-                ::ReleaseCapture();
-            }
+            m_down.reset(button);
+            ::ReleaseCapture();
         }
     }
 
     void Input::OnRawInput(LPARAM lParam) {
         RAWINPUT raw{};
         UINT size = sizeof(raw);
-        if (::GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER)) ==
-            static_cast<UINT>(-1)) {
-            return;
-        }
-        // Ignore absolute-position devices (remote desktop, pen tablets)
+        ::GetRawInputData(reinterpret_cast<HRAWINPUT>(lParam), RID_INPUT, &raw, &size, sizeof(RAWINPUTHEADER));
         if (raw.header.dwType == RIM_TYPEMOUSE && (raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE) == 0) {
             m_rawMouseDelta.x += raw.data.mouse.lLastX;
             m_rawMouseDelta.y += raw.data.mouse.lLastY;

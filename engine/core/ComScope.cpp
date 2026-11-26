@@ -7,8 +7,6 @@
 
 namespace core {
     ComScope::ComScope() {
-        // S_FALSE also needs its CoUninitialize. If this throws, the
-        // destructor does not run, so a failed start is never ended.
         ThrowIfFailed(::CoInitializeEx(nullptr, COINIT_MULTITHREADED));
     }
 

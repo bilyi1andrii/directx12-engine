@@ -1,5 +1,5 @@
-// Pixel shader for lit surfaces: samples texture with ambient, directional (shadowed), point, and spot lights.
-// Also compiled in two variants: alpha-cutout and transparent (blended).
+// Lights a textured surface: ambient, the shadowed directional light, and the point and spot lights. Also built as a
+// cut-out and a see-through variant.
 
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
@@ -11,7 +11,6 @@ ConstantBuffer<ShadowConstants> g_shadow : register(b2);
 SamplerState g_anisotropicWrap : register(s0);
 SamplerComparisonState g_shadowCompare : register(s2);
 
-// 1 where the directional light reaches this point, 0 in shadow: 3x3 filtered comparisons (PCF)
 float DirectionalShadow(float3 worldPosition, float3 N)
 {
     const float4 clip = mul(float4(worldPosition + N * g_shadow.normalOffset, 1.0f), g_shadow.lightViewProjection);
@@ -33,7 +32,6 @@ float DirectionalShadow(float3 worldPosition, float3 N)
     return lit / 9.0f;
 }
 
-// N: surface normal, L: towards the light, V: towards the camera, all unit length
 float3 DiffuseAndSpecular(float3 N, float3 L, float3 V)
 {
     const float ndotl = dot(N, L);
@@ -41,7 +39,6 @@ float3 DiffuseAndSpecular(float3 N, float3 L, float3 V)
     {
         return 0.0f;
     }
-    // Blinn-Phong
     const float3 H = normalize(L + V);
     const float specular = pow(max(dot(N, H), 0.0f), g_frame.shininess);
     return ndotl + specular * g_frame.specularColor;

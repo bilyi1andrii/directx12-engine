@@ -3,14 +3,13 @@
 #include <memory>
 
 #include <Windows.h>
-#include <shellapi.h> // CommandLineToArgvW
+#include <shellapi.h>
 
 #include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
 
 namespace core {
     namespace {
-        // CommandLineToArgvW returns one LocalAlloc block that holds the array and the strings
         struct LocalFreeDeleter {
             void operator()(LPWSTR *argv) const noexcept { ::LocalFree(argv); }
         };

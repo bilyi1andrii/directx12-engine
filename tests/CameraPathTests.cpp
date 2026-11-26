@@ -1,3 +1,5 @@
+// Tests the bench's camera path: poses at keyframes, between them and outside the path.
+
 #include <array>
 
 #include <DirectXMath.h>
@@ -16,7 +18,6 @@ namespace {
         EXPECT_FLOAT_EQ(actual.z, z);
     }
 
-    // Three keyframes with uneven gaps (10 and 30 frames), so a wrong segment or a wrong t shows up
     constexpr std::array kPath{
         CameraKeyframe{.frame = 10, .position = {0.0f, 0.0f, 0.0f}, .target = {0.0f, 0.0f, 1.0f}},
         CameraKeyframe{.frame = 20, .position = {10.0f, 0.0f, 0.0f}, .target = {10.0f, 0.0f, 1.0f}},
@@ -33,11 +34,9 @@ TEST(CameraPath, KeyframeFramesGiveTheirPoses) {
 }
 
 TEST(CameraPath, InterpolatesLinearlyBetweenKeyframes) {
-    // Halfway through the first segment
     const CameraPose first = EvaluateCameraPath(kPath, 15);
     ExpectFloat3(first.position, 5.0f, 0.0f, 0.0f);
     ExpectFloat3(first.target, 5.0f, 0.0f, 1.0f);
-    // A third of the way through the second segment (frame 30 of 20..50)
     const CameraPose second = EvaluateCameraPath(kPath, 30);
     ExpectFloat3(second.position, 10.0f, 10.0f, 0.0f);
     ExpectFloat3(second.target, 10.0f, 0.0f, 11.0f);
@@ -46,7 +45,6 @@ TEST(CameraPath, InterpolatesLinearlyBetweenKeyframes) {
 TEST(CameraPath, ClampsOutsideThePath) {
     ExpectFloat3(EvaluateCameraPath(kPath, 0).position, 0.0f, 0.0f, 0.0f);
     ExpectFloat3(EvaluateCameraPath(kPath, 1000).position, 10.0f, 30.0f, 0.0f);
-    // One keyframe: the same pose at every frame
     const std::array single{kPath[1]};
     ExpectFloat3(EvaluateCameraPath(single, 0).position, 10.0f, 0.0f, 0.0f);
     ExpectFloat3(EvaluateCameraPath(single, 99).target, 10.0f, 0.0f, 1.0f);

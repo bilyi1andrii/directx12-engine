@@ -1,3 +1,5 @@
+// Tests turning the camera towards a point and its reversed-depth projection.
+
 #include <array>
 
 #include <DirectXMath.h>
@@ -8,7 +10,6 @@
 TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
     using namespace DirectX;
     const XMFLOAT3 target{0.0f, -4.0f, 0.0f};
-    // On both axes (DX11's formula failed at z == 0), above, below and off-axis
     constexpr std::array kPositions{
         XMFLOAT3{10.0f, 5.0f, 0.0f},   XMFLOAT3{-10.0f, 5.0f, 0.0f}, XMFLOAT3{0.0f, 5.0f, 10.0f},
         XMFLOAT3{0.0f, -9.0f, -10.0f}, XMFLOAT3{3.0f, 4.0f, -8.0f},  XMFLOAT3{-7.0f, -1.0f, 6.0f},
@@ -28,7 +29,6 @@ TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
     }
 }
 
-// Reversed-Z: depth 1 at the near plane, 0 at the far plane, greater when nearer
 TEST(Camera, ProjectionReversesDepth) {
     using namespace DirectX;
     const scene::Camera camera;

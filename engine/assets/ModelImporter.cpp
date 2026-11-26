@@ -41,12 +41,10 @@ namespace assets {
         using render::TextureSource;
         using render::Vertex;
 
-        // ValidateDataStructure refuses a damaged file, such as an index outside the vertices.
         constexpr unsigned kImportFlags = aiProcess_ValidateDataStructure | aiProcess_Triangulate |
                                           aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals |
                                           aiProcess_CalcTangentSpace;
 
-        // Appends `mesh` to the vertices and indices of `geometry` as one submesh. Points and lines are left out.
         void AddSubmesh(const aiMesh &mesh, std::string_view source, MeshData &geometry) {
             SubmeshData submesh{
                 .firstIndex = static_cast<uint32_t>(geometry.indices.size()),
@@ -89,9 +87,7 @@ namespace assets {
             geometry.submeshes.push_back(submesh);
         }
 
-        // Adds one MeshNode per mesh of `node` and of its children. Each transform already includes the parents'.
         void AddNodes(const aiNode &node, DirectX::FXMMATRIX parent, std::vector<MeshNode> &nodes) {
-            // Transpose Assimp column-major matrix to engine's row-major space.
             const DirectX::XMMATRIX transform = DirectX::XMMatrixMultiply(
                 DirectX::XMMatrixTranspose(DirectX::XMMATRIX(&node.mTransformation.a1)), parent);
 
@@ -105,7 +101,6 @@ namespace assets {
             }
         }
 
-        // A damaged file may hold any bytes: nullopt instead of an exception
         [[nodiscard]] std::optional<std::filesystem::path> TryPathFromUtf8(std::string_view text) {
             try {
                 return core::PathFromUtf8(text);
@@ -118,7 +113,6 @@ namespace assets {
             return !std::holds_alternative<std::monostate>(texture);
         }
 
-        // Reads materials, and collects the embedded images they use into `model`
         struct MaterialReader {
             const aiScene &scene;
             std::filesystem::path directory;
@@ -158,7 +152,6 @@ namespace assets {
                 if (!IsSet(desc.albedo) && !IsSet(desc.metallic) && !IsSet(desc.roughness)) {
                     ApplyNonPbrRules(material, desc);
                 }
-                // Last: the alpha mode depends on the opacity map, which the non-PBR rules may only find by name
                 ReadAlphaMode(material, desc);
                 return desc;
             }
@@ -192,11 +185,8 @@ namespace assets {
                 }
             }
 
-            // The alpha mode a glTF file states, with its cutoff. Other formats state none, so it comes from the
-            // opacity: below 1 is transparent, and an opacity map cuts holes at the default cutoff.
             static void ReadAlphaMode(const aiMaterial &material, MaterialDesc &desc) {
                 const bool hasOpacityMap = IsSet(desc.opacityMap);
-                // Blender writes the albedo file as the opacity map too: the alpha is in the albedo itself
                 if (hasOpacityMap && desc.opacityMap == desc.albedo) {
                     desc.opacityMap = {};
                 }
@@ -210,7 +200,6 @@ namespace assets {
                     material.Get(AI_MATKEY_GLTF_ALPHACUTOFF, desc.alphaCutoff);
                 } else if (desc.baseColor.w < 1.0f) {
                     desc.alphaMode = AlphaMode::Blend;
-                    // OBJ cannot say whether a material is two-sided. A see-through one is, so its far side shows.
                     int twoSided = 0;
                     if (material.Get(AI_MATKEY_TWOSIDED, twoSided) != AI_SUCCESS) {
                         desc.doubleSided = true;
@@ -220,8 +209,6 @@ namespace assets {
                 }
             }
 
-            // For formats without PBR textures (OBJ, older FBX): the diffuse map is the albedo, and the other maps are
-            // found by name, as <material><suffix>.png or .jpg next to the model.
             void ApplyNonPbrRules(const aiMaterial &material, MaterialDesc &desc) {
                 desc.albedo = FirstTexture(material, aiTextureType_DIFFUSE);
                 if (IsSet(desc.albedo)) {
@@ -253,7 +240,6 @@ namespace assets {
                 return Resolve(path);
             }
 
-            // What a material's texture path points to: an image inside the file, or a file relative to the model
             [[nodiscard]] TextureSource Resolve(const aiString &path) {
                 const std::string_view text(path.C_Str(), path.length);
                 if (text.empty()) {

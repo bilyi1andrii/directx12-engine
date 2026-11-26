@@ -27,7 +27,6 @@ struct DrawConstants
 static const uint kMaxPointLights = 8;
 static const uint kMaxSpotLights = 4;
 
-
 struct PointLightData
 {
     float3 position;
@@ -92,7 +91,7 @@ struct InstanceData
     static_assert(sizeof(PointLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(sizeof(SpotLightData) % 16 == 0, "constant buffer structs must be a multiple of 16 bytes");
     static_assert(std::has_single_bit(sizeof(InstanceData)), "InstanceData size must be a power of two");
-} // namespace gpu
+}
 #endif
 
 #endif // SHARED_TYPES_HLSLI

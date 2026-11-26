@@ -1,3 +1,5 @@
+// Tests the directional light's view for the shadow map and the box around a turned object.
+
 #include <array>
 #include <cmath>
 

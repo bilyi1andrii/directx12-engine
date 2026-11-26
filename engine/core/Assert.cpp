@@ -13,12 +13,9 @@ namespace core::detail {
 
         if (::IsDebuggerPresent()) {
             __debugbreak();
-            // the debugger stops here; step out to see the failing line
-            return; // "continue" in the debugger resumes after the assert
+            return;
         }
 
-        // No debugger: end the process with exit code 3. Turn off the debug runtime's "abort() has been called"
-        // dialog and Windows Error Reporting first.
         _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
         std::abort();
     }

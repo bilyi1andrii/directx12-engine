@@ -1,5 +1,5 @@
-// Tests the order see-through objects are drawn in: from the farthest to the nearest along the camera's view, by the
-// middle of each mesh, with a fixed order for objects at the same depth.
+// Tests the order see-through objects are drawn in: from the farthest to the nearest, with a fixed order at equal
+// depths.
 
 #include <cstddef>
 #include <cstdint>
@@ -45,7 +45,6 @@ TEST(TransparentSort, SortBackToFrontByViewDepth) {
          {0.0f, 0.0f, 1.0f},
          {{{1.0f, 0.0f, 5.0f}, 5.0f, 2, 0}, {{-1.0f, 0.0f, 5.0f}, 5.0f, 1, 7}, {{0.0f, 2.0f, 5.0f}, 5.0f, 1, 3}},
          {2, 1, 0}},
-        // Sorted by their origin, these three would tie
         {"parts of one model at one origin",
          {0.0f, 0.0f, -10.0f},
          {0.0f, 0.0f, 0.0f},

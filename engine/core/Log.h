@@ -1,6 +1,8 @@
 #ifndef D3D12_ENGINE_LOG_H
 #define D3D12_ENGINE_LOG_H
 
+// Writes log lines to the debugger output and to the console.
+
 #include <format>
 #include <string_view>
 #include <utility>
@@ -12,7 +14,6 @@ namespace core {
         Error,
     };
 
-    // Writes one line to the debugger output and to stderr
     void WriteLog(LogLevel level, std::string_view message);
 
     template <typename... Args> void LogInfo(std::format_string<Args...> format, Args &&...args) {

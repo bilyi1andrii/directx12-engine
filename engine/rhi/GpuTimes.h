@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_GPUTIMES_H
 #define D3D12_ENGINE_GPUTIMES_H
 
+// Turns GPU timestamps into milliseconds per frame and per pass, 
+// and keeps pass names alive for results that arrive later.
+
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -8,7 +11,6 @@
 #include <string>
 #include <string_view>
 
-// A timestamp is the value of the GPU's tick counter at a point in the command list.
 namespace rhi {
     inline constexpr uint32_t kMaxGpuScopes = 16;
 
@@ -17,7 +19,6 @@ namespace rhi {
         double ms = 0.0;
     };
 
-    // How long the GPU worked on one frame
     struct GpuFrameTimes {
         uint64_t frame = 0;
         double totalMs = 0.0;

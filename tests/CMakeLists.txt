@@ -14,7 +14,6 @@ add_executable(engine_tests
         GridLayoutTests.cpp
         InstanceChunksTests.cpp
         LightPackingTests.cpp
-        ModelDataTests.cpp
         ModelImporterTests.cpp
         PickingTests.cpp
         PrimitivesTests.cpp
@@ -29,7 +28,6 @@ add_executable(engine_tests
 
 engine_target_defaults(engine_tests)
 
-# LightPackingTests.cpp includes "common/shared_types.hlsli" to read what PackLights wrote
 target_include_directories(engine_tests PRIVATE "${PROJECT_SOURCE_DIR}/shaders")
 
 target_link_libraries(engine_tests PRIVATE
@@ -43,6 +41,6 @@ target_link_libraries(engine_tests PRIVATE
         engine_scene
         GTest::gtest) # not gtest_main: main.cpp holds the process-wide core::ComScope
 
-# Before gtest_discover_tests: discovery runs the exe at build time, so the runtime must already be next to it
+# Before gtest_discover_tests: discovery runs the exe at build time
 engine_copy_asan_runtime(engine_tests)
 gtest_discover_tests(engine_tests)

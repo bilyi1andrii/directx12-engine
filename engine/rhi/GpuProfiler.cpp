@@ -9,7 +9,6 @@
 
 #include <directx/d3dx12.h>
 
-#include "core/Assert.h"
 #include "core/ThrowIfFailed.h"
 #include "rhi/CommandContext.h"
 
@@ -22,8 +21,6 @@ namespace rhi {
 
     GpuProfiler::GpuProfiler(NativeDevice *device, Allocator &allocator, uint64_t ticksPerSecond)
         : m_ticksPerSecond(ticksPerSecond) {
-        ENGINE_ASSERT(ticksPerSecond > 0);
-
         const D3D12_QUERY_HEAP_DESC heapDesc{
             .Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP, .Count = kQueryCount, .NodeMask = 0};
         ThrowIfFailed(device->CreateQueryHeap(&heapDesc, IID_PPV_ARGS(&m_queryHeap)));
@@ -35,7 +32,6 @@ namespace rhi {
     }
 
     void GpuProfiler::BeginFrame(CommandContext &commands, uint64_t frame) {
-        ENGINE_ASSERT_MSG(!m_recording, "GpuProfiler::BeginFrame of frame {} before EndFrame", frame);
         m_slot = static_cast<uint32_t>(frame % kFramesInFlight);
         SlotRecord &record = m_slots[m_slot];
         if (record.resolved) {
@@ -43,12 +39,10 @@ namespace rhi {
         }
 
         record = {.frame = frame};
-        m_recording = true;
         commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::kFrameBegin);
     }
 
     uint32_t GpuProfiler::BeginScope(CommandContext &commands, uint32_t scopeId) {
-        ENGINE_ASSERT_MSG(m_recording, "GpuProfiler::BeginScope outside a frame");
         SlotRecord &record = m_slots[m_slot];
         if (record.scopeCount == kMaxGpuScopes) {
             throw std::length_error(std::format("More than {} GPU scopes in frame {}", kMaxGpuScopes, record.frame));
@@ -56,21 +50,15 @@ namespace rhi {
 
         const uint32_t scope = record.scopeCount++;
         record.scopeIds[scope] = scopeId;
-        ++m_openScopes;
         commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::ScopeBegin(scope));
         return scope;
     }
 
     void GpuProfiler::EndScope(CommandContext &commands, uint32_t scopeIndex) {
-        ENGINE_ASSERT_MSG(m_recording && m_openScopes > 0 && scopeIndex < m_slots[m_slot].scopeCount,
-                          "GpuProfiler::EndScope of scope {}, which did not begin", scopeIndex);
-        --m_openScopes;
         commands.WriteTimestamp(m_queryHeap.Get(), FirstQuery(m_slot) + timestamp::ScopeEnd(scopeIndex));
     }
 
     void GpuProfiler::EndFrame(CommandContext &commands) {
-        ENGINE_ASSERT_MSG(m_recording, "GpuProfiler::EndFrame without BeginFrame");
-        ENGINE_ASSERT_MSG(m_openScopes == 0, "{} GPU scopes still open at the end of the frame", m_openScopes);
         SlotRecord &record = m_slots[m_slot];
 
         const uint32_t first = FirstQuery(m_slot);
@@ -78,11 +66,9 @@ namespace rhi {
         commands.ResolveTimestamps(m_queryHeap.Get(), first, timestamp::Count(record.scopeCount),
                                    m_readback->GetResource(), uint64_t{first} * sizeof(uint64_t));
         record.resolved = true;
-        m_recording = false;
     }
 
     std::vector<GpuFrameTimes> GpuProfiler::ReadRemaining() {
-        ENGINE_ASSERT_MSG(!m_recording, "GpuProfiler::ReadRemaining during a frame");
         std::vector<GpuFrameTimes> remaining;
         for (uint32_t slot = 0; slot < kFramesInFlight; ++slot) {
             if (SlotRecord &record = m_slots[slot]; record.resolved) {

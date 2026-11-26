@@ -5,7 +5,7 @@ namespace core {
         m_sum += value;
         m_seconds += deltaSeconds;
         ++m_count;
-        if (m_seconds >= m_intervalSeconds) {
+        if (m_seconds >= kIntervalSeconds) {
             m_value = m_sum / m_count;
             m_sum = 0.0;
             m_seconds = 0.0;

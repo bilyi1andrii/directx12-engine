@@ -1,24 +1,20 @@
 #ifndef D3D12_ENGINE_DEVICE_H
 #define D3D12_ENGINE_DEVICE_H
 
+// The GPU and the D3D12 device. In Debug it also turns on the debug layer and its GPU checks, logs every message
+// they report, and counts errors and leaked objects.
+
 #include <string>
 
-#include <dxgidebug.h> // IDXGIInfoQueue
+#include <dxgidebug.h>
 
 #include "rhi/RhiCommon.h"
 #include "rhi/ValidationStats.h"
 
 namespace rhi {
-    // Owns the DXGI factory, the adapter (GPU) and the D3D12 device.
-    // In Debug builds it also enables the debug layer, GPU-based validation and DRED,
-    // routes D3D12 and DXGI debug messages to the log and counts errors and leaks in `stats`.
-    // Not copyable or movable: the debug-message callback keeps `this`.
-
     class Device {
     public:
-        // `stats` must outlive the Device (the destructor writes the live-object count)
         explicit Device(ValidationStats &stats);
-        // Releases the device, then reports live (leaked) DXGI/D3D12 objects in Debug builds
         ~Device();
 
         Device(const Device &) = delete;
@@ -30,17 +26,11 @@ namespace rhi {
         [[nodiscard]] IDXGIFactory6 *Factory() const noexcept { return m_factory.Get(); }
         [[nodiscard]] IDXGIAdapter4 *Adapter() const noexcept { return m_adapter.Get(); }
         [[nodiscard]] bool TearingSupported() const noexcept { return m_tearingSupported; }
-        // The GPU's name and its driver version as Device Manager shows it (or "unknown"), for benchmark results
         [[nodiscard]] const std::string &AdapterName() const noexcept { return m_adapterName; }
         [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_driverVersion; }
 
-        // If the device was removed (GPU hang, driver crash, invalid command), logs the reason
-        // and, in Debug builds, the DRED and page-fault info. Does nothing otherwise.
         void LogDeviceRemovedInfo() const;
 
-        // Moves the messages DXGI stored since the last call (e.g. from Present or ResizeBuffers) to the
-        // log and counts its errors. D3D12's messages arrive through the callback instead.
-        // Call once per frame; does nothing in Release builds.
         void DrainDxgiMessages();
 
     private:
@@ -55,14 +45,14 @@ namespace rhi {
                                              D3D12_MESSAGE_ID id, LPCSTR description, void *context);
 
         ValidationStats &m_stats;
-        ComPtr<IDXGIInfoQueue> m_dxgiInfoQueue; // Debug builds only
+        ComPtr<IDXGIInfoQueue> m_dxgiInfoQueue;
         ComPtr<IDXGIFactory6> m_factory;
         ComPtr<IDXGIAdapter4> m_adapter;
         ComPtr<NativeDevice> m_device;
         std::string m_adapterName;
         std::string m_driverVersion;
         bool m_tearingSupported = false;
-        DWORD m_messageCallbackCookie = 0; // 0: no callback registered
+        DWORD m_messageCallbackCookie = 0;
     };
 } // namespace rhi
 

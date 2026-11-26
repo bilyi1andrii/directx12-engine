@@ -20,7 +20,6 @@ namespace rhi {
     using core::ThrowIfFailed;
 
     namespace {
-        // FNV-1a 64-bit hasher. Fields are added sequentially, ignoring struct padding bytes.
         class Hasher {
         public:
             void AddBytes(std::span<const std::byte> bytes) noexcept {
@@ -36,7 +35,6 @@ namespace rhi {
                 AddBytes(std::as_bytes(std::span(&value, 1)));
             }
 
-            // Length is added first to prevent collisions (e.g., "ab" + "c" vs "a" + "bc")
             template <typename Char> void AddString(std::basic_string_view<Char> text) noexcept {
                 Add(text.size());
                 AddBytes(std::as_bytes(std::span(text)));
@@ -46,7 +44,7 @@ namespace rhi {
 
         private:
             static constexpr uint64_t kPrime = 1099511628211ull;
-            uint64_t m_hash = 14695981039346656037ull; // FNV offset basis
+            uint64_t m_hash = 14695981039346656037ull;
         };
 
         [[nodiscard]] D3D12_CULL_MODE NativeCullMode(CullMode mode) noexcept {
@@ -71,7 +69,6 @@ namespace rhi {
             return D3D12_DEPTH_WRITE_MASK_ALL;
         }
 
-        // Blending is fixed-function: after the pixel shader, it mixes its colour with the target's as the PSO says
         [[nodiscard]] D3D12_BLEND_DESC NativeBlend(BlendMode mode) noexcept {
             D3D12_BLEND_DESC blend = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
             if (mode == BlendMode::AlphaBlend) {
@@ -80,7 +77,6 @@ namespace rhi {
                 target.SrcBlend = D3D12_BLEND_SRC_ALPHA;
                 target.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
                 target.BlendOp = D3D12_BLEND_OP_ADD;
-                // The back buffer's alpha is never shown, so it just takes the shader's
                 target.SrcBlendAlpha = D3D12_BLEND_ONE;
                 target.DestBlendAlpha = D3D12_BLEND_ZERO;
                 target.BlendOpAlpha = D3D12_BLEND_OP_ADD;
@@ -91,7 +87,6 @@ namespace rhi {
 
     PipelineCache::PipelineCache(NativeDevice *device, std::filesystem::path shaderDirectory)
         : m_device(device), m_shaderDirectory(std::move(shaderDirectory)) {
-        // Defined in HLSL (shaders/common/root_signature.hlsli) and compiled by DXC into its own file
         const std::vector<std::byte> &rootSignature = Shader(L"rs_global.cso");
         ThrowIfFailed(m_device->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),
                                                     IID_PPV_ARGS(&m_rootSignature)));
@@ -113,8 +108,6 @@ namespace rhi {
     }
 
     ID3D12PipelineState *PipelineCache::Native(PipelineHandle handle) const {
-        ENGINE_ASSERT_MSG(handle.index < m_pipelines.size(), "Pipeline handle {} out of range ({} PSOs)", handle.index,
-                          m_pipelines.size());
         return m_pipelines[handle.index].Get();
     }
 
@@ -137,7 +130,6 @@ namespace rhi {
         hasher.Add(key.depth);
         hasher.Add(key.depthBias.constant);
         hasher.Add(key.depthBias.slopeScaled);
-        hasher.Add(key.topology);
         hasher.Add(key.renderTargetFormats.size());
         for (const DXGI_FORMAT format : key.renderTargetFormats) {
             hasher.Add(format);
@@ -147,12 +139,9 @@ namespace rhi {
     }
 
     PipelineCache::Key PipelineCache::MakeKey(const GraphicsPipelineDesc &desc) {
-        ENGINE_ASSERT_MSG(!desc.vertexShader.empty(), "PSO \"{}\" has no vertex shader", core::ToUtf8(desc.name));
         ENGINE_ASSERT_MSG(desc.renderTargetFormats.size() <= D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT,
                           "PSO \"{}\" has {} render targets (at most 8)", core::ToUtf8(desc.name),
                           desc.renderTargetFormats.size());
-        ENGINE_ASSERT_MSG(!desc.renderTargetFormats.empty() || desc.depthFormat != DXGI_FORMAT_UNKNOWN,
-                          "PSO \"{}\" writes nothing", core::ToUtf8(desc.name));
 
         Key key{
             .vertexShader = std::wstring(desc.vertexShader),
@@ -162,7 +151,6 @@ namespace rhi {
             .cull = desc.cull,
             .depth = desc.depth,
             .depthBias = desc.depthBias,
-            .topology = desc.topology,
             .renderTargetFormats = {desc.renderTargetFormats.begin(), desc.renderTargetFormats.end()},
             .depthFormat = desc.depthFormat,
         };
@@ -182,7 +170,6 @@ namespace rhi {
     }
 
     ComPtr<ID3D12PipelineState> PipelineCache::Create(const GraphicsPipelineDesc &desc) {
-        // References into m_shaders stay valid when the map grows (its nodes never move)
         const std::vector<std::byte> &vertexShader = Shader(desc.vertexShader);
         const std::vector<std::byte> *pixelShader = desc.pixelShader.empty() ? nullptr : &Shader(desc.pixelShader);
 
@@ -210,7 +197,7 @@ namespace rhi {
             .DepthStencilState = depthStencil,
             .InputLayout = {.pInputElementDescs = desc.inputLayout.data(),
                             .NumElements = static_cast<UINT>(desc.inputLayout.size())},
-            .PrimitiveTopologyType = desc.topology,
+            .PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE,
             .NumRenderTargets = static_cast<UINT>(desc.renderTargetFormats.size()),
             .DSVFormat = desc.depthFormat,
             .SampleDesc = {.Count = 1, .Quality = 0},
@@ -221,7 +208,7 @@ namespace rhi {
 
         ComPtr<ID3D12PipelineState> pipelineState;
         ThrowIfFailed(m_device->CreateGraphicsPipelineState(&pipelineDesc, IID_PPV_ARGS(&pipelineState)));
-        ThrowIfFailed(pipelineState->SetName(desc.name.empty() ? L"PSO" : std::wstring(desc.name).c_str()));
+        ThrowIfFailed(pipelineState->SetName(std::wstring(desc.name).c_str()));
         return pipelineState;
     }
 

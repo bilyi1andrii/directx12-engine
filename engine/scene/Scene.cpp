@@ -18,7 +18,6 @@ namespace scene {
         const XMMATRIX fromPivot = XMMatrixTranslation(-pivot.x, -pivot.y, -pivot.z);
         const XMMATRIX objectWorld = XMLoadFloat4x4(&world);
         for (const render::ModelPart &part : model.parts) {
-            // Row vectors: first the part's transform, then the pivot, then the object's world
             const XMMATRIX toObject = XMLoadFloat4x4(&part.transform) * fromPivot;
             EntityPart entityPart{.bounds = part.bounds};
             XMStoreFloat4x4(&entityPart.toObject, toObject);
@@ -46,7 +45,6 @@ namespace scene {
     }
 
     render::LocalLight *Scene::Light(ObjectId id) {
-        // The const overload's search; the const_cast is safe because this scene is not const
         return const_cast<render::LocalLight *>(std::as_const(*this).Light(id));
     }
 
@@ -58,8 +56,6 @@ namespace scene {
     void Scene::SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
-        ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
-                          m_objects.size());
         SceneObject &object = m_objects[id.index];
         ENGINE_ASSERT_MSG(object.mobility == Mobility::Movable, "Object {} is static", object.name);
 
@@ -71,7 +67,6 @@ namespace scene {
     }
 
     void Scene::SetObjectPosition(ObjectId id, const DirectX::XMFLOAT3 &position) {
-        // Row vectors: the translation is the 4th row; the rest holds the rotation and scale
         DirectX::XMFLOAT4X4 world = Object(id).world;
         world._41 = position.x;
         world._42 = position.y;
@@ -80,8 +75,6 @@ namespace scene {
     }
 
     void Scene::SetObjectMaterial(ObjectId id, render::MaterialHandle material) {
-        ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
-                          m_objects.size());
         const SceneObject &object = m_objects[id.index];
         ENGINE_ASSERT_MSG(object.mobility == Mobility::Movable, "Object {} is static", object.name);
 
@@ -91,8 +84,6 @@ namespace scene {
     }
 
     const SceneObject &Scene::Object(ObjectId id) const {
-        ENGINE_ASSERT_MSG(id.index < m_objects.size(), "Object {} out of range ({} objects)", id.index,
-                          m_objects.size());
         return m_objects[id.index];
     }
 
@@ -134,13 +125,11 @@ namespace scene {
         const std::span<const render::LocalLight> sceneLights = scene.Lights();
         for (size_t i = 0; i < sceneLights.size(); ++i) {
             const render::LocalLight &light = sceneLights[i];
-            // Row vectors: the 4th row is the translation, the 3rd is where the object's +Z axis points
             const XMFLOAT4X4 &world = scene.Object(lightObjects[i]).world;
             const XMFLOAT3 position{world._41, world._42, world._43};
             if (light.type == render::LightType::Point) {
                 lights.points.push_back({.light = light, .position = position});
             } else {
-                // The row's length is the object's Z scale. Scaling the marker must not change the light.
                 XMFLOAT3 direction{};
                 XMStoreFloat3(&direction, XMVector3Normalize(XMVectorSet(world._31, world._32, world._33, 0.0f)));
                 lights.spots.push_back({.light = light, .position = position, .direction = direction});

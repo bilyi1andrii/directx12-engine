@@ -1,3 +1,5 @@
+// Tests culling passes, sharing textures and placing state changes in the frame graph.
+
 #include <cstdint>
 #include <initializer_list>
 #include <span>
@@ -16,7 +18,6 @@ using render::fg::TextureUse;
 using render::fg::Transition;
 
 namespace {
-    // Description ids of the transients in these tests: equal ids mean the same size, format and usage
     constexpr uint32_t kSceneDepthDesc = 0;
     constexpr uint32_t kShadowMapDesc = 1;
     constexpr uint32_t kColorDesc = 2;
@@ -36,8 +37,6 @@ namespace {
 } // namespace
 
 TEST(FrameGraphCompiler, SinglePassToTheBackBuffer) {
-    // The back buffer goes to ColorWrite before the pass and back to Present after the frame. Scene depth is only
-    // ever DepthWrite, so it needs no transition, not even across frames.
     GraphDesc graph;
     const uint32_t backBuffer = graph.AddImport(Access::Present, Access::Present);
     const uint32_t depth = graph.AddTransient(kSceneDepthDesc);
@@ -76,7 +75,6 @@ TEST(FrameGraphCompiler, ShadowOpaqueUi) {
     EXPECT_EQ(compiled.textures[backBuffer].firstPass, opaque);
     EXPECT_EQ(compiled.textures[backBuffer].lastPass, ui);
 
-    // The shadow map ends each frame sampled, so the next frame starts from there
     const uint32_t sm = Gpu(compiled, shadowMap);
     const uint32_t bb = Gpu(compiled, backBuffer);
     EXPECT_EQ(compiled.gpuTextures[sm].restAccess, Access::ShaderRead);
@@ -105,8 +103,6 @@ TEST(FrameGraphCompiler, TextureReadByTwoPassesChangesStateOnce) {
 }
 
 TEST(FrameGraphCompiler, PassWhoseOutputNobodyUsesIsCulled) {
-    // `debugView` writes a texture nobody reads, so it does not run. `prepass` writes a texture that only
-    // `debugView` reads, so it does not run either.
     GraphDesc graph;
     const uint32_t backBuffer = graph.AddImport(Access::Present, Access::Present);
     const uint32_t prepassTarget = graph.AddTransient(kColorDesc);
@@ -122,15 +118,12 @@ TEST(FrameGraphCompiler, PassWhoseOutputNobodyUsesIsCulled) {
     EXPECT_TRUE(compiled.passes[opaque].kept);
     EXPECT_TRUE(Before(compiled, prepass).empty());
     EXPECT_TRUE(Before(compiled, debugView).empty());
-    // Culled passes' textures get no GPU texture
     EXPECT_EQ(compiled.textures[prepassTarget].gpuTexture, kNoIndex);
     EXPECT_EQ(compiled.textures[debugTarget].firstPass, kNoIndex);
     EXPECT_EQ(compiled.gpuTextures.size(), 1u);
 }
 
 TEST(FrameGraphCompiler, EarlierWriterOfATextureALaterPassWritesIsKept) {
-    // `ui` may draw on top of what `opaque` wrote (no clear), so `opaque` runs even though no pass reads the
-    // back buffer
     GraphDesc graph;
     const uint32_t backBuffer = graph.AddImport(Access::Present, Access::Present);
     const uint32_t overlay = graph.AddTransient(kColorDesc);
@@ -145,9 +138,6 @@ TEST(FrameGraphCompiler, EarlierWriterOfATextureALaterPassWritesIsKept) {
 }
 
 TEST(FrameGraphCompiler, TransientsShareATextureOnlyWhenLifetimesDoNotOverlapAndDescriptionsMatch) {
-    // Two post-processing steps, each writing a colour target and reading it into the back buffer.
-    // `first` and `second` have the same description and never live at the same time: one GPU texture.
-    // `other` has another description, and `firstAgain` overlaps `first`: each gets its own.
     GraphDesc graph;
     const uint32_t backBuffer = graph.AddImport(Access::Present, Access::Present);
     const uint32_t first = graph.AddTransient(kColorDesc);
@@ -168,9 +158,8 @@ TEST(FrameGraphCompiler, TransientsShareATextureOnlyWhenLifetimesDoNotOverlapAnd
     EXPECT_NE(Gpu(compiled, firstAgain), shared);
     EXPECT_NE(Gpu(compiled, other), shared);
     EXPECT_NE(Gpu(compiled, other), Gpu(compiled, firstAgain));
-    EXPECT_EQ(compiled.gpuTextures.size(), 4u); // back buffer, shared, firstAgain, other
+    EXPECT_EQ(compiled.gpuTextures.size(), 4u);
 
-    // The shared texture's uses form one loop over the frame: written, read, written, read
     EXPECT_EQ(compiled.gpuTextures[shared].restAccess, Access::ShaderRead);
     EXPECT_EQ(Before(compiled, pass0).front(), (Transition{shared, Access::ShaderRead, Access::ColorWrite}));
     EXPECT_EQ(Before(compiled, pass1).front(), (Transition{shared, Access::ColorWrite, Access::ShaderRead}));

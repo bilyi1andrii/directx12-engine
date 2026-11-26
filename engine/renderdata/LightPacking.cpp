@@ -10,7 +10,6 @@
 
 namespace render {
     namespace {
-        // `direction` at unit length; straight down if it has no length
         [[nodiscard]] DirectX::XMFLOAT3 UnitDirection(const DirectX::XMFLOAT3 &direction) {
             using namespace DirectX;
 
@@ -28,13 +27,11 @@ namespace render {
         constants.ambientColor = environment.ambientColor;
         constants.ambientStrength = environment.ambientStrength;
         constants.specularColor = environment.specularColor;
-        // The shader computes pow(x, shininess), where x can be 0, and pow(0, 0) gives NaN on the GPU
         constants.shininess = std::max(environment.shininess, 1.0f);
 
         const DirectionalLight &directional = environment.directional;
         constants.directionalDirection = UnitDirection(directional.direction);
         constants.directionalColor = directional.color;
-        // The shader has no on/off flag: a light of strength 0 adds nothing
         constants.directionalStrength = directional.enabled ? directional.strength : 0.0f;
 
         uint32_t pointCount = 0;
@@ -61,13 +58,10 @@ namespace render {
             if (spotCount == gpu::kMaxSpotLights) {
                 break;
             }
-            // The shader divides by innerCos - outerCos. So the inner cone stays inside the outer one, and equal
-            // angles get a small gap.
             constexpr float kMinCosGap = 1e-4f;
             const float outerDegrees = std::clamp(spot.light.outerAngleDegrees, 0.0f, 90.0f);
             const float innerDegrees = std::clamp(spot.light.innerAngleDegrees, 0.0f, outerDegrees);
             const float innerCos = std::cos(DirectX::XMConvertToRadians(innerDegrees));
-            // The gap widens the outer cone, not the inner one: innerCos above 1 would dim the spot's centre
             const float outerCos = std::min(std::cos(DirectX::XMConvertToRadians(outerDegrees)), innerCos - kMinCosGap);
 
             gpu::SpotLightData &data = constants.spotLights[spotCount++];
@@ -83,7 +77,6 @@ namespace render {
     }
 
     PackedLightCounts CountPackedLights(const LightSet &lights) {
-        // Packing for real keeps the counts in step with PackLights' rules
         gpu::FrameConstants constants{};
         PackLights(lights, constants);
         return {.directional = lights.environment.directional.enabled ? 1u : 0u,

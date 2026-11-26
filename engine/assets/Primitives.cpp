@@ -13,21 +13,19 @@
 namespace assets {
     render::MeshData MakeCube() {
         using DirectX::XMFLOAT3;
-        // Each face as seen from outside: its normal and which way is right and up on it
         struct Face {
             XMFLOAT3 normal;
             XMFLOAT3 right;
             XMFLOAT3 up;
         };
         constexpr std::array<Face, 6> kFaces{{
-            {{0, 0, -1}, {1, 0, 0}, {0, 1, 0}},  // -Z
-            {{0, 0, 1}, {-1, 0, 0}, {0, 1, 0}},  // +Z
-            {{-1, 0, 0}, {0, 0, -1}, {0, 1, 0}}, // -X
-            {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},   // +X
-            {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},   // +Y, seen from above with +Z up
-            {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}}, // -Y, seen from below with -Z up
+            {{0, 0, -1}, {1, 0, 0}, {0, 1, 0}},
+            {{0, 0, 1}, {-1, 0, 0}, {0, 1, 0}},
+            {{-1, 0, 0}, {0, 0, -1}, {0, 1, 0}},
+            {{1, 0, 0}, {0, 0, 1}, {0, 1, 0}},
+            {{0, 1, 0}, {1, 0, 0}, {0, 0, 1}},
+            {{0, -1, 0}, {1, 0, 0}, {0, 0, -1}},
         }};
-        // A corner of the face: r and u are -1 or +1
         const auto corner = [](const Face &face, float r, float u) {
             return XMFLOAT3{face.normal.x + r * face.right.x + u * face.up.x,
                             face.normal.y + r * face.right.y + u * face.up.y,
@@ -39,12 +37,10 @@ namespace assets {
         cube.indices.reserve(kFaces.size() * 6);
         for (const Face &face : kFaces) {
             const auto first = static_cast<uint32_t>(cube.vertices.size());
-            // Bottom-left, top-left, top-right, bottom-right. UV (0, 0) is the top-left of the texture.
             cube.vertices.push_back({corner(face, -1, -1), {0, 1}, face.normal, face.right});
             cube.vertices.push_back({corner(face, -1, 1), {0, 0}, face.normal, face.right});
             cube.vertices.push_back({corner(face, 1, 1), {1, 0}, face.normal, face.right});
             cube.vertices.push_back({corner(face, 1, -1), {1, 1}, face.normal, face.right});
-            // Two clockwise triangles
             cube.indices.insert(cube.indices.end(), {first, first + 1, first + 2, first, first + 2, first + 3});
         }
         cube.submeshes.push_back({.firstIndex = 0, .indexCount = static_cast<uint32_t>(cube.indices.size())});
@@ -56,24 +52,19 @@ namespace assets {
         using DirectX::XMFLOAT3;
 
         render::MeshData sphere;
-        // One more column than slices. The last column repeats the first with u = 1 instead of 0, so the texture
-        // does not jump from 1 back to 0 inside one cell.
         const uint32_t columns = kSphereSlices + 1;
         sphere.vertices.reserve(size_t{kSphereStacks + 1} * columns);
         for (uint32_t stack = 0; stack <= kSphereStacks; ++stack) {
             const float v = static_cast<float>(stack) / kSphereStacks;
-            // From the +Y pole (0) down to the -Y pole (pi)
             const float fromTop = DirectX::XM_PI * v;
             const float y = std::cos(fromTop);
             const float ringRadius = std::sin(fromTop);
             for (uint32_t slice = 0; slice <= kSphereSlices; ++slice) {
                 const float u = static_cast<float>(slice) / kSphereSlices;
-                // Around the Y axis from +X towards +Z: to the right, seen from outside
                 const float around = DirectX::XM_2PI * u;
                 const float cosAround = std::cos(around);
                 const float sinAround = std::sin(around);
                 const XMFLOAT3 position{ringRadius * cosAround, y, ringRadius * sinAround};
-                // On a unit sphere the normal is the position. The tangent points where u grows.
                 sphere.vertices.push_back({position, XMFLOAT2{u, v}, position, XMFLOAT3{-sinAround, 0.0f, cosAround}});
             }
         }
@@ -81,13 +72,10 @@ namespace assets {
         sphere.indices.reserve(kSphereTriangleCount * 3);
         for (uint32_t stack = 0; stack < kSphereStacks; ++stack) {
             for (uint32_t slice = 0; slice < kSphereSlices; ++slice) {
-                // The corners of one grid cell, seen from outside
                 const uint32_t topLeft = stack * columns + slice;
                 const uint32_t topRight = topLeft + 1;
                 const uint32_t bottomLeft = topLeft + columns;
                 const uint32_t bottomRight = bottomLeft + 1;
-                // Two clockwise triangles. At a pole one side of the cell is a single point, so the triangle
-                // on that side has no area and is left out.
                 if (stack + 1 < kSphereStacks) {
                     sphere.indices.insert(sphere.indices.end(), {topLeft, bottomRight, bottomLeft});
                 }

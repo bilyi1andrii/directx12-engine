@@ -1,3 +1,5 @@
+// Tests reading model files: geometry, node placement, materials and the errors for broken files.
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -27,18 +29,15 @@ using tests::MissingFile;
 using tests::TempFile;
 
 namespace {
-    // The bytes of a text file, for TempFile
     [[nodiscard]] std::span<const std::byte> Bytes(std::string_view text) {
         return std::as_bytes(std::span(text));
     }
 
-    // One triangle in the XY plane
     constexpr std::string_view kTriangleObj = "v 0 0 0\n"
                                               "v 1 0 0\n"
                                               "v 0 1 0\n"
                                               "f 1 2 3\n";
 
-    // Two objects of one triangle each, the second at z = 1: Assimp makes one mesh per object
     constexpr std::string_view kTwoObjectsObj = "o first\n"
                                                 "v 0 0 0\n"
                                                 "v 1 0 0\n"
@@ -50,9 +49,6 @@ namespace {
                                                 "v 0 1 1\n"
                                                 "f 4 5 6\n";
 
-    // A .gltf whose mesh 0 is one triangle. The buffer holds the positions (0,0,0), (1,0,0), (0,1,0) as floats,
-    // then the indices 0, 1, 2 as uint16 and 2 bytes of padding. `rest` places the mesh (and adds materials);
-    // with `withMaterial` the triangle uses material 0.
     [[nodiscard]] std::string TriangleGltf(std::string_view rest, bool withMaterial = false) {
         return std::format(R"({{
   "asset": {{"version": "2.0"}},
@@ -69,19 +65,16 @@ namespace {
                            withMaterial ? R"(, "material": 0)" : "", rest);
     }
 
-    // The file a texture slot points to, or "" if it is not a file. gtest cannot print a TextureSource.
     [[nodiscard]] std::wstring FileOf(const TextureSource &texture) {
         const auto *path = std::get_if<std::filesystem::path>(&texture);
         return path != nullptr ? path->native() : std::wstring{};
     }
 
-    // The index of the image stored in the model file a texture slot points to, or -1
     [[nodiscard]] int EmbeddedIndexOf(const TextureSource &texture) {
         const auto *embedded = std::get_if<EmbeddedTexture>(&texture);
         return embedded != nullptr ? static_cast<int>(embedded->index) : -1;
     }
 
-    // What the importer should record for `file`: absolute, normalized, letter case as on disk
     [[nodiscard]] std::wstring Normalized(const std::filesystem::path &file) {
         return std::filesystem::weakly_canonical(file).native();
     }
@@ -92,8 +85,6 @@ namespace {
 
     constexpr std::span<const std::byte> kEmpty;
 
-    // Imports a one-triangle OBJ in the temp folder whose material `engine_test_leaf` has the lines `mtl`, and returns
-    // that material. Texture files the test needs must exist before the call.
     [[nodiscard]] MaterialDesc ImportLeafMaterial(std::string_view mtl) {
         const TempFile mtlFile(L"engine_test_leaf.mtl",
                                Bytes(std::string("newmtl engine_test_leaf\n") + std::string(mtl)));
@@ -138,7 +129,6 @@ TEST(ImportModel, DamagedFileReturnsDecodeFailed) {
     EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
 }
 
-// A face pointing past the last vertex. PLY because its reader lets this through to the validation.
 TEST(ImportModel, FaceIndexOutsideTheVerticesReturnsDecodeFailed) {
     const TempFile file(L"engine_test_bad_index.ply", Bytes("ply\n"
                                                             "format ascii 1.0\n"
@@ -160,7 +150,6 @@ TEST(ImportModel, FaceIndexOutsideTheVerticesReturnsDecodeFailed) {
     EXPECT_EQ(result.error().code, ErrorCode::DecodeFailed) << result.error().message;
 }
 
-// Lines and points are skipped, so nothing is left to draw: an error, not an empty index buffer for CreateMesh
 TEST(ImportModel, ModelWithoutTrianglesReturnsDecodeFailed) {
     const TempFile file(L"engine_test_lines.obj", Bytes("v 0 0 0\n"
                                                         "v 1 0 0\n"
@@ -192,16 +181,13 @@ TEST(ImportModel, ReadsObj) {
     ASSERT_EQ(result->nodes.size(), 1u);
     EXPECT_EQ(result->nodes[0].submesh, 0u);
     for (const auto &vertex : mesh.vertices) {
-        // The file has no normals: GenSmoothNormals makes them. The triangle lies in the XY plane.
         EXPECT_NEAR(std::abs(vertex.normal.z), 1.0f, 1e-5f);
-        // No UVs, so no tangents from Assimp: +X, as in DX11
         EXPECT_EQ(vertex.tangent.x, 1.0f);
         EXPECT_EQ(vertex.tangent.y, 0.0f);
         EXPECT_EQ(vertex.tangent.z, 0.0f);
     }
 }
 
-// Every submesh is a range of the same two arrays; its indices count from its own first vertex
 TEST(ImportModel, SubmeshesShareOneVertexAndIndexArray) {
     const TempFile file(L"engine_test_two_objects.obj", Bytes(kTwoObjectsObj));
 
@@ -219,14 +205,12 @@ TEST(ImportModel, SubmeshesShareOneVertexAndIndexArray) {
     for (uint32_t i = 0; i < second.indexCount; ++i) {
         const uint32_t index = mesh.indices[second.firstIndex + i];
         EXPECT_LT(index, 3u) << "indices are relative to baseVertex";
-        // The second object is the one at z = 1 (-1 after the left-handed conversion)
         EXPECT_NEAR(std::abs(mesh.vertices[second.baseVertex + index].position.z), 1.0f, 1e-5f);
     }
     ASSERT_EQ(result->nodes.size(), 2u);
     EXPECT_NE(result->nodes[0].submesh, result->nodes[1].submesh);
 }
 
-// The renderer draws triangles only; a submesh keeps its place (submesh i = Assimp mesh i) even if it is empty
 TEST(ImportModel, PointsAndLinesAreSkipped) {
     const TempFile file(L"engine_test_lines.obj", Bytes(std::string(kTriangleObj) + "l 1 2\n"
                                                                                     "p 3\n"));
@@ -237,8 +221,6 @@ TEST(ImportModel, PointsAndLinesAreSkipped) {
     EXPECT_EQ(result->mesh.indices.size(), 3u);
 }
 
-// A mesh used by two nodes is one submesh placed twice. A child is placed in its parent's space: the parent turns
-// 90 degrees around Z, so the child's offset (1, 0, 0) ends up at (0, 1, 0). The other way round it would stay.
 TEST(ImportModel, NodeTransformsIncludeTheirParents) {
     const std::string gltf = TriangleGltf(R"("scene": 0,
   "scenes": [{"nodes": [0, 2]}],
@@ -254,7 +236,6 @@ TEST(ImportModel, NodeTransformsIncludeTheirParents) {
     ASSERT_EQ(result->nodes.size(), 2u);
     EXPECT_EQ(result->nodes[0].submesh, 0u);
     EXPECT_EQ(result->nodes[1].submesh, 0u);
-    // Row-vector convention: the translation is in row 3
     const auto &child = result->nodes[0].transform;
     EXPECT_NEAR(child(3, 0), 0.0f, 1e-5f);
     EXPECT_NEAR(child(3, 1), 1.0f, 1e-5f);
@@ -264,9 +245,6 @@ TEST(ImportModel, NodeTransformsIncludeTheirParents) {
     EXPECT_NEAR(other(3, 1), 0.0f, 1e-5f);
 }
 
-// A material without PBR textures (OBJ): the diffuse texture shown as it is, the opacity, and the other maps found
-// next to the model by the material's name. The texture path is written in another letter case than the file: it
-// still names the file as it is on disk, so both spellings load the same texture.
 TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
     const TempFile mtl(L"engine_test_mat.mtl", Bytes("newmtl engine_test_brick\n"
                                                      "Kd 0.5 0.25 1\n"
@@ -297,15 +275,12 @@ TEST(ImportModel, ObjMaterialFollowsTheNonPbrRules) {
     EXPECT_TRUE(result->embeddedTextures.empty());
 }
 
-// The alpha mode of an OBJ material: an opacity map (map_d, or a <material>_d image next to the model) cuts holes at
-// the default cutoff, and opacity below 1 is transparent even with a map. OBJ cannot say whether a material is
-// two-sided: transparent ones are, so their far side shows through.
 TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
     struct Case {
         std::string_view mtl;
-        std::wstring_view fileByName; // created next to the model, or none
+        std::wstring_view fileByName;
         AlphaMode alphaMode;
-        std::wstring_view opacityMap; // the file the material should name, or none
+        std::wstring_view opacityMap;
         bool doubleSided;
     };
     constexpr Case kCases[] = {
@@ -334,8 +309,6 @@ TEST(ImportModel, ObjAlphaModeFollowsOpacityAndOpacityMap) {
     }
 }
 
-// Blender writes the albedo file as the opacity map: the albedo's alpha is the mask, with no second texture. The two
-// spellings differ in letter case and still name one file.
 TEST(ImportModel, ObjOpacityMapThatIsTheAlbedoMakesMaskWithoutSeparateMap) {
     const TempFile albedo(L"engine_test_leaf_albedo.png", kEmpty);
 
@@ -348,8 +321,6 @@ TEST(ImportModel, ObjOpacityMapThatIsTheAlbedoMakesMaskWithoutSeparateMap) {
     EXPECT_TRUE(std::holds_alternative<std::monostate>(material.opacityMap));
 }
 
-// A glTF material: the file's factors and alpha mode, metallic and roughness packed in one texture, and an image
-// stored in the file used by two slots but copied once
 TEST(ImportModel, GltfMaterialKeepsTheFileValues) {
     const std::string gltf = TriangleGltf(R"("scene": 0,
   "scenes": [{"nodes": [0]}],
@@ -404,6 +375,6 @@ TEST(IsModelFile, KnowsTheModelFormatsInAnyLetterCase) {
     EXPECT_TRUE(IsModelFile("C:/models/Rig.Fbx"));
     EXPECT_FALSE(IsModelFile("texture.png"));
     EXPECT_FALSE(IsModelFile("scene.gltf.bak"));
-    EXPECT_FALSE(IsModelFile("gltf")); // a name, not an extension
+    EXPECT_FALSE(IsModelFile("gltf"));
     EXPECT_FALSE(IsModelFile("folder/"));
 }

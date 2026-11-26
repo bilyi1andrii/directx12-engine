@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_OPAQUEPASS_H
 #define D3D12_ENGINE_OPAQUEPASS_H
 
+// Draws the solid surfaces, lit and shadowed, with holes where a cut-out material's alpha is below its cutoff.
+// Every pipeline it needs is created up front, so no frame waits for one.
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -15,11 +18,6 @@
 #include "rhi/PipelineCache.h"
 
 namespace render {
-    // Draws solid surfaces into the bound colour and depth targets, with depth test and depth write on. Mask
-    // materials get holes where their alpha is below the cutoff (alpha test).
-    // Owns one PSO per vertex format, shading, cull mode and alpha test, created up front so no frame waits for a PSO.
-    //
-    // Not copyable or movable: it keeps a reference to `pipelines`, which must outlive it.
     class OpaquePass {
     public:
         explicit OpaquePass(rhi::PipelineCache &pipelines);
@@ -29,20 +27,16 @@ namespace render {
         OpaquePass(OpaquePass &&) = delete;
         OpaquePass &operator=(OpaquePass &&) = delete;
 
-        // Adds the main pass to `graph`: clears `color` to sky and `depth` to far plane, then draws
-        // lit/shadowed `FrameInputs::drawSets` (using `ShadowPass`'s `shadowMap`) to `color[colorView]` (`SwapChain::kRtvFormat`).
         void AddTo(FrameGraph &graph, FgTexture color, uint32_t colorView, FgTexture depth, FgTexture shadowMap,
                    const GpuResources &resources) const;
 
     private:
-        // Everything that picks one of the pass's PSOs
         struct PipelineKey {
             VertexFormat format = VertexFormat::Mesh;
             Shading shading = Shading::Lit;
             bool doubleSided = false;
             bool alphaTest = false;
 
-            // A different slot in the PSO array for every combination
             [[nodiscard]] constexpr uint32_t Index() const noexcept {
                 const uint32_t formatAndShading =
                     std::to_underlying(format) * uint32_t{std::to_underlying(Shading::Count)} +
@@ -56,7 +50,6 @@ namespace render {
         [[nodiscard]] rhi::PipelineHandle PipelineFor(VertexFormat format, const MaterialInfo &material) const;
 
         const rhi::PipelineCache &m_pipelines;
-        // One slot per key, filled by the constructor. Unlit materials have no alpha-test PSO.
         std::array<rhi::PipelineHandle, kPipelineKeyCount> m_pipelinesByKey;
     };
 } // namespace render

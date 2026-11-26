@@ -21,8 +21,6 @@ namespace scene {
 
     XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio) {
         const float fovRadians = (camera.fovDegrees / 360.0f) * XM_2PI;
-        // Reversed-Z: near and far swapped give the near plane depth 1 and the far plane 0. Float depth is most
-        // precise near 0, so distant objects no longer flicker through each other.
         return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.farZ, camera.nearZ);
     }
 
@@ -57,16 +55,10 @@ namespace scene {
 
     void LookAt(Camera &camera, const XMFLOAT3 &target) {
         const XMFLOAT3 &pos = camera.position;
-        if (target.x == pos.x && target.y == pos.y && target.z == pos.z) {
-            return;
-        }
-
-        // Direction from the camera to the target. atan2 works in every direction; DX11's atan(x / z) looked the
-        // wrong way when z == 0.
         const float dx = target.x - pos.x;
         const float dy = target.y - pos.y;
         const float dz = target.z - pos.z;
-        const float pitch = std::atan2(-dy, std::sqrt(dx * dx + dz * dz)); // positive looks down
+        const float pitch = std::atan2(-dy, std::sqrt(dx * dx + dz * dz));
         const float yaw = std::atan2(dx, dz);
 
         camera.rotation = {pitch, yaw, 0.0f};

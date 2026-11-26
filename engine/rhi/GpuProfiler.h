@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_GPUPROFILER_H
 #define D3D12_ENGINE_GPUPROFILER_H
 
+// Measures how long the GPU spends on each frame and on each pass. The GPU writes timestamps, and the profiler reads
+// them back two frames later, so it never waits for the GPU.
+
 #include <array>
 #include <cstdint>
 #include <optional>
@@ -27,7 +30,6 @@ namespace rhi {
 
         void BeginFrame(CommandContext &commands, uint64_t frame);
 
-        // Starts timing scope `scopeId` and returns its index in this frame, for EndScope.
         [[nodiscard]] uint32_t BeginScope(CommandContext &commands, uint32_t scopeId);
         void EndScope(CommandContext &commands, uint32_t scopeIndex);
 
@@ -55,12 +57,9 @@ namespace rhi {
         GpuScopeNames m_names;
         std::array<SlotRecord, kFramesInFlight> m_slots{};
         uint32_t m_slot = 0;
-        uint32_t m_openScopes = 0;
-        bool m_recording = false;
         std::optional<GpuFrameTimes> m_latest;
     };
 
-    // Times the commands recorded between its construction and its destruction as one scope of the current frame
     class ScopedGpuTimer {
     public:
         ScopedGpuTimer(CommandContext &commands, GpuProfiler &profiler, uint32_t scopeId)

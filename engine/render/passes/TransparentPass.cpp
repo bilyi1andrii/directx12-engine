@@ -37,7 +37,6 @@ namespace render {
             "Transparent",
             [&](PassBuilder &builder) {
                 builder.WriteColor(color, std::nullopt, colorView);
-                // Declared as a depth write, though the PSO only tests depth
                 builder.WriteDepth(depth, std::nullopt);
                 builder.Read(shadowMap);
             },

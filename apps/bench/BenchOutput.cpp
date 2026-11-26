@@ -14,7 +14,6 @@ namespace bench {
             return core::ToUtf8(path.native());
         }
 
-        // Creates `folder`, or `folder-2`, `folder-3`, ... if it exists
         [[nodiscard]] std::expected<std::filesystem::path, std::string>
         CreateNewFolder(const std::filesystem::path &folder) {
             std::error_code error;
@@ -29,7 +28,6 @@ namespace bench {
                 if (attempt > 1) {
                     candidate += std::format("-{}", attempt);
                 }
-                // false without an error: the folder exists, try the next name
                 if (std::filesystem::create_directory(candidate, error)) {
                     return candidate;
                 }
@@ -41,11 +39,9 @@ namespace bench {
                 std::format("'{}' and {} numbered copies exist already", PathText(folder), kMaxAttempts - 1));
         }
 
-        // Fails if the file cannot be opened or written completely
         template <typename WriteFunction>
         [[nodiscard]] std::expected<void, std::string> WriteFile(const std::filesystem::path &path,
                                                                  WriteFunction write) {
-            // Binary mode keeps "\n" line ends instead of turning them into "\r\n"
             std::ofstream file(path, std::ios::binary);
             if (!file) {
                 return std::unexpected(std::format("cannot open '{}' for writing", PathText(path)));
@@ -79,7 +75,6 @@ namespace bench {
         const size_t passCount = std::min(gpuPasses.size(), kMaxGpuPasses);
         for (size_t frame = 0; frame < timings.size(); ++frame) {
             const FrameTiming &timing = timings[frame];
-            // 4 decimals = 0.1 microseconds, more than precise enough
             out << std::format("{},{:.4f},{:.4f},{:.4f}", frame, timing.cpuFrameMs, timing.cpuRecordMs,
                                timing.gpuTotalMs);
             for (size_t pass = 0; pass < passCount; ++pass) {

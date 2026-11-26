@@ -1,11 +1,11 @@
 #ifndef D3D12_ENGINE_AGILITYSDK_H
 #define D3D12_ENGINE_AGILITYSDK_H
 
+// Makes the app load the newer D3D12 runtime shipped next to the program instead of the one built into Windows.
+// Each app expands the macro once, at global scope in its main.cpp.
+
 #include "rhi/RhiCommon.h"
 
-// Agility SDK: these two exports make d3d12.dll load the newer runtime from <exe dir>/D3D12/
-// instead of the one built into Windows. They must be defined in the .exe itself (not in a DLL
-// or static library), so every app expands this macro once, at global scope in its main.cpp.
 #define ENGINE_EXPORT_AGILITY_SDK()                                              \
     extern "C" {                                                                 \
     __declspec(dllexport) extern const UINT D3D12SDKVersion = D3D12_SDK_VERSION; \

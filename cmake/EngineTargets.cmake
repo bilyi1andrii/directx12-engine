@@ -1,20 +1,18 @@
-# Helpers shared by all engine and app targets.
+# Helpers shared by all engine and app targets: strict warnings and Win32 defines, and copying the Agility SDK
+# and ASan runtimes next to an exe.
 
-# Strict warnings and common Win32 defines.
 function(engine_target_defaults target)
     target_compile_options(${target} PRIVATE
             /W4 /permissive- /WX
             /utf-8
-            # Headers included with <...> (Windows SDK, vcpkg packages) are third-party: no warnings from them.
             /external:anglebrackets /external:W0)
     target_link_options(${target} PRIVATE /WX)
     target_compile_definitions(${target} PRIVATE
-            UNICODE _UNICODE        # wide-char Win32 APIs
-            NOMINMAX                # stop windows.h from defining min/max macros
+            UNICODE _UNICODE
+            NOMINMAX
             WIN32_LEAN_AND_MEAN)
 endfunction()
 
-# Agility SDK: ships a newer D3D12 runtime (D3D12Core.dll) than the one in Windows.
 function(engine_copy_agility_runtime target)
     add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:${target}>/D3D12"
@@ -26,8 +24,7 @@ function(engine_copy_agility_runtime target)
             COMMENT "Copying Agility SDK runtime for ${target}")
 endfunction()
 
-# ASan builds need the sanitizer runtime next to the exe. It ships beside cl.exe, which is only on PATH
-# in a Developer shell. Does nothing in other builds.
+# The runtime ships beside cl.exe, which is only on PATH in a Developer shell
 function(engine_copy_asan_runtime target)
     if(NOT CMAKE_CXX_FLAGS MATCHES "/fsanitize=address")
         return()

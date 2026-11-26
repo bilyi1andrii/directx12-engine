@@ -46,7 +46,6 @@ namespace render {
             entry.state = request.state;
         }
 
-        // Textures the new graph does not use. Frames still in flight may use them, so they go only after `frame`.
         size_t kept = 0;
         for (size_t i = 0; i < m_entries.size(); ++i) {
             if (m_acquired[i]) {
@@ -71,12 +70,7 @@ namespace render {
     TransientTexturePool::Entry TransientTexturePool::Create(const Request &request) {
         const TransientTextureDesc &desc = request.desc;
         const bool depth = desc.target == TransientTextureDesc::Target::Depth;
-        ENGINE_ASSERT_MSG(!depth || desc.format == rhi::kDepthFormat, "Transient depth texture {} is not kDepthFormat",
-                          request.name);
-        ENGINE_ASSERT_MSG(desc.width > 0 && desc.height > 0, "Transient texture {} has no size", request.name);
 
-        // A depth texture that shaders also sample is created without a type (TYPELESS): its depth view reads it
-        // as depth, its shader view as a plain float
         static_assert(rhi::kDepthFormat == DXGI_FORMAT_D32_FLOAT,
                       "The typeless and shader-view formats below are those of D32_FLOAT: change them with the format");
         const DXGI_FORMAT resourceFormat = depth && desc.shaderRead ? DXGI_FORMAT_R32_TYPELESS : desc.format;
@@ -85,25 +79,21 @@ namespace render {
         D3D12_RESOURCE_FLAGS flags =
             depth ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         if (depth && !desc.shaderRead) {
-            // Lets the driver keep depth in a layout only the depth test understands
             flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
         }
         const D3D12_RESOURCE_DESC resourceDesc{
             .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
-            .Alignment = 0, // default (64 KB)
+            .Alignment = 0,
             .Width = desc.width,
             .Height = desc.height,
             .DepthOrArraySize = 1,
             .MipLevels = 1,
             .Format = resourceFormat,
             .SampleDesc = {.Count = 1, .Quality = 0},
-            .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN, // the driver picks the (tiled) memory layout
+            .Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
             .Flags = flags,
         };
 
-        // Optimized clear value: GPUs keep compressed render-target and depth data and can clear it almost for free,
-        // but only to the value given at creation. Clearing to any other value works, but is slower and the debug
-        // layer warns.
         D3D12_CLEAR_VALUE clearValue{.Format = depth ? rhi::kDepthFormat : desc.format, .Color = {}};
         if (depth) {
             clearValue.DepthStencil = {.Depth = rhi::kClearDepth, .Stencil = 0};
@@ -112,8 +102,6 @@ namespace render {
         }
         const bool hasClearValue = depth || request.clearColor.has_value();
 
-        // Default heap: GPU-local memory the CPU cannot access, where render targets and depth live. Not zeroed:
-        // the passes clear what they draw into.
         const std::string name = std::string("FG/") + std::string(request.name);
         Entry entry{
             .desc = desc,
@@ -128,7 +116,6 @@ namespace render {
         ID3D12Resource *resource = entry.allocation->GetResource();
 
         if (depth) {
-            // A depth-stencil view (DSV) tells the output merger how to depth-test against the texture
             const D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{
                 .Format = rhi::kDepthFormat,
                 .ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D,
@@ -137,7 +124,7 @@ namespace render {
             };
             m_device->CreateDepthStencilView(resource, &dsvDesc, entry.view.Cpu());
         } else {
-            m_device->CreateRenderTargetView(resource, nullptr, entry.view.Cpu()); // nullptr: its own format, mip 0
+            m_device->CreateRenderTargetView(resource, nullptr, entry.view.Cpu());
         }
         if (desc.shaderRead) {
             entry.srvIndex = m_heap.Allocate();
@@ -152,7 +139,6 @@ namespace render {
             frame.DeferFree(m_heap, entry.srvIndex);
             entry.srvIndex = kNoSrv;
         }
-        // CPU-only descriptors are copied into the command list when recorded, so the slot can go back at once
         entry.view.Reset();
     }
 } // namespace render

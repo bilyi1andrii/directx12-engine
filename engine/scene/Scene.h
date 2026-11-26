@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_SCENE_H
 #define D3D12_ENGINE_SCENE_H
 
+// The objects of the world: each object has parts that move together, and a point or spot light is an object too.
+// The scene hands the renderer its draws and its lights.
+
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -15,7 +18,6 @@
 #include "renderdata/RenderList.h"
 
 namespace scene {
-    // Object -> world, row-vector convention (as in the RenderList)
     struct Transform {
         DirectX::XMFLOAT4X4 world{1.0f, 0.0f, 0.0f, 0.0f, //
                                   0.0f, 1.0f, 0.0f, 0.0f, //
@@ -23,79 +25,56 @@ namespace scene {
                                   0.0f, 0.0f, 0.0f, 1.0f};
     };
 
-    // The mesh and material an entity is drawn with
     struct MeshRenderer {
         render::MeshHandle mesh;
         render::MaterialHandle material;
     };
 
-    // What an entity needs to follow its object and to be picked
     struct EntityPart {
-        DirectX::XMFLOAT4X4 toObject{}; // the part's place relative to the object's pivot
-        render::Aabb bounds;            // box around the mesh, in mesh space
+        DirectX::XMFLOAT4X4 toObject{};
+        render::Aabb bounds;
     };
 
-    // Static objects never move, so they are uploaded once; they can still be selected
     enum class Mobility : uint8_t { Static, Movable };
 
-    // An index into Scene::Objects()
     using ObjectId = render::Handle<struct ObjectTag>;
 
-    // What the user selects and moves: one or more parts that move together
     struct SceneObject {
         std::string name;
         Mobility mobility = Mobility::Movable;
-        DirectX::XMFLOAT4X4 world{}; // its translation row is where the object stands
-        // Its parts: entityCount entities, starting at firstEntity
+        DirectX::XMFLOAT4X4 world{};
         uint32_t firstEntity = 0;
         uint32_t entityCount = 0;
     };
 
-    // Objects and their parts (entities). Entity i is Transforms()[i] + Renderers()[i] + Parts()[i]. Nothing is removed
-    // yet, so an ObjectId stays valid as long as the scene.
-    // A point or spot light is an object too, so it moves and turns like one.
-    // Ambient and directional light have no position; they live in Environment().
     class Scene {
     public:
-        // Adds `model` as an object with one entity per part. `world` places `pivot`, a point in model space, so an
-        // entity's world is part.transform * translation(-pivot) * world.
         ObjectId AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
                            Mobility mobility, DirectX::XMFLOAT3 pivot = {});
 
-        // Adds a point or spot light as a Movable object drawn with `marker`. An empty `marker` draws nothing and
-        // cannot be clicked. The light shines from the object's position. A spot light points along the object's
-        // +Z axis.
         ObjectId AddLight(std::string name, const render::Model &marker, const DirectX::XMFLOAT4X4 &world,
                           const render::LocalLight &light);
 
-        // The light of an object, to read or edit, or nullptr if the object is not a light.
-        // The pointer is valid until the next AddLight. A linear search, which is fine for a dozen lights.
         [[nodiscard]] render::LocalLight *Light(ObjectId id);
         [[nodiscard]] const render::LocalLight *Light(ObjectId id) const;
 
         [[nodiscard]] render::LightEnvironment &Environment() noexcept { return m_environment; }
         [[nodiscard]] const render::LightEnvironment &Environment() const noexcept { return m_environment; }
 
-        // Moves a Movable object and all its parts
         void SetObjectWorld(ObjectId id, const DirectX::XMFLOAT4X4 &world);
 
-        // Moves a Movable object so that its pivot stands at `position`, keeping its rotation and scale
         void SetObjectPosition(ObjectId id, const DirectX::XMFLOAT3 &position);
 
-        // Gives every part of a Movable object this material (a static object's draws are already on the GPU)
         void SetObjectMaterial(ObjectId id, render::MaterialHandle material);
 
         [[nodiscard]] const SceneObject &Object(ObjectId id) const;
-        // Where the object's pivot stands in the world
         [[nodiscard]] DirectX::XMFLOAT3 ObjectPosition(ObjectId id) const;
         [[nodiscard]] std::span<const SceneObject> Objects() const noexcept { return m_objects; }
 
-        [[nodiscard]] size_t EntityCount() const noexcept { return m_transforms.size(); }
         [[nodiscard]] std::span<const Transform> Transforms() const noexcept { return m_transforms; }
         [[nodiscard]] std::span<const MeshRenderer> Renderers() const noexcept { return m_renderers; }
         [[nodiscard]] std::span<const EntityPart> Parts() const noexcept { return m_parts; }
 
-        // Light i is Lights()[i], on object LightObjects()[i]
         [[nodiscard]] std::span<const ObjectId> LightObjects() const noexcept { return m_lightObjects; }
         [[nodiscard]] std::span<const render::LocalLight> Lights() const noexcept { return m_lights; }
 
@@ -109,12 +88,8 @@ namespace scene {
         render::LightEnvironment m_environment;
     };
 
-    // Adds every object with this `mobility` to `list`, batched by mesh and material. No culling yet.
     void Extract(const Scene &scene, render::RenderList &list, Mobility mobility);
 
-    // Loads all scene lights (including disabled) and sets shadow bounds around all entities.
-    // Positions and directions are in world space. A spot light's direction has unit length, whatever the scale
-    // of its object.
     void Extract(const Scene &scene, render::LightSet &lights);
 } // namespace scene
 

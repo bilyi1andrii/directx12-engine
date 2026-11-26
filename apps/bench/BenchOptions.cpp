@@ -4,7 +4,6 @@
 #include <array>
 #include <format>
 #include <optional>
-#include <system_error>
 #include <vector>
 
 #include "common/OptionValues.h"
@@ -13,14 +12,13 @@
 using apps::ParseUint32;
 
 namespace {
-    // Each of them takes one value
     constexpr std::array<std::string_view, 7> kOptionNames{"--model",  "--grid",   "--count", "--instanced",
                                                            "--frames", "--warmup", "--out"};
 } // namespace
 
 std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::string> args) {
     BenchOptions options;
-    std::vector<std::string_view> seen; // to reject an option given twice
+    std::vector<std::string_view> seen;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::string_view arg = args[i];
         if (std::ranges::find(kOptionNames, arg) == kOptionNames.end()) {
@@ -69,14 +67,13 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
                 return std::unexpected(std::format("--warmup needs a frame count >= 0, got '{}'", value));
             }
             options.warmupFrames = *frames;
-        } else { // --out
+        } else {
             if (value.empty()) {
                 return std::unexpected("--out needs a folder");
             }
             options.outDir = core::PathFromUtf8(value);
         }
     }
-    // The default suits a cube: 50,000 copies of a detailed model are billions of triangles per frame
     if (options.modelPath && std::ranges::find(seen, std::string_view{"--count"}) == seen.end()) {
         return std::unexpected("--model needs --count, the number of copies");
     }
@@ -87,13 +84,7 @@ std::filesystem::path BenchSceneName(const BenchOptions &options) {
     if (!options.modelPath) {
         return L"cube";
     }
-    // Absolute, because a bare file name has no folder in it
-    std::error_code error;
-    std::filesystem::path full = std::filesystem::absolute(*options.modelPath, error);
-    if (error) {
-        full = *options.modelPath;
-    }
-    full = full.lexically_normal();
+    const std::filesystem::path full = std::filesystem::absolute(*options.modelPath).lexically_normal();
     const std::wstring folder = full.parent_path().filename().wstring();
     return folder.empty() ? full.stem().wstring() : folder + L"-" + full.stem().wstring();
 }

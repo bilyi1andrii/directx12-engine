@@ -1,3 +1,5 @@
+# The rhi library, a thin layer over D3D12 and DXGI, and the CPU-only GPU-timing library it uses.
+
 add_library(engine_gputimes STATIC
         GpuTimes.cpp
         GpuTimes.h)
@@ -7,8 +9,6 @@ target_include_directories(engine_gputimes PUBLIC "${PROJECT_SOURCE_DIR}/engine"
 
 target_link_libraries(engine_gputimes PUBLIC
         engine_core)
-
-# engine_rhi: thin wrapper over D3D12 and DXGI (device, queues, swap chain, descriptors, ...)
 
 add_library(engine_rhi STATIC
         AgilitySdk.h
@@ -47,14 +47,12 @@ add_library(engine_rhi STATIC
 
 engine_target_defaults(engine_rhi)
 
-# PUBLIC: whoever links engine_rhi can include its headers as "rhi/Device.h, ..."
 target_include_directories(engine_rhi PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 
-# PUBLIC: rhi headers include <directx/d3d12.h> and <dxgi1_6.h>, so users need the same headers and libraries
 target_link_libraries(engine_rhi PUBLIC
         engine_core
         engine_gputimes
-        Microsoft::DirectX-Headers      # <directx/d3d12.h>, <directx/d3dx12.h> matching the Agility SDK
-        Microsoft::DirectX-Guids        # IIDs for interfaces newer than the Windows SDK's dxguid.lib
-        GPUOpen::D3D12MemoryAllocator   # <D3D12MemAlloc.h>, included by rhi/Allocator.h
+        Microsoft::DirectX-Headers
+        Microsoft::DirectX-Guids
+        GPUOpen::D3D12MemoryAllocator
         d3d12 dxgi dxguid)

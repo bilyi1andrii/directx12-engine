@@ -1,6 +1,9 @@
 #ifndef D3D12_ENGINE_MODELDATA_H
 #define D3D12_ENGINE_MODELDATA_H
 
+// Everything loaded from one model file: its geometry, its materials 
+// and the images stored inside it, still compressed.
+
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -9,16 +12,14 @@
 #include "renderdata/MeshData.h"
 
 namespace render {
-    // An image stored inside a model file, still compressed (.png, .jpg, .dds)
     struct EmbeddedTextureData {
         std::vector<std::byte> bytes;
-        std::string formatHint; // file type, e.g. "png"; picks the decoder
+        std::string formatHint;
     };
 
-    // Everything loaded from one model file
     struct ModelData {
         MeshData mesh;
-        std::vector<MeshNode> nodes; // where each submesh is drawn
+        std::vector<MeshNode> nodes;
         std::vector<MaterialDesc> materials;
         std::vector<EmbeddedTextureData> embeddedTextures;
     };

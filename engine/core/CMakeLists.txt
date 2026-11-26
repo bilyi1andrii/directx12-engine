@@ -1,4 +1,4 @@
-# engine_core: window, input, timing, logging, error handling
+# The core library: the window, input, timing, logging and error handling the rest of the engine uses.
 
 add_library(engine_core STATIC
         Assert.cpp
@@ -28,9 +28,6 @@ add_library(engine_core STATIC
 
 engine_target_defaults(engine_core)
 
-# PUBLIC: whoever links engine_core can include its headers as "core/Window.h, ..."
 target_include_directories(engine_core PUBLIC "${PROJECT_SOURCE_DIR}/engine")
 
-# Windows SDK libraries: CommandLineToArgvW and CoInitializeEx. CMake links them by default with MSVC; listed so
-# the dependency is visible. PRIVATE still reaches the final link, because engine_core is a static library.
 target_link_libraries(engine_core PRIVATE shell32 ole32)

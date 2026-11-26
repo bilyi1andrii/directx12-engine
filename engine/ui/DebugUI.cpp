@@ -8,28 +8,23 @@
 // After imgui.h: ImGuizmo.h uses its types
 #include <ImGuizmo.h>
 
-// imgui_impl_win32.h declares it only inside "#if 0", so that the header does not need <windows.h>
+// imgui_impl_win32.h declares it only inside "#if 0", so that the header needs no <windows.h>
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 namespace ui {
     namespace {
-        // Gap between the panels and the window's edges, before DPI scaling
         constexpr float kPanelMargin = 10.0f;
 
-        // Windows does not scale the UI for us: 1.0 at 96 DPI, 1.5 at 144 DPI
         void ApplyDpiScale(float dpiScale) {
-            // ScaleAllSizes multiplies the current sizes, so start from a fresh style
             ImGuiStyle style;
             ImGui::StyleColorsDark(&style);
-            style.ScaleAllSizes(dpiScale); // paddings, rounding, borders
-            style.FontScaleDpi = dpiScale; // sharp text at the new size
+            style.ScaleAllSizes(dpiScale);
+            style.FontScaleDpi = dpiScale;
             ImGui::GetStyle() = style;
         }
 
-        // Must be followed by ImGui::End(), whatever it returns
         bool BeginSelectionWindow() {
             const float margin = kPanelMargin * ImGui::GetStyle().FontScaleDpi;
-            // Keeps the window in the top-right corner. Set every frame because its width changes with its text.
             ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - margin, margin), ImGuiCond_Always,
                                     ImVec2(1.0f, 0.0f));
             return ImGui::Begin("Selection", nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
@@ -37,15 +32,12 @@ namespace ui {
     } // namespace
 
     DebugUI::DebugUI(const core::Window &window) {
-        // Fails if the headers and the compiled library are different ImGui versions
         IMGUI_CHECKVERSION();
         m_context = ImGui::CreateContext();
 
         ImGuiIO &io = ImGui::GetIO();
-        // ImGui would save window positions to imgui.ini in the working directory
         io.IniFilename = nullptr;
-        // Keyboard navigation stays off: with it, a focused ImGui window keeps WantCaptureKeyboard true and the
-        // camera keys would stop working after a click on a panel
+        // Keyboard navigation stays off: a focused panel would keep WantCaptureKeyboard and block the camera keys
 
         m_dpiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(window.Handle());
         ApplyDpiScale(m_dpiScale);
@@ -67,15 +59,12 @@ namespace ui {
 
     void DebugUI::NewFrame() {
         ImGui_ImplWin32_NewFrame();
-        // The window may have moved to another monitor. Before NewFrame, which reads the font scale.
         const float dpiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(ImGui::GetMainViewport()->PlatformHandleRaw);
         if (dpiScale != m_dpiScale) {
             m_dpiScale = dpiScale;
             ApplyDpiScale(dpiScale);
         }
         ImGui::NewFrame();
-        // Before any other window: creates the invisible full-screen window the gizmo draws into. Created first,
-        // it stays behind the panels, and it takes no input itself (ImGuiWindowFlags_NoInputs).
         ImGuizmo::BeginFrame();
         m_gizmoDrawn = false;
         m_gizmoHoveredLastFrame = m_gizmoHovered;
@@ -83,12 +72,10 @@ namespace ui {
     }
 
     bool DebugUI::WantsMouse() const {
-        // Set by NewFrame from the input received so far
         return ImGui::GetIO().WantCaptureMouse;
     }
 
     bool DebugUI::WantsMouseForCamera() const {
-        // ImGuizmo claims the mouse whenever the cursor is over a handle. That should not stop the camera from turning.
         return ImGui::GetIO().WantCaptureMouse && !m_gizmoHoveredLastFrame;
     }
 
@@ -100,23 +87,16 @@ namespace ui {
                                  DirectX::XMFLOAT4X4 &world) {
         using namespace DirectX;
 
-        // ImGuizmo hides the gizmo when clip z < 0.001: near the far plane with reversed depth, but not behind the
-        // camera, where clip z is positive. Skip both cases here, so a hidden gizmo takes no clicks. A drag goes on.
         const XMVECTOR clip = XMVector4Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
                                                  XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection));
         constexpr float kMinDistance = 0.001f;
         constexpr float kImGuizmoMinClipZ = 0.001f;
         if ((XMVectorGetW(clip) < kMinDistance || XMVectorGetZ(clip) < kImGuizmoMinClipZ) && !ImGuizmo::IsUsing()) {
-            return false; // m_gizmoDrawn stays false from NewFrame
+            return false;
         }
-        // The whole client area, in the pixels ImGui uses (the same as the back buffer)
         const ImGuiIO &io = ImGui::GetIO();
         ImGuizmo::SetRect(0.0f, 0.0f, io.DisplaySize.x, io.DisplaySize.y);
-        // By default ImGuizmo turns an arrow around when it points away from the camera (it looks shorter then);
-        // keep every arrow on the +X/+Y/+Z side, so the arrows also show which way the world axes go
         ImGuizmo::AllowAxisFlip(false);
-        // XMFLOAT4X4 stores 16 floats row by row, for row vectors (v * M): the layout ImGuizmo reads, so no
-        // transpose (unlike the shader constants). ImGuizmo works with our left-handed projection and reversed depth.
         const ImGuizmo::OPERATION operation = m_gizmoMode == GizmoMode::Rotate  ? ImGuizmo::ROTATE
                                               : m_gizmoMode == GizmoMode::Scale ? ImGuizmo::SCALE
                                                                                 : ImGuizmo::TRANSLATE;
@@ -128,7 +108,6 @@ namespace ui {
     }
 
     bool DebugUI::GizmoWantsMouse() const {
-        // ImGuizmo keeps the last Manipulate's state, so without a gizmo this frame it would describe an old one
         return m_gizmoDrawn && (ImGuizmo::IsOver() || ImGuizmo::IsUsing());
     }
 
@@ -151,16 +130,12 @@ namespace ui {
                 }
             }
             ImGui::Text("%zu objects", stats.objectCount);
-            if (!stats.sceneInfo.empty()) {
-                ImGui::TextUnformatted(stats.sceneInfo.data(), stats.sceneInfo.data() + stats.sceneInfo.size());
-            }
+            ImGui::TextUnformatted(stats.sceneInfo.data(), stats.sceneInfo.data() + stats.sceneInfo.size());
             ImGui::Text("Camera at %.2f, %.2f, %.2f", stats.cameraPosition.x, stats.cameraPosition.y,
                         stats.cameraPosition.z);
             ImGui::Text("Camera speed x%.2f (right mouse button + wheel)", stats.cameraSpeedScale);
 
-            // The keyboard shortcuts in brackets do the same
             ImGui::SeparatorText("Settings");
-            // In DrawPath order: the combo's index is the enum's value
             constexpr std::array<const char *, 2> kDrawPaths{"Instanced", "Non-instanced"};
             int drawPath = static_cast<int>(settings.drawPath);
             if (ImGui::Combo("Draw path (I)", &drawPath, kDrawPaths.data(), static_cast<int>(kDrawPaths.size()))) {
@@ -168,7 +143,6 @@ namespace ui {
             }
             ImGui::Checkbox("VSync (V)", &settings.vsync);
         }
-        // End() even when Begin() returned false (window collapsed)
         ImGui::End();
     }
 

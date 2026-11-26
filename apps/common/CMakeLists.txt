@@ -1,5 +1,4 @@
-# Code shared by the sandbox and the bench: the cube grid's settings, option helpers and the end-of-run checks.
-# It sits above the engine, so it may link every engine module.
+# Code the sandbox and the bench share: the grid settings, option helpers and the end-of-run checks.
 
 add_library(app_common STATIC
         AppChecks.cpp
@@ -11,10 +10,8 @@ add_library(app_common STATIC
 
 engine_target_defaults(app_common)
 
-# Included as "common/GridSetup.h"
 target_include_directories(app_common PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
-# PUBLIC: AppChecks.h uses rhi::ValidationStats
 target_link_libraries(app_common
         PUBLIC
         engine_core
