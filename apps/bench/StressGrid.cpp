@@ -10,7 +10,6 @@ using apps::kGridTop;
 
 namespace bench {
     namespace {
-        // The largest side of a copy in the grid: the width of a cube
         constexpr float kGridObjectSize = 2.0f;
     } // namespace
 
@@ -23,7 +22,6 @@ namespace bench {
         if (m_mode == apps::GridMode::Static) {
             render::RenderList gridList;
             render::SubmitGrid(gridList, m_parts, m_base, m_side, m_side, kGridSpacing, kGridSpacing);
-            // gridList can go: the matrices are in GPU memory now
             m_staticList = resources.CreateStaticList(gridList, L"Grid/Instances");
         }
     }
@@ -39,8 +37,6 @@ namespace bench {
     }
 
     std::array<scene::CameraKeyframe, 5> StressGrid::CameraPath() const noexcept {
-        // Far enough that most of the grid is in view at a 60 degree FOV; +10 for tiny grids.
-        // The keyframes are the corners of a diamond, so the camera comes closer between them.
         const float radius = 0.75f * Extent() + 10.0f;
         const float height = kGridHeight + 0.4f * Extent() + 10.0f;
         const DirectX::XMFLOAT3 center{0.0f, kGridHeight, 0.0f};
@@ -57,7 +53,6 @@ namespace bench {
     render::LightSet StressGrid::Lights() const {
         const float offset = 0.25f * Extent();
         const float height = kGridTop + 6.0f;
-        // Down and along +Z
         constexpr DirectX::XMFLOAT3 kSpotDirection{-0.3f, -1.0f, 1.2f};
         const auto point = [](const DirectX::XMFLOAT3 &color) {
             return render::LocalLight{.type = render::LightType::Point, .color = color, .strength = 3.5f};
@@ -68,8 +63,8 @@ namespace bench {
 
         render::LightSet lights;
         lights.points = {
-            {.light = point({0.0f, 0.0f, 1.0f}), .position = {-offset, height, 0.0f}}, // blue
-            {.light = point({1.0f, 0.0f, 0.0f}), .position = {offset, height, 0.0f}},  // red
+            {.light = point({0.0f, 0.0f, 1.0f}), .position = {-offset, height, 0.0f}},
+            {.light = point({1.0f, 0.0f, 0.0f}), .position = {offset, height, 0.0f}},
         };
         lights.spots = {
             {.light = spot({1.0f, 0.55f, 0.2f}), .position = {0.0f, height, offset}, .direction = kSpotDirection},

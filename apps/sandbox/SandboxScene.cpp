@@ -88,13 +88,11 @@ namespace sandbox {
         }
         const render::Aabb &bounds = (*model)->bounds;
         const float extent =
-            std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z, 1e-6f});
+            std::max({bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z});
         const float scale = kModelSize / extent;
-        // The pivot is the model's bottom centre, so the model stands on the grid at (x, z)
         const XMFLOAT3 pivot{(bounds.min.x + bounds.max.x) / 2, bounds.min.y, (bounds.min.z + bounds.max.z) / 2};
         XMFLOAT4X4 world{};
         XMStoreFloat4x4(&world, XMMatrixScaling(scale, scale, scale) * XMMatrixTranslation(x, apps::kGridTop, z));
-        // Include the folder: model files are often all named scene.gltf
         std::string name = core::ToUtf8((path.parent_path().filename() / path.filename()).generic_wstring());
         LogInfo("Model {}: {} parts, largest side {:.2f} -> scaled by {:.4f}{}", name, (*model)->parts.size(), extent,
                 scale, savedWorld ? " (placed as saved)" : "");
@@ -179,7 +177,6 @@ namespace sandbox {
     SandboxSave MakeSave(const scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
                          std::span<const scene::ObjectId> namedCubes, std::span<const PlacedModel> models) {
         SandboxSave save{.gridCount = gridCount, .gridMode = std::string(apps::ToString(grid.mode))};
-        // Only cubes the user changed. A static grid cannot change.
         if (grid.mode == apps::GridMode::Dynamic) {
             const std::vector<DirectX::XMFLOAT4X4> placement = GridPlacement(grid.side);
             for (uint32_t i = 0; i < placement.size(); ++i) {

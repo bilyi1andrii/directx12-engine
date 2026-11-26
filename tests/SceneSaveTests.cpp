@@ -1,3 +1,5 @@
+// Tests reading and writing the sandbox's save file, and refusing broken ones.
+
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -39,7 +41,6 @@ namespace {
         }
     }
 
-    // A folder in the temp folder, deleted at the end of the test
     class TempFolder {
     public:
         explicit TempFolder(const std::filesystem::path &name) : m_path(std::filesystem::temp_directory_path() / name) {
@@ -63,14 +64,11 @@ namespace {
         return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
     }
 
-    // A minimal save with `rest` after the version
     [[nodiscard]] std::string SaveJson(std::string_view version, std::string_view rest = "") {
         return std::string(R"({ "version": )") + std::string(version) + std::string(rest) + " }";
     }
 } // namespace
 
-// Everything written comes back; a model inside the root is stored relative to it, one outside absolute, and a
-// non-ASCII name survives
 TEST(SandboxSave, WrittenSaveReadsBackTheSame) {
     const TempFolder root(L"engine_test_save_root");
     const std::filesystem::path outside = std::filesystem::temp_directory_path() / L"elsewhere" / L"model.obj";
@@ -131,7 +129,6 @@ TEST(SandboxSave, OtherVersionIsUnsupported) {
     EXPECT_EQ(read.error().code, ErrorCode::UnsupportedFormat);
 }
 
-// A save from a later version of the same format may carry more fields; missing sections are simply empty
 TEST(SandboxSave, UnknownFieldsAreIgnoredAndSectionsAreOptional) {
     const TempFile file(L"engine_test_save_extra.json", Bytes(SaveJson("1", R"(, "lights": [1, 2], "camera": {})")));
 

@@ -1,6 +1,8 @@
 #ifndef D3D12_ENGINE_SCENESAVE_H
 #define D3D12_ENGINE_SCENESAVE_H
 
+// Reads and writes saves/sandbox.json: where the models and cubes the user moved stand.
+
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -11,19 +13,16 @@
 
 #include "core/Error.h"
 
-// saves/sandbox.json:
-// - Object transforms (positions, rotations, and scales)
-// - 3D models added by dropping files
 namespace sandbox {
     inline constexpr int kSaveVersion = 1;
 
     struct SavedGridCube {
-        uint32_t index = 0; // cube's index in the grid
+        uint32_t index = 0;
         DirectX::XMFLOAT4X4 world{};
     };
 
     struct SavedCube {
-        std::string name; // one of the sandbox's own cubes
+        std::string name;
         DirectX::XMFLOAT4X4 world{};
     };
 
@@ -34,7 +33,7 @@ namespace sandbox {
 
     struct SandboxSave {
         uint32_t gridCount = 0;
-        std::string gridMode; // static or dynamic
+        std::string gridMode;
         std::vector<SavedGridCube> gridCubes;
         std::vector<SavedCube> cubes;
         std::vector<SavedModel> models;

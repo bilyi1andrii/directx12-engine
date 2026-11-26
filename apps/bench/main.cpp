@@ -1,3 +1,6 @@
+// The benchmark: flies a scripted camera over a grid of copies of a model and writes the time of every frame to
+// results/dx12/<scene>/<timestamp>/. It runs unattended, so it never shows a dialog.
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -43,10 +46,8 @@ ENGINE_EXPORT_AGILITY_SDK()
 namespace {
     using Clock = std::chrono::steady_clock;
 
-    // Model not usable, stopped early (Esc, window closed) or results not written. Same value as a failed smoke test.
     constexpr int kExitBenchFailed = 1;
 
-    // Written into run.txt, so a result from the wrong build is easy to spot
 #if defined(__SANITIZE_ADDRESS__)
     constexpr std::string_view kBuildConfig = ENGINE_BUILD_CONFIG " (ASan)";
 #else
@@ -58,9 +59,6 @@ namespace {
     }
 
     template <typename Column> double Median(std::span<const FrameTiming> timings, Column column) {
-        if (timings.empty()) {
-            return 0.0;
-        }
         std::vector<double> values;
         values.reserve(timings.size());
         for (const FrameTiming &timing : timings) {
@@ -75,29 +73,26 @@ namespace {
 
     struct BenchRun {
         apps::RunResult result;
-        std::vector<FrameTiming> timings;   // one per measured frame
+        std::vector<FrameTiming> timings;
         std::vector<std::string> gpuPasses;
-        // For run.txt: the window and the renderer are gone when RunBench returns
         std::string adapterName;
         std::string driverVersion;
         uint32_t width = 0;
         uint32_t height = 0;
         bool tearingSupported = false;
         size_t objectCount = 0;
-        size_t partCount = 0;                 // of one object
-        size_t transparentPartCount = 0;      // of one object
-        size_t transparentDrawsPerObject = 0; // two for a two-sided material
-        uint64_t triangleCount = 0;           // of all objects: what one frame draws
-        std::string lights;                   // how many lights of each kind shine
+        size_t partCount = 0;
+        size_t transparentPartCount = 0;
+        size_t transparentDrawsPerObject = 0;
+        uint64_t triangleCount = 0;
+        std::string lights;
     };
 
-    // For run.txt: the lights the shaders get, e.g. "1 directional, 2 point, 2 spot"
     std::string DescribeLights(const render::LightSet &lights) {
         const render::PackedLightCounts counts = render::CountPackedLights(lights);
         return std::format("{} directional, {} point, {} spot", counts.directional, counts.points, counts.spots);
     }
 
-    // The model the grid draws: the --model file, or a cube. An error if there is nothing to draw.
     std::expected<const render::Model *, std::string> LoadGridModel(const BenchOptions &options,
                                                                     assets::AssetCache &assets) {
         if (!options.modelPath) {
@@ -107,15 +102,9 @@ namespace {
         if (!model) {
             return std::unexpected(model.error().message);
         }
-        if ((*model)->parts.empty()) {
-            return std::unexpected(
-                std::format("'{}' has no triangles to draw", core::ToUtf8(options.modelPath->native())));
-        }
         return *model;
     }
 
-    // Renders the warm-up frames, then the measured ones, in borderless fullscreen with vsync off and the camera on
-    // its path. Nothing is logged or written while measuring. Esc stops the run. An error if the model cannot be used.
     std::expected<BenchRun, std::string> RunBench(const BenchOptions &options, rhi::ValidationStats &validation) {
         core::Input input;
         core::Window window({.title = L"D3D12 Engine - bench", .width = 1280, .height = 720});
@@ -123,10 +112,9 @@ namespace {
             .onMessage =
                 [&input](const core::WindowMessage &message) {
                     input.HandleMessage(message);
-                    return false; // let the window handle it as well
+                    return false;
                 },
         });
-        // Before the renderer, so the swap chain starts at the monitor's size
         window.SetFullscreen(true);
 
         render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
@@ -134,20 +122,17 @@ namespace {
             LogWarning("Tearing not supported: Present without vsync may still wait for the display");
         }
 
-        // Destroyed before the renderer, which owns what the cache created
         assets::AssetCache assets(renderer.Resources());
         const std::expected<const render::Model *, std::string> model = LoadGridModel(options, assets);
         if (!model) {
             return std::unexpected(model.error());
         }
 
-        // Only the grid, no spinning cube
-        render::RenderList renderList; // empty for a static grid
+        render::RenderList renderList;
         const bench::StressGrid grid(renderer.Resources(), options.gridMode, options.count, **model);
         const std::array path = grid.CameraPath();
         scene::Camera camera;
-        camera.fovDegrees = 60.0f; // as in the sandbox
-        // The default far plane (1000) would cut off the far side of a big grid
+        camera.fovDegrees = 60.0f;
         camera.farZ = std::max(camera.farZ, 2.0f * grid.Extent() + 100.0f);
 
         const render::RendererSettings settings{.drawPath = options.drawPath, .vsync = false};
@@ -172,10 +157,9 @@ namespace {
         LogInfo("Bench: {}x{}, {} warm-up + {} measured frames", run.width, run.height, options.warmupFrames,
                 options.frames);
 
-        // Allocated up front, so measuring allocates nothing
         run.timings.resize(options.frames);
         const uint64_t totalFrames = uint64_t{options.warmupFrames} + options.frames;
-        uint64_t frame = 0; // frames rendered so far
+        uint64_t frame = 0;
 
         uint64_t nextGpuFrame = options.warmupFrames;
         std::optional<std::string> gpuError;
@@ -206,7 +190,6 @@ namespace {
 
         Clock::time_point frameStart{};
         while (true) {
-            // A frame's start is also the end of the previous frame
             const Clock::time_point now = Clock::now();
             if (frame > options.warmupFrames) {
                 run.timings[frame - 1 - options.warmupFrames].cpuFrameMs = ToMs(now - frameStart);
@@ -216,11 +199,10 @@ namespace {
                 break;
             }
             if (input.WasKeyPressed(VK_ESCAPE)) {
-                window.Close(); // PumpMessages returns false next time
+                window.Close();
             }
             input.EndFrame();
 
-            // The warm-up stays at the path's first pose
             const uint32_t pathFrame =
                 frame < options.warmupFrames ? 0 : static_cast<uint32_t>(frame - options.warmupFrames);
             const scene::CameraPose pose = scene::EvaluateCameraPath(path, pathFrame);
@@ -233,14 +215,14 @@ namespace {
             }
             const Clock::time_point recordStart = Clock::now();
             renderList.Clear();
-            grid.Submit(renderList); // dynamic mode only
+            grid.Submit(renderList);
             renderer.Render(scene::MakeFrameView(camera, renderer.AspectRatio()), lights, renderList,
                             grid.StaticLists());
             const Clock::time_point recordEnd = Clock::now();
             if (frame >= options.warmupFrames) {
                 run.timings[frame - options.warmupFrames].cpuRecordMs = ToMs(recordEnd - recordStart);
             }
-            renderer.EndFrame(); // vsync off (settings)
+            renderer.EndFrame();
             ++frame;
         }
 
@@ -259,7 +241,6 @@ namespace {
         return run;
     }
 
-    // The lines of run.txt: settings, machine and the medians
     std::vector<RunField> RunInfo(const BenchOptions &options, const BenchRun &run, std::string_view started,
                                   double medianFrameMs, double medianRecordMs, double medianGpuMs) {
         const bool instanced = options.drawPath == render::DrawPath::Instanced;
@@ -298,10 +279,7 @@ namespace {
     }
 } // namespace
 
-// The benchmark: flies a scripted camera over a scene and writes the CPU time of every frame to
-// results/dx12/<scene>/<timestamp>/. Runs unattended, so it never shows a dialog.
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
-    // Always unattended: a failed D3D12MA assert must end the run, not wait at a dialog
     apps::RouteCrtAssertsToStderr();
     try {
         const std::expected<BenchOptions, std::string> options = ParseBenchOptions(core::CommandLineArgs());
@@ -316,10 +294,8 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 core::ToUtf8(options->outDir.native()));
         const std::chrono::system_clock::time_point started = std::chrono::system_clock::now();
 
-        // Image files are decoded through WIC, which needs COM
         const core::ComScope com;
 
-        // Outlives the renderer: its device writes the live-object count when it is destroyed
         rhi::ValidationStats validation;
         const std::expected<BenchRun, std::string> outcome = RunBench(*options, validation);
         apps::LogValidationSummary(validation);
@@ -354,7 +330,6 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         LogInfo("Results: {}", core::ToUtf8(folder->native()));
 
 #if defined(_DEBUG)
-        // With the debug layer, a run with errors or leaks fails like the sandbox's smoke test
         return apps::SmokeTestExitCode(expectedFrames, run.result, validation);
 #else
         return run.result.exitCode;

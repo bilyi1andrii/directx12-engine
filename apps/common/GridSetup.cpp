@@ -16,7 +16,6 @@ namespace apps {
     }
 
     uint32_t GridSide(uint32_t count) noexcept {
-        // 64-bit, so the square cannot overflow
         uint32_t side = 0;
         while (uint64_t{side} * side < count) {
             ++side;

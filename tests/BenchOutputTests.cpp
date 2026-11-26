@@ -1,3 +1,5 @@
+// Tests the bench's result files: the CSV layout, the column names and never overwriting a run.
+
 #include <array>
 #include <expected>
 #include <filesystem>
@@ -31,7 +33,6 @@ TEST(BenchOutput, GpuPassColumnIsOneLowerCaseWord) {
 }
 
 TEST(BenchOutput, ResultsNeverOverwriteAnEarlierRun) {
-    // Removed at the end of the test, also when an expectation fails
     struct TempFolder {
         std::filesystem::path path = std::filesystem::temp_directory_path() / "engine_tests_bench_output";
         ~TempFolder() {
@@ -40,12 +41,11 @@ TEST(BenchOutput, ResultsNeverOverwriteAnEarlierRun) {
         }
     } results;
     std::error_code ignored;
-    std::filesystem::remove_all(results.path, ignored); // left over from an aborted run
+    std::filesystem::remove_all(results.path, ignored);
 
     const std::array<std::string, 1> passes{"Opaque"};
     constexpr std::array timings{FrameTiming{.cpuFrameMs = 1.0, .cpuRecordMs = 0.5}};
     const std::array fields{RunField{.key = "scene", .value = "stress"}};
-    // Two runs that started in the same second
     const auto first = bench::WriteResults(results.path, "stress", "20261107-221530", passes, timings, fields);
     const auto second = bench::WriteResults(results.path, "stress", "20261107-221530", passes, timings, fields);
     ASSERT_TRUE(first.has_value()) << first.error();

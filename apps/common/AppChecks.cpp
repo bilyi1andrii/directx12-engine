@@ -9,7 +9,6 @@
 
 namespace apps {
     namespace {
-        // The debug layer exists only in Debug builds (rhi::Device checks the same macro)
 #if defined(_DEBUG)
         constexpr bool kValidationExpected = true;
 #else
@@ -18,21 +17,14 @@ namespace apps {
     } // namespace
 
     void RouteCrtAssertsToStderr() noexcept {
-        // assert() picks a message box or stderr by the error mode. The default follows the app type, which the
-        // wWinMain entry point sets to "GUI" even in our console-subsystem builds. (_CrtSetReportMode does not
-        // apply: it configures _ASSERT/_ASSERTE, not assert().)
+        // wWinMain makes assert() show a message box, even in a console build: send it to stderr instead
         _set_error_mode(_OUT_TO_STDERR);
-        // assert() then calls abort(): no "abort() has been called" dialog, no Windows Error Reporting
         _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
     }
 
     void LogValidationSummary(const rhi::ValidationStats &validation) {
         if (!validation.active) {
-            if (kValidationExpected) {
-                core::LogWarning("Validation: not active (D3D12 or DXGI debug interface unavailable)");
-            } else {
-                core::LogInfo("Validation: not active (no debug layer in this build)");
-            }
+            core::LogInfo("Validation: not active");
             return;
         }
         const uint32_t errors = validation.errorCount.load();
@@ -47,7 +39,6 @@ namespace apps {
     int SmokeTestExitCode(uint64_t expectedFrames, const RunResult &run, const rhi::ValidationStats &validation) {
         std::vector<std::string> failures;
         if (run.framesRendered != expectedFrames) {
-            // e.g. the window was closed early (Alt+F4, WM_CLOSE from outside)
             failures.push_back(std::format("rendered {} of {} frames", run.framesRendered, expectedFrames));
         }
         if (run.exitCode != 0) {
@@ -62,7 +53,6 @@ namespace apps {
                 failures.push_back(std::format("{} live objects at shutdown", validation.liveObjectCount));
             }
         } else if (kValidationExpected) {
-            // Fail closed: a Debug run that could not check anything must not pass
             failures.emplace_back("validation was not active");
         } else {
             core::LogWarning("Smoke test: no debug layer in this build; only checks that {} frames render and the "
