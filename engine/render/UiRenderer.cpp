@@ -1,3 +1,4 @@
+// First: UiRenderer.h brings the Agility SDK's d3d12.h, so imgui_impl_dx12.h's Windows SDK copy is skipped
 #include "render/UiRenderer.h"
 
 #include <stdexcept>

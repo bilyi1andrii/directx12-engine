@@ -1,18 +1,5 @@
-// The global root signature, shared by all PSOs. It is defined in HLSL so that shaders and layout cannot drift apart:
-// DXC compiles it to a .cso and checks every shader against it through [RootSignature]. C++ includes this file for the
-// parameter indices.
-//
-// Its parameters:
-//   [0] b0: 4 root constants, set per draw (instanceOffset, materialIndex, instanceBufferIndex, alphaInfo)
-//   [1] b1: root CBV with FrameConstants, from the UploadRing
-//   [2] b2: root CBV with PassConstants, from the UploadRing
-//
-// CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED lets shaders read ResourceDescriptorHeap[i] (bindless).
-//
-// Its static samplers:
-//   s0: anisotropic x16, wrap (textures; sharp at grazing angles)
-//   s1: point, clamp (post-processing)
-//   s2: shadow comparison
+// The root signature every pipeline shares, defined in HLSL so DXC checks each shader against it. C++ includes
+// this file for the parameter indices.
 
 #ifndef ROOT_SIGNATURE_HLSLI
 #define ROOT_SIGNATURE_HLSLI
@@ -26,7 +13,7 @@ namespace gpu {
     inline constexpr uint32_t kRootPassConstants = 2;  // b2
 
     inline constexpr uint32_t kDrawConstantCount = 4;
-} // namespace gpu
+}
 #else
 
 #define GLOBAL_ROOT_SIGNATURE                                                                   \

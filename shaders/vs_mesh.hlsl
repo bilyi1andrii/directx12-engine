@@ -1,4 +1,6 @@
-// Compiled twice: normal mesh pass (instance world matrix) and SHADOW_CASTER pass (light matrix in b2).
+// Places a mesh's vertices in the world from their instance's matrix, seen from the camera or, in the shadow-caster
+// variant, from the light.
+
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 #include "common/vs_output.hlsli"
@@ -9,7 +11,6 @@ ConstantBuffer<FrameConstants> g_frame : register(b1);
 ConstantBuffer<ShadowConstants> g_shadow : register(b2);
 #endif
 
-// Must match kVertexLayout in engine/render/passes/VertexLayout.h
 struct VSInput
 {
     float3 position : POSITION;

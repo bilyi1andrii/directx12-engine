@@ -1,5 +1,4 @@
-// Output of vs_mesh.hlsl and input of the mesh pixel shaders.
-// One struct for both stages, so the two always match.
+// What the mesh vertex shader hands the pixel shaders, one struct for both stages.
 
 #ifndef VS_OUTPUT_HLSLI
 #define VS_OUTPUT_HLSLI
