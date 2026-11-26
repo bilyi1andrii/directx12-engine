@@ -4,6 +4,8 @@ A real-time renderer in C++23 on Direct3D 12, and a sandbox for rendering experi
 [Andrii's](https://github.com/bilyi1andrii/graphics_hw_bilyi), [Ira's](https://github.com/hhafiya/graphics-hw-kyrylova) engines, which it must match in features and beat in speed
 and scaling.
 
+<p align="center"> <img width="1920" height="1080" alt="Screenshot 2026-11-26 223348" src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" /> <br> <em>Assisi courtyard in sunlight: soft shadows of the tree, the drainpipe and the roofs on the stone walls, and a selected object with the move gizmo.</em> </p>
+
 ## Authors
 
 - Andrii ([bilyi1andrii](https://github.com/bilyi1andrii))
