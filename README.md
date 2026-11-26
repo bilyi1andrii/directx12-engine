@@ -94,11 +94,11 @@ Blinn-Phong, editable.
  
 Models from Sketchfab, not included in the repository.
  
-| Model | Author | License |
-|---|---|---|
-| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens](https://sketchfab.com/mathiastossens) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
-| [Assisi city scene](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | - | - |
-| [Duck Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | - | - |
+| Model | Author |
+|---|---|
+| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens]|
+| [Assisi city scene](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | - |
+| [Duck Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | - |
 
 ## How to run
 
