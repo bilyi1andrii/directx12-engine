@@ -50,25 +50,20 @@ There is no tonemapping yet, so very bright areas clip to white.
 
 ## Showcase
  
-### Soft shadows from the directional light
+### Soft shadows
  
-The directional light renders a shadow map that is fitted to the bounds of the scene every frame. The lighting pass
-samples it with 3×3 filtered comparisons, so shadow edges are soft instead of blocky. Trees, balconies, roofs and
-window frames all cast shadows, indoors and outdoors.
+Shadow map, 3×3 filtering.
  
-<p><img src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" width="100%" alt="Shadows in the Assisi courtyard"></p>
 <table>
   <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" width="100%" alt="Shadows in the Assisi courtyard"></td>
     <td width="50%"><img src="https://github.com/user-attachments/assets/9e1d123a-e8d5-411a-8813-4938496ec643" width="100%" alt="Shadows on the Assisi square"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/fcd9cabf-bbec-4250-82ae-8cffbe02e7bc" width="100%" alt="Sunlight through the bedroom windows"></td>
   </tr>
 </table>
+
 ### Point and spot lights
  
-Besides the directional light, the scene has two point lights and two spot lights, all in Blinn-Phong. Each light is
-shown as a small sphere: click it to select the light, move it with the gizmo, turn a spot light with the rotate mode,
-and edit its colour, strength, fade-out and cone in the Lights window. Below, spot lights light the pavement of
-streets that the directional light leaves in shadow.
+Blinn-Phong, editable.
  
 <table>
   <tr>
@@ -76,30 +71,34 @@ streets that the directional light leaves in shadow.
     <td width="50%"><img src="https://github.com/user-attachments/assets/ed071ed9-4609-4aad-bcbc-61252b157987" width="100%" alt="Spot light behind the gate"></td>
   </tr>
 </table>
-### Model and texture loading
- 
-Models load from glTF, OBJ and FBX files through Assimp, and their textures get generated mips through DirectXTex.
-Large scenes with hundreds of meshes and materials load as they are; the renderer batches them by mesh and material
-automatically.
+
+### Transparency
  
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/6e22e054-95bf-4305-a487-50371f2d69b8" width="100%" alt="Kyoto street with lanterns"></td>
     <td width="50%"><img src="https://github.com/user-attachments/assets/566dba9c-a204-4e11-967f-237d41a68603" width="100%" alt="Ducks among lily pads"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/c3275c8b-4de9-4f2e-bffa-28209b38f557" width="100%" alt="Transparent pond water"></td>
   </tr>
 </table>
-### Several models, selection and the gizmo
- 
-Any number of models can share one scene: every model in `assets/` is loaded at start, and more can be dropped on
-the window. Clicking an object selects it, and the gizmo moves, rotates and scales it (W / E / R). The layout is
-saved to `saves/sandbox.json` on exit and restored at the next start.
+
+### Scenes
  
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/b9efdf82-cdfa-461f-80c0-9e6070855f0c" width="100%" alt="Selected object in the Kyoto scene"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/c3275c8b-4de9-4f2e-bffa-28209b38f557" width="100%" alt="Duck pond placed into the Kyoto scene"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/6e22e054-95bf-4305-a487-50371f2d69b8" width="100%" alt="Kyoto street"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/b9efdf82-cdfa-461f-80c0-9e6070855f0c" width="100%" alt="Selected object with the gizmo"></td>
   </tr>
 </table>
+
+## Models
+ 
+Models from Sketchfab, not included in the repository.
+ 
+| Model | Author | License |
+|---|---|---|
+| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens](https://sketchfab.com/mathiastossens) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [Assisi city scene](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | - | - |
+| [Duck Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | - | - |
 
 ## How to run
 
