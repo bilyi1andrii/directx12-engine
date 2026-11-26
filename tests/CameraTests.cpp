@@ -14,12 +14,12 @@ TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
         XMFLOAT3{0.0f, -9.0f, -10.0f}, XMFLOAT3{3.0f, 4.0f, -8.0f},  XMFLOAT3{-7.0f, -1.0f, 6.0f},
     };
     for (const XMFLOAT3 &position : kPositions) {
-        engine::scene::Camera camera;
+        scene::Camera camera;
         camera.position = position;
-        engine::scene::LookAt(camera, target);
+        scene::LookAt(camera, target);
 
         XMFLOAT3 forward{};
-        XMStoreFloat3(&forward, engine::scene::Forward(camera));
+        XMStoreFloat3(&forward, scene::Forward(camera));
         XMFLOAT3 expected{};
         XMStoreFloat3(&expected, XMVector3Normalize(XMLoadFloat3(&target) - XMLoadFloat3(&position)));
         EXPECT_NEAR(forward.x, expected.x, 1e-5f) << "from " << position.x << ", " << position.y << ", " << position.z;
@@ -31,8 +31,8 @@ TEST(Camera, LookAtFacesTheTargetFromEveryDirection) {
 // Reversed-Z: depth 1 at the near plane, 0 at the far plane, greater when nearer
 TEST(Camera, ProjectionReversesDepth) {
     using namespace DirectX;
-    const engine::scene::Camera camera;
-    const XMMATRIX projection = engine::scene::ProjectionMatrix(camera, 16.0f / 9.0f);
+    const scene::Camera camera;
+    const XMMATRIX projection = scene::ProjectionMatrix(camera, 16.0f / 9.0f);
     const auto depthAt = [&](float viewZ) {
         return XMVectorGetZ(XMVector3TransformCoord(XMVectorSet(0.0f, 0.0f, viewZ, 1.0f), projection));
     };

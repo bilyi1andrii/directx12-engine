@@ -8,12 +8,12 @@
 
 #include "rhi/GpuTimes.h"
 
-using engine::rhi::GpuFrameTimes;
-using engine::rhi::GpuScopeNames;
-using engine::rhi::kMaxGpuScopes;
-using engine::rhi::MakeGpuFrameTimes;
-using engine::rhi::TicksToMs;
-namespace timestamp = engine::rhi::timestamp;
+using rhi::GpuFrameTimes;
+using rhi::GpuScopeNames;
+using rhi::kMaxGpuScopes;
+using rhi::MakeGpuFrameTimes;
+using rhi::TicksToMs;
+namespace timestamp = rhi::timestamp;
 
 TEST(GpuTimes, EveryTimestampOfAFrameHasItsOwnIndex) {
     // Two timestamps sharing an index would overwrite each other's ticks

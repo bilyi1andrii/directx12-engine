@@ -8,7 +8,7 @@
 
 #include <DirectXMath.h>
 
-namespace engine::render {
+namespace render {
     enum class AlphaMode : uint8_t {
         Opaque, // alpha is ignored
         Mask,   // pixels with alpha below alphaCutoff are discarded
@@ -52,6 +52,6 @@ namespace engine::render {
         bool packedMetallicRoughness = false;
         TextureSource ambientOcclusion; // read from the red channel
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MATERIALDESC_H

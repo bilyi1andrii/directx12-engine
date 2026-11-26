@@ -5,7 +5,7 @@
 #include <D3D12MemAlloc.h>
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class Device;
 
     // A resource together with the memory it lives in. Releasing the last reference releases both.
@@ -38,6 +38,6 @@ namespace engine::rhi {
     private:
         ComPtr<D3D12MA::Allocator> m_allocator;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_ALLOCATOR_H

@@ -8,7 +8,7 @@
 
 #include "renderdata/Model.h"
 
-namespace engine::render {
+namespace render {
     // One light without a position, like the sun
     struct DirectionalLight {
         bool enabled = true;
@@ -62,6 +62,6 @@ namespace engine::render {
         std::vector<SpotLight> spots;
         Aabb shadowBounds;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_LIGHTS_H

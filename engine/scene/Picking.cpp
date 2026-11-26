@@ -10,7 +10,7 @@
 
 #include "core/Assert.h"
 
-namespace engine::scene {
+namespace scene {
     using namespace DirectX;
 
     Ray MakePickRay(const Camera &camera, XMFLOAT2 pointPx, XMFLOAT2 viewportPx) {
@@ -107,4 +107,4 @@ namespace engine::scene {
         }
         return XMFLOAT3{ray.origin.x + t * ray.direction.x, planeY, ray.origin.z + t * ray.direction.z};
     }
-} // namespace engine::scene
+} // namespace scene

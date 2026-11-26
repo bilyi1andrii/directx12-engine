@@ -1,6 +1,6 @@
 #include "core/Timer.h"
 
-namespace engine::core {
+namespace core {
     bool Timer::Start() {
         if (m_running) {
             return false;
@@ -47,4 +47,4 @@ namespace engine::core {
         }
         return m_deltaSeconds;
     }
-} // namespace engine::core
+} // namespace core

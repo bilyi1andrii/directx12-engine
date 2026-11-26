@@ -9,7 +9,7 @@
 #include "rhi/CommandQueue.h"
 #include "rhi/Device.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     SwapChain::SwapChain(const Device &device, CommandQueue &queue, DescriptorAllocator &rtvAllocator, HWND hwnd,
@@ -136,4 +136,4 @@ namespace engine::rhi {
             m_backBuffers[i].Reset();
         }
     }
-} // namespace engine::rhi
+} // namespace rhi

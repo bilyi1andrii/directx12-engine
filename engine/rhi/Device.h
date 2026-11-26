@@ -8,7 +8,7 @@
 #include "rhi/RhiCommon.h"
 #include "rhi/ValidationStats.h"
 
-namespace engine::rhi {
+namespace rhi {
     // Owns the DXGI factory, the adapter (GPU) and the D3D12 device.
     // In Debug builds it also enables the debug layer, GPU-based validation and DRED,
     // routes D3D12 and DXGI debug messages to the log and counts errors and leaks in `stats`.
@@ -64,6 +64,6 @@ namespace engine::rhi {
         bool m_tearingSupported = false;
         DWORD m_messageCallbackCookie = 0; // 0: no callback registered
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif //D3D12_ENGINE_DEVICE_H

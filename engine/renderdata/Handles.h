@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace engine::render {
+namespace render {
     // Handles name GPU objects across layers instead of pointers: code above the renderer
     // stores and compares them but never sees a D3D12 resource.
     // For now a plain index into the renderer's table, with no generation to detect a stale handle.
@@ -30,6 +30,6 @@ namespace engine::render {
     // Objects that never move, uploaded once into GPU memory by GpuResources::CreateStaticList.
     // The index points into the renderer's table.
     using StaticListHandle = Handle<struct StaticListTag>;
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_HANDLES_H

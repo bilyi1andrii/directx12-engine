@@ -9,20 +9,20 @@
 #include "renderdata/RenderList.h"
 #include "scene/Scene.h"
 
-using engine::render::Aabb;
-using engine::render::BatchKey;
-using engine::render::LightSet;
-using engine::render::LightType;
-using engine::render::LocalLight;
-using engine::render::MaterialHandle;
-using engine::render::MeshHandle;
-using engine::render::Model;
-using engine::render::ModelPart;
-using engine::render::RenderList;
-using engine::scene::Extract;
-using engine::scene::Mobility;
-using engine::scene::ObjectId;
-using engine::scene::Scene;
+using render::Aabb;
+using render::BatchKey;
+using render::LightSet;
+using render::LightType;
+using render::LocalLight;
+using render::MaterialHandle;
+using render::MeshHandle;
+using render::Model;
+using render::ModelPart;
+using render::RenderList;
+using scene::Extract;
+using scene::Mobility;
+using scene::ObjectId;
+using scene::Scene;
 
 namespace {
     [[nodiscard]] DirectX::XMFLOAT4X4 Store(DirectX::FXMMATRIX matrix) {

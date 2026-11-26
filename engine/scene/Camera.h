@@ -5,7 +5,7 @@
 
 #include "renderdata/FrameView.h"
 
-namespace engine::scene {
+namespace scene {
     // A perspective camera as plain data: left-handed, +Z forward, +Y up, rotation applied as
     // XMMatrixRotationRollPitchYaw(pitch, yaw, roll).
     struct Camera {
@@ -37,6 +37,6 @@ namespace engine::scene {
     // Turns the camera to look at `target`; roll becomes 0.
     // Does nothing if `target` is the camera position.
     void LookAt(Camera &camera, const DirectX::XMFLOAT3 &target);
-} // namespace engine::scene
+} // namespace scene
 
 #endif // D3D12_ENGINE_CAMERA_H

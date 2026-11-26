@@ -25,15 +25,14 @@ namespace sandbox {
 
     // The grid's cubes in the scene: side * side objects, one after another from firstObject
     struct GridObjects {
-        engine::apps::GridMode mode = engine::apps::GridMode::Dynamic;
+        apps::GridMode mode = apps::GridMode::Dynamic;
         uint32_t side = 0;
         uint32_t firstObject = 0;
     };
 
     // Adds `count` cubes (rounded up to a square): movable in dynamic mode, fixed in static mode
-    [[nodiscard]] GridObjects AddGrid(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
-                                      engine::render::TextureHandle texture, engine::apps::GridMode mode,
-                                      uint32_t count);
+    [[nodiscard]] GridObjects AddGrid(scene::Scene &scene, assets::AssetCache &assets, render::TextureHandle texture,
+                                      apps::GridMode mode, uint32_t count);
 
     [[nodiscard]] std::vector<DirectX::XMFLOAT4X4> GridPlacement(uint32_t side);
 
@@ -48,32 +47,31 @@ namespace sandbox {
 
     // A model in the scene and the file it came from, so that it can be saved
     struct PlacedModel {
-        engine::scene::ObjectId id;
+        scene::ObjectId id;
         std::filesystem::path path;
     };
 
     // Adds the model at `path`, standing on the grid's top at (x, z), with its largest side scaled to kModelSize.
     // If it cannot be loaded: a warning, and false.
-    std::optional<PlacedModel> AddModel(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
+    std::optional<PlacedModel> AddModel(scene::Scene &scene, assets::AssetCache &assets,
                                         const std::filesystem::path &path, float x, float z,
                                         const std::optional<DirectX::XMFLOAT4X4> &savedWorld = std::nullopt);
 
     // Adds the models in a row along X, centred on the origin. Returns how many could be loaded.
-    std::vector<PlacedModel> AddModels(engine::scene::Scene &scene, engine::assets::AssetCache &assets,
+    std::vector<PlacedModel> AddModels(scene::Scene &scene, assets::AssetCache &assets,
                                        std::span<const std::filesystem::path> paths,
                                        std::optional<float> firstX = std::nullopt);
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
-                         const engine::render::GpuUploader &gpu, engine::assets::AssetCache &assets,
-                         engine::scene::Scene &scene, float &nextModelX, const GridObjects &grid,
-                         std::vector<PlacedModel> &models);
+                         const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,
+                         float &nextModelX, const GridObjects &grid, std::vector<PlacedModel> &models);
 
     [[nodiscard]] std::filesystem::path SavePath();
 
     [[nodiscard]] std::optional<SandboxSave> ReadSave();
 
-    [[nodiscard]] SandboxSave MakeSave(const engine::scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
-                                       std::span<const engine::scene::ObjectId> namedCubes,
+    [[nodiscard]] SandboxSave MakeSave(const scene::Scene &scene, const GridObjects &grid, uint32_t gridCount,
+                                       std::span<const scene::ObjectId> namedCubes,
                                        std::span<const PlacedModel> models);
 } // namespace sandbox
 

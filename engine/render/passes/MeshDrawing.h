@@ -20,7 +20,7 @@
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 
-namespace engine::render {
+namespace render {
     template <typename PipelineFor>
     void RecordMeshDraws(rhi::CommandContext &context, const rhi::PipelineCache &pipelines,
                          const GpuResources &resources, DrawPath drawPath,
@@ -62,6 +62,6 @@ namespace engine::render {
             }
         }
     }
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MESHDRAWING_H

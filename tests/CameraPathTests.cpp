@@ -5,9 +5,9 @@
 
 #include "scene/CameraPath.h"
 
-using engine::scene::CameraKeyframe;
-using engine::scene::CameraPose;
-using engine::scene::EvaluateCameraPath;
+using scene::CameraKeyframe;
+using scene::CameraPose;
+using scene::EvaluateCameraPath;
 
 namespace {
     void ExpectFloat3(const DirectX::XMFLOAT3 &actual, float x, float y, float z) {

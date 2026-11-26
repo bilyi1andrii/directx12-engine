@@ -10,7 +10,7 @@
 #include "rhi/FrameContext.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::render {
+namespace render {
     namespace {
         constexpr rhi::DepthBias kCasterBias{.constant = -100, .slopeScaled = -2.0f};
         constexpr float kNormalOffsetTexels = 1.5f;
@@ -57,4 +57,4 @@ namespace engine::render {
         const rhi::UploadAllocation buffer = context.Frame().Ring().Write(constants, rhi::kConstantBufferAlignment);
         context.Commands().SetGraphicsRootConstantBufferView(gpu::kRootPassConstants, buffer.gpu);
     }
-} // namespace engine::render
+} // namespace render

@@ -5,7 +5,7 @@
 #include "render/FrameInputs.h"
 #include "render/UiRenderer.h"
 
-namespace engine::render {
+namespace render {
     void AddUiPass(FrameGraph &graph, FgTexture target, uint32_t view, UiRenderer &ui) {
         graph.AddPass(
             "UI",
@@ -19,4 +19,4 @@ namespace engine::render {
                 }
             });
     }
-} // namespace engine::render
+} // namespace render

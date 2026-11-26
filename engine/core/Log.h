@@ -5,7 +5,7 @@
 #include <string_view>
 #include <utility>
 
-namespace engine::core {
+namespace core {
     enum class LogLevel {
         Info,
         Warning,
@@ -26,6 +26,6 @@ namespace engine::core {
     template <typename... Args> void LogError(std::format_string<Args...> format, Args &&...args) {
         WriteLog(LogLevel::Error, std::format(format, std::forward<Args>(args)...));
     }
-} // namespace engine::core
+} // namespace core
 
 #endif //D3D12_ENGINE_LOG_H

@@ -15,7 +15,7 @@
 struct ImDrawData;
 struct ImGuiContext;
 
-namespace engine::ui {
+namespace ui {
     struct PassTime {
         std::string_view name;
         double ms = 0.0;
@@ -106,6 +106,6 @@ namespace engine::ui {
         bool m_gizmoHovered = false;                  // the cursor is over a handle, not dragging it
         bool m_gizmoHoveredLastFrame = false; // last frame's value: ImGuizmo's claim on the mouse lags one frame
     };
-} // namespace engine::ui
+} // namespace ui
 
 #endif // D3D12_ENGINE_DEBUGUI_H

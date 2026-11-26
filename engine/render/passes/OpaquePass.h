@@ -14,7 +14,7 @@
 #include "renderdata/RendererSettings.h"
 #include "rhi/PipelineCache.h"
 
-namespace engine::render {
+namespace render {
     // Draws solid surfaces into the bound colour and depth targets, with depth test and depth write on. Mask
     // materials get holes where their alpha is below the cutoff (alpha test).
     // Owns one PSO per vertex format, shading, cull mode and alpha test, created up front so no frame waits for a PSO.
@@ -59,6 +59,6 @@ namespace engine::render {
         // One slot per key, filled by the constructor. Unlit materials have no alpha-test PSO.
         std::array<rhi::PipelineHandle, kPipelineKeyCount> m_pipelinesByKey;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_OPAQUEPASS_H

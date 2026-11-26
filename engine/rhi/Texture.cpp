@@ -15,7 +15,7 @@
 #include "rhi/UploadContext.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     Texture::~Texture() {
@@ -100,4 +100,4 @@ namespace engine::rhi {
         m_allocation = nullptr;
         m_bindlessIndex = 0;
     }
-} // namespace engine::rhi
+} // namespace rhi

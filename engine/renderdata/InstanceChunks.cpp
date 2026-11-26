@@ -4,7 +4,7 @@
 
 #include "core/Assert.h"
 
-namespace engine::render {
+namespace render {
     void SplitIntoChunks(std::span<const BatchBucket> buckets, uint32_t chunkCapacity,
                          std::vector<InstanceRange> &ranges) {
         ENGINE_ASSERT_MSG(chunkCapacity > 0, "Instance chunk capacity must be at least 1");
@@ -31,4 +31,4 @@ namespace engine::render {
             }
         }
     }
-} // namespace engine::render
+} // namespace render

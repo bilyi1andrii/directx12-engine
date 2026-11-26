@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace engine::render {
+namespace render {
     DirectX::XMFLOAT3 SortPoint(const DirectX::XMFLOAT4X4 &world, const DirectX::XMFLOAT3 &meshCenter) noexcept {
         using namespace DirectX;
         XMFLOAT3 point{};
@@ -25,4 +25,4 @@ namespace engine::render {
             return a.element < b.element;
         });
     }
-} // namespace engine::render
+} // namespace render

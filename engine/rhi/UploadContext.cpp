@@ -9,7 +9,7 @@
 #include "core/ThrowIfFailed.h"
 #include "rhi/CommandQueue.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     UploadContext::UploadContext(NativeDevice *device, Allocator &allocator, std::wstring_view name)
@@ -83,4 +83,4 @@ namespace engine::rhi {
             m_submittedStaging.clear();
         }
     }
-} // namespace engine::rhi
+} // namespace rhi

@@ -5,7 +5,7 @@
 #include "common/OptionValues.h"
 #include "core/Utf8.h"
 
-using engine::apps::ParseUint32;
+using apps::ParseUint32;
 
 std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const std::string> args) {
     SandboxOptions options;
@@ -45,7 +45,7 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
                 return std::unexpected("--grid needs static or dynamic");
             }
             const std::string_view value = args[++i];
-            const std::optional<engine::apps::GridMode> mode = engine::apps::ParseGridMode(value);
+            const std::optional<apps::GridMode> mode = apps::ParseGridMode(value);
             if (!mode) {
                 return std::unexpected(std::format("--grid needs static or dynamic, got '{}'", value));
             }
@@ -57,7 +57,7 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
             if (i + 1 == args.size() || args[i + 1].empty()) {
                 return std::unexpected("--texture needs a file path");
             }
-            options.texturePath = engine::core::PathFromUtf8(args[++i]);
+            options.texturePath = core::PathFromUtf8(args[++i]);
         } else if (arg == "--model") {
             if (options.modelPath) {
                 return std::unexpected("--model is given more than once");
@@ -65,7 +65,7 @@ std::expected<SandboxOptions, std::string> ParseSandboxOptions(std::span<const s
             if (i + 1 == args.size() || args[i + 1].empty()) {
                 return std::unexpected("--model needs a file path");
             }
-            options.modelPath = engine::core::PathFromUtf8(args[++i]);
+            options.modelPath = core::PathFromUtf8(args[++i]);
         } else {
             return std::unexpected(std::format("Unknown argument '{}'", arg));
         }

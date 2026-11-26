@@ -6,7 +6,7 @@
 
 #include "core/Log.h"
 
-namespace engine::core::detail {
+namespace core::detail {
     void AssertFailed(std::string_view expression, std::string_view message, std::source_location location) {
         LogError("Assertion failed: {}{}{}\n  at {}:{}", expression, message.empty() ? "" : " - ", message,
                  location.file_name(), location.line());
@@ -22,4 +22,4 @@ namespace engine::core::detail {
         _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
         std::abort();
     }
-} // namespace engine::core::detail
+} // namespace core::detail

@@ -21,7 +21,7 @@
 #include "rhi/FrameContext.h"
 #include "rhi/UploadContext.h"
 
-namespace engine::render {
+namespace render {
     GpuResources::GpuResources(rhi::Allocator &allocator, rhi::UploadContext &upload, rhi::CommandQueue &queue,
                                rhi::BindlessHeap &bindlessHeap) noexcept
         : m_allocator(allocator), m_upload(upload), m_queue(queue), m_bindlessHeap(bindlessHeap) {}
@@ -240,4 +240,4 @@ namespace engine::render {
         };
         return CreateTexture(data, name);
     }
-} // namespace engine::render
+} // namespace render

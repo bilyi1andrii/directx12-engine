@@ -8,7 +8,7 @@
 
 #include "core/Utf8.h"
 
-namespace engine::bench {
+namespace bench {
     namespace {
         [[nodiscard]] std::string PathText(const std::filesystem::path &path) {
             return core::ToUtf8(path.native());
@@ -121,4 +121,4 @@ namespace engine::bench {
         }
         return *folder;
     }
-} // namespace engine::bench
+} // namespace bench

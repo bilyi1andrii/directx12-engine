@@ -11,7 +11,7 @@
 #include "core/ThrowIfFailed.h"
 #include "core/Utf8.h"
 
-namespace engine::rhi {
+namespace rhi {
     namespace {
         using core::LogError;
         using core::LogInfo;
@@ -382,4 +382,4 @@ namespace engine::rhi {
             }
         }
     }
-} // namespace engine::rhi
+} // namespace rhi

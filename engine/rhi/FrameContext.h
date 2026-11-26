@@ -9,7 +9,7 @@
 #include "rhi/RhiCommon.h"
 #include "rhi/UploadRing.h"
 
-namespace engine::rhi {
+namespace rhi {
 
     class BindlessHeap;
     class CommandQueue;
@@ -73,6 +73,6 @@ namespace engine::rhi {
         std::vector<DeferredIndex> m_deferredIndices;
     };
 
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_FRAMECONTEXT_H

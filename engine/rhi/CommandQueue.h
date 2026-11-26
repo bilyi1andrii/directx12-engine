@@ -7,7 +7,7 @@
 #include "core/UniqueHandle.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // A GPU command queue plus the fence that tracks how far the GPU has got through it.
     //
     // The CPU submits command lists and then calls Signal(), which returns a fence value.
@@ -54,6 +54,6 @@ namespace engine::rhi {
         uint64_t m_lastSignaledValue = 0; // the fence starts at 0, so value 0 is always complete
         core::UniqueHandle m_fenceEvent;  // signaled by the fence when a waited-for value is reached
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif //D3D12_ENGINE_COMMANDQUEUE_H

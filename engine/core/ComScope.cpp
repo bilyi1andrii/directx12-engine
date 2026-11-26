@@ -5,7 +5,7 @@
 
 #include "core/ThrowIfFailed.h"
 
-namespace engine::core {
+namespace core {
     ComScope::ComScope() {
         // S_FALSE also needs its CoUninitialize. If this throws, the
         // destructor does not run, so a failed start is never ended.
@@ -15,4 +15,4 @@ namespace engine::core {
     ComScope::~ComScope() {
         ::CoUninitialize();
     }
-} // namespace engine::core
+} // namespace core

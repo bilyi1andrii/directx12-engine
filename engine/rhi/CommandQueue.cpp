@@ -7,7 +7,7 @@
 #include "core/Log.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     CommandQueue::CommandQueue(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name) {
@@ -79,4 +79,4 @@ namespace engine::rhi {
         ThrowIfFailed(m_queue->GetTimestampFrequency(&ticksPerSecond));
         return ticksPerSecond;
     }
-} // namespace engine::rhi
+} // namespace rhi

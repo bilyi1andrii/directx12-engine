@@ -8,7 +8,7 @@
 #include "core/Assert.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     Descriptor::~Descriptor() {
@@ -90,4 +90,4 @@ namespace engine::rhi {
         m_allocated[index] = false;
         m_freeIndices.push_back(index); // capacity was reserved, so this never allocates
     }
-} // namespace engine::rhi
+} // namespace rhi

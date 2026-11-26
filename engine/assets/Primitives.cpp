@@ -10,7 +10,7 @@
 
 #include "assets/TextureLoader.h"
 
-namespace engine::assets {
+namespace assets {
     render::MeshData MakeCube() {
         using DirectX::XMFLOAT3;
         // Each face as seen from outside: its normal and which way is right and up on it
@@ -117,4 +117,4 @@ namespace engine::assets {
         }
         return MakeTextureFromPixels(rgba8, kSize, kSize, TextureUsage::Diffuse);
     }
-} // namespace engine::assets
+} // namespace assets

@@ -10,7 +10,7 @@
 #include "rhi/Allocator.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class BindlessHeap;
     class FrameContext;
     class UploadContext;
@@ -60,6 +60,6 @@ namespace engine::rhi {
         Allocation m_allocation;
         uint32_t m_bindlessIndex = 0;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_TEXTURE_H

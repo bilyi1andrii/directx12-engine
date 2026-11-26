@@ -11,7 +11,7 @@
 #include "core/Error.h"
 #include "renderdata/TextureData.h"
 
-namespace engine::assets {
+namespace assets {
     // What a texture holds, which decides how its bytes are read.
     enum class TextureUsage {
         Unknown,
@@ -43,6 +43,6 @@ namespace engine::assets {
     // Builds a texture from RGBA8 pixels made in code (exactly width * height * 4 bytes) and generates its mips
     [[nodiscard]] std::expected<render::TextureData, core::Error>
     MakeTextureFromPixels(std::span<const std::byte> rgba8, uint32_t width, uint32_t height, TextureUsage usage);
-} // namespace engine::assets
+} // namespace assets
 
 #endif // D3D12_ENGINE_TEXTURELOADER_H

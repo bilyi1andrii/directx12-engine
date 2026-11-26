@@ -3,7 +3,7 @@
 #include <cfloat>
 #include <cstdint>
 
-namespace engine::render {
+namespace render {
     Aabb SubmeshBounds(const MeshData &mesh, const SubmeshData &submesh) {
         using namespace DirectX;
 
@@ -22,4 +22,4 @@ namespace engine::render {
         XMStoreFloat3(&bounds.max, high);
         return bounds;
     }
-} // namespace engine::render
+} // namespace render

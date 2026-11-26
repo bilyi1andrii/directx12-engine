@@ -15,7 +15,7 @@
 #include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // Constant buffer views (root CBVs included) must start at a multiple of 256 bytes
     inline constexpr uint64_t kConstantBufferAlignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
@@ -104,6 +104,6 @@ namespace engine::rhi {
         std::vector<Page> m_pages;
         size_t m_currentPage = 0; // index into m_pages; == m_pages.size() when no page is in use yet
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_UPLOADRING_H

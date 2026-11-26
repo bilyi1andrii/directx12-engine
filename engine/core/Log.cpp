@@ -5,7 +5,7 @@
 
 #include <Windows.h>
 
-namespace engine::core {
+namespace core {
     namespace {
         std::string_view LevelTag(LogLevel level) {
             switch (level) {
@@ -30,4 +30,4 @@ namespace engine::core {
         std::fputs(line.c_str(), stderr);
         std::fflush(stderr);
     }
-} // namespace engine::core
+} // namespace core

@@ -5,7 +5,7 @@
 
 #include "renderdata/Lights.h"
 
-namespace engine::ui {
+namespace ui {
     // The "Lights" window: edits `environment` (ambient, specular, the directional light) and, if the selected
     // object is a light, that light (`selected`; nullptr otherwise). `selectedName` is the object's name.
     // Where a point or spot light stands and points is not edited here: the gizmo moves and turns its object.
@@ -16,6 +16,6 @@ namespace engine::ui {
     // Call it between DebugUI::NewFrame and DebugUI::Render.
     [[nodiscard]] bool ShowLightsWindow(render::LightEnvironment &environment, std::string_view selectedName,
                                         render::LocalLight *selected);
-} // namespace engine::ui
+} // namespace ui
 
 #endif // D3D12_ENGINE_LIGHTSWINDOW_H

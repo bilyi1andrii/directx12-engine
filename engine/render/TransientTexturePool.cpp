@@ -9,7 +9,7 @@
 #include "rhi/DepthFormat.h"
 #include "rhi/FrameContext.h"
 
-namespace engine::render {
+namespace render {
     TransientTexturePool::TransientTexturePool(rhi::NativeDevice *device, rhi::Allocator &allocator,
                                                rhi::DescriptorAllocator &rtvAllocator,
                                                rhi::DescriptorAllocator &dsvAllocator, rhi::BindlessHeap &heap)
@@ -155,4 +155,4 @@ namespace engine::render {
         // CPU-only descriptors are copied into the command list when recorded, so the slot can go back at once
         entry.view.Reset();
     }
-} // namespace engine::render
+} // namespace render

@@ -3,7 +3,7 @@
 
 #include <string>
 
-namespace engine::core {
+namespace core {
     // What went wrong, for callers that react differently to each case
     enum class ErrorCode {
         FileNotFound,
@@ -18,6 +18,6 @@ namespace engine::core {
         ErrorCode code;
         std::string message; // UTF-8, names the file and the reason: ready for the log
     };
-} // namespace engine::core
+} // namespace core
 
 #endif // D3D12_ENGINE_ERROR_H

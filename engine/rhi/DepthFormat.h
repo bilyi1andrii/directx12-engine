@@ -3,7 +3,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // The scene's depth texture: 32-bit float depth, no stencil. PSOs that draw into it take this as DSVFormat.
     inline constexpr DXGI_FORMAT kDepthFormat = DXGI_FORMAT_D32_FLOAT;
 
@@ -13,6 +13,6 @@ namespace engine::rhi {
     inline constexpr float kClearDepth = 0.0f;
     // A nearer pixel has the greater depth, so it passes the test
     inline constexpr D3D12_COMPARISON_FUNC kDepthComparison = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_DEPTHFORMAT_H

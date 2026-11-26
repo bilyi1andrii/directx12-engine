@@ -4,7 +4,7 @@
 
 #include "core/Assert.h"
 
-namespace engine::render::fg {
+namespace render::fg {
     uint32_t GraphDesc::AddImport(Access start, Access end) {
         textures.push_back({.imported = true, .start = start, .end = end, .descId = 0});
         return static_cast<uint32_t>(textures.size() - 1);
@@ -194,4 +194,4 @@ namespace engine::render::fg {
         FindTransitions(graph, out);
         return out;
     }
-} // namespace engine::render::fg
+} // namespace render::fg

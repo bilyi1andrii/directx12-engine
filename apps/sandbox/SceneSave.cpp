@@ -13,8 +13,8 @@
 
 namespace sandbox {
     namespace {
-        using engine::core::Error;
-        using engine::core::ErrorCode;
+        using core::Error;
+        using core::ErrorCode;
         using nlohmann::json;
 
         [[nodiscard]] json MatrixToJson(const DirectX::XMFLOAT4X4 &matrix) {
@@ -41,7 +41,7 @@ namespace sandbox {
         [[nodiscard]] std::string PathToJson(const std::filesystem::path &path, const std::filesystem::path &root) {
             const std::filesystem::path relative = path.lexically_normal().lexically_relative(root.lexically_normal());
             const bool inside = !relative.empty() && *relative.begin() != "..";
-            return engine::core::ToUtf8((inside ? relative : path).generic_wstring());
+            return core::ToUtf8((inside ? relative : path).generic_wstring());
         }
 
         [[nodiscard]] std::filesystem::path PathFromJson(const std::string &text, const std::filesystem::path &root) {
@@ -52,7 +52,7 @@ namespace sandbox {
 
     std::expected<SandboxSave, Error> ReadSandboxSave(const std::filesystem::path &file,
                                                       const std::filesystem::path &root) {
-        const std::string name = engine::core::ToUtf8(file.native());
+        const std::string name = core::ToUtf8(file.native());
         std::error_code ec;
         if (!std::filesystem::is_regular_file(file, ec)) {
             return std::unexpected(Error{ErrorCode::FileNotFound, std::format("{}: file not found", name)});
@@ -112,7 +112,7 @@ namespace sandbox {
                             {"cubes", std::move(cubes)},
                             {"models", std::move(models)}};
 
-        const std::string name = engine::core::ToUtf8(file.native());
+        const std::string name = core::ToUtf8(file.native());
         std::error_code ec;
         std::filesystem::create_directories(file.parent_path(), ec);
         if (ec) {
@@ -124,7 +124,7 @@ namespace sandbox {
             std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
             stream << document.dump(2) << '\n';
             if (!stream) {
-                return std::unexpected(std::format("{}: cannot write", engine::core::ToUtf8(temporary.native())));
+                return std::unexpected(std::format("{}: cannot write", core::ToUtf8(temporary.native())));
             }
         }
         

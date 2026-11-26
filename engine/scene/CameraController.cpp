@@ -5,7 +5,7 @@
 
 #include <DirectXMath.h>
 
-namespace engine::scene {
+namespace scene {
     using namespace DirectX;
 
     void CameraController::Update(Camera &camera, const core::Input &input, double deltaSeconds, CameraInputs allowed) {
@@ -47,4 +47,4 @@ namespace engine::scene {
         }
         XMStoreFloat3(&camera.position, position);
     }
-} // namespace engine::scene
+} // namespace scene

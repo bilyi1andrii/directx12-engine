@@ -12,7 +12,7 @@
 
 #include "renderdata/RenderList.h"
 
-namespace engine::render {
+namespace render {
     struct TransparentObject {
         BatchKey key;
         uint32_t instanceBufferIndex = 0;
@@ -24,6 +24,6 @@ namespace engine::render {
                                               const DirectX::XMFLOAT3 &meshCenter) noexcept;
     [[nodiscard]] float ViewDepth(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT3 &position) noexcept;
     void SortBackToFront(std::span<TransparentObject> objects);
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_TRANSPARENTSORT_H

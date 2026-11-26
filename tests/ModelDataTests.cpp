@@ -5,10 +5,10 @@
 
 #include "renderdata/ModelData.h"
 
-using engine::render::AlphaMode;
-using engine::render::MaterialDesc;
-using engine::render::MeshNode;
-using engine::render::TextureSource;
+using render::AlphaMode;
+using render::MaterialDesc;
+using render::MeshNode;
+using render::TextureSource;
 
 // The defaults the importer relies on when a file leaves something out
 

@@ -17,7 +17,7 @@
 
 #include "common/shared_types.hlsli"
 
-namespace engine::render {
+namespace render {
     // Bytes per element of every StructuredBuffer<InstanceData>, static or per frame
     inline constexpr uint32_t kInstanceStride = sizeof(gpu::InstanceData);
 
@@ -68,6 +68,6 @@ namespace engine::render {
             }
         }
     }
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_INSTANCEUPLOAD_H

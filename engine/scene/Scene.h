@@ -14,7 +14,7 @@
 #include "renderdata/Model.h"
 #include "renderdata/RenderList.h"
 
-namespace engine::scene {
+namespace scene {
     // Object -> world, row-vector convention (as in the RenderList)
     struct Transform {
         DirectX::XMFLOAT4X4 world{1.0f, 0.0f, 0.0f, 0.0f, //
@@ -116,6 +116,6 @@ namespace engine::scene {
     // Positions and directions are in world space. A spot light's direction has unit length, whatever the scale
     // of its object.
     void Extract(const Scene &scene, render::LightSet &lights);
-} // namespace engine::scene
+} // namespace scene
 
 #endif // D3D12_ENGINE_SCENE_H

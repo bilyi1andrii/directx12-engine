@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-namespace engine::render {
+namespace render {
     DirectX::XMFLOAT4X4 FitToCell(const Aabb &bounds, float size, const DirectX::XMFLOAT3 &center) {
         using namespace DirectX;
 
@@ -18,4 +18,4 @@ namespace engine::render {
                                      XMMatrixTranslation(center.x, center.y, center.z));
         return result;
     }
-} // namespace engine::render
+} // namespace render

@@ -4,11 +4,11 @@
 #include "render/GpuResources.h"
 #include "renderdata/GridLayout.h"
 
-using engine::apps::kGridHeight;
-using engine::apps::kGridSpacing;
-using engine::apps::kGridTop;
+using apps::kGridHeight;
+using apps::kGridSpacing;
+using apps::kGridTop;
 
-namespace engine::bench {
+namespace bench {
     namespace {
         // The largest side of a copy in the grid: the width of a cube
         constexpr float kGridObjectSize = 2.0f;
@@ -87,4 +87,4 @@ namespace engine::bench {
         }
         return {&*m_staticList, 1};
     }
-} // namespace engine::bench
+} // namespace bench

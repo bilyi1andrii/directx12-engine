@@ -10,7 +10,7 @@
 #include "renderdata/Vertex.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::render {
+namespace render {
     inline constexpr std::array kVertexLayout{
         D3D12_INPUT_ELEMENT_DESC{
             .SemanticName = "POSITION",
@@ -49,6 +49,6 @@ namespace engine::render {
             .InstanceDataStepRate = 0,
         },
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_VERTEXLAYOUT_H

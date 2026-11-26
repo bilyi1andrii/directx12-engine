@@ -12,7 +12,7 @@
 #include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class FrameContext;
     class UploadContext;
     struct UploadAllocation;
@@ -71,6 +71,6 @@ namespace engine::rhi {
         Allocation m_allocation;
         uint64_t m_size = 0;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_BUFFER_H

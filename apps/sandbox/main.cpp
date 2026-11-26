@@ -42,18 +42,16 @@
 #include "ui/DebugUI.h"
 #include "ui/LightsWindow.h"
 
-using engine::core::LogError;
-using engine::core::LogInfo;
+using core::LogError;
+using core::LogInfo;
 
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
     // Logs what the renderer window or a shortcut changed this frame
-    void LogSettingsChanges(const engine::render::RendererSettings &before,
-                            const engine::render::RendererSettings &after) {
+    void LogSettingsChanges(const render::RendererSettings &before, const render::RendererSettings &after) {
         if (after.drawPath != before.drawPath) {
-            LogInfo("Draw path: {}",
-                    after.drawPath == engine::render::DrawPath::Instanced ? "instanced" : "non-instanced");
+            LogInfo("Draw path: {}", after.drawPath == render::DrawPath::Instanced ? "instanced" : "non-instanced");
         }
         if (after.vsync != before.vsync) {
             LogInfo("VSync {}", after.vsync ? "on" : "off");
@@ -62,16 +60,16 @@ namespace {
 
     class FrameTimeAverages {
     public:
-        void Add(double deltaSeconds, double cpuRecordMs, const std::optional<engine::rhi::GpuFrameTimes> &gpu) {
+        void Add(double deltaSeconds, double cpuRecordMs, const std::optional<rhi::GpuFrameTimes> &gpu) {
             m_cpuRecord.Add(cpuRecordMs, deltaSeconds);
             if (!gpu) {
                 return;
             }
             m_gpuTotal.Add(gpu->totalMs, deltaSeconds);
 
-            const std::span<const engine::rhi::GpuScopeTime> passes = gpu->Scopes();
+            const std::span<const rhi::GpuScopeTime> passes = gpu->Scopes();
             if (passes.size() != m_passCount) {
-                for (engine::core::IntervalAverage &average : m_passAverages) {
+                for (core::IntervalAverage &average : m_passAverages) {
                     average.Reset();
                 }
                 m_passCount = passes.size();
@@ -84,15 +82,15 @@ namespace {
 
         [[nodiscard]] double CpuRecordMs() const noexcept { return m_cpuRecord.Value(); }
         [[nodiscard]] double GpuTotalMs() const noexcept { return m_gpuTotal.Value(); }
-        [[nodiscard]] std::span<const engine::ui::PassTime> GpuPasses() const noexcept {
+        [[nodiscard]] std::span<const ui::PassTime> GpuPasses() const noexcept {
             return std::span(m_passes).first(m_passCount);
         }
 
     private:
-        engine::core::IntervalAverage m_cpuRecord;
-        engine::core::IntervalAverage m_gpuTotal;
-        std::array<engine::core::IntervalAverage, engine::rhi::kMaxGpuScopes> m_passAverages;
-        std::array<engine::ui::PassTime, engine::rhi::kMaxGpuScopes> m_passes{};
+        core::IntervalAverage m_cpuRecord;
+        core::IntervalAverage m_gpuTotal;
+        std::array<core::IntervalAverage, rhi::kMaxGpuScopes> m_passAverages;
+        std::array<ui::PassTime, rhi::kMaxGpuScopes> m_passes{};
         size_t m_passCount = 0;
     };
 
@@ -106,25 +104,25 @@ namespace {
     // Creates the window and the renderer and runs the game loop until the window closes
     // (in a smoke test: after the requested number of frames). Everything it creates is
     // destroyed before it returns, so `validation` is complete afterwards.
-    engine::apps::RunResult RunSandbox(const SandboxOptions &options, engine::rhi::ValidationStats &validation) {
-        engine::core::Timer initTimer;
+    apps::RunResult RunSandbox(const SandboxOptions &options, rhi::ValidationStats &validation) {
+        core::Timer initTimer;
         initTimer.Start();
 
-        engine::core::Input input;
+        core::Input input;
         std::vector<DroppedFile> droppedFiles;
 
-        engine::core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
+        core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
 
         // After the window (its backend needs the HWND), before the renderer (the renderer's ImGui backend needs
         // the context, also while the renderer is destroyed)
-        engine::ui::DebugUI ui(window);
+        ui::DebugUI ui(window);
 
         window.SetCallbacks({
             .onMessage =
-                [&input](const engine::core::WindowMessage &message) {
+                [&input](const core::WindowMessage &message) {
                     // ImGui first. DebugUI::HandleMessage is static and does nothing once `ui` is gone, so this
                     // stays safe while the window, which outlives `ui`, is destroyed.
-                    const bool handledByUi = engine::ui::DebugUI::HandleMessage(message);
+                    const bool handledByUi = ui::DebugUI::HandleMessage(message);
                     input.HandleMessage(message);
                     // Only true for WM_SETCURSOR over ImGui (and IME text): the window must not reset the cursor
                     return handledByUi;
@@ -137,7 +135,7 @@ namespace {
                 },
         });
 
-        engine::render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
+        render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
         renderer.EnableUi();
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
@@ -152,33 +150,31 @@ namespace {
         const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::ReadSave() : std::nullopt;
 
         // Looks at the cube from above and to the side, so three faces are visible
-        engine::scene::Camera camera;
+        scene::Camera camera;
         camera.position = {3.0f, 4.0f, -8.0f};
-        engine::scene::LookAt(camera, {0.0f, 0.0f, 0.0f});
+        scene::LookAt(camera, {0.0f, 0.0f, 0.0f});
         camera.fovDegrees = 60.0f;
-        engine::scene::CameraController cameraController;
+        scene::CameraController cameraController;
 
-        engine::render::RenderList renderList; // this frame's movable objects
-        engine::render::LightSet lights;       // this frame's lights
+        render::RenderList renderList; // this frame's movable objects
+        render::LightSet lights;       // this frame's lights
 
         // Destroyed before the renderer, which owns what the cache created
-        engine::assets::AssetCache assets(renderer.Resources());
-        engine::scene::Scene scene;
+        assets::AssetCache assets(renderer.Resources());
+        scene::Scene scene;
 
         // The textured grid (--count, --grid)
         // Without --texture, the grid uses the sandbox's texture from data/
         const std::filesystem::path gridTexturePath =
-            options.texturePath.value_or(engine::core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
-        const uint32_t gridCount = options.gridCount.value_or(
-            saved && saved->gridCount > 0 ? saved->gridCount : engine::apps::kDefaultGridCount);
-        const engine::apps::GridMode gridMode = options.gridMode.value_or(
-            saved ? engine::apps::ParseGridMode(saved->gridMode).value_or(engine::apps::GridMode::Dynamic)
-                  : engine::apps::GridMode::Dynamic);
-        const sandbox::GridObjects grid =
-            sandbox::AddGrid(scene, assets, assets.LoadTexture(gridTexturePath, engine::assets::TextureUsage::Diffuse),
-                             gridMode, gridCount);
+            options.texturePath.value_or(core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
+        const uint32_t gridCount =
+            options.gridCount.value_or(saved && saved->gridCount > 0 ? saved->gridCount : apps::kDefaultGridCount);
+        const apps::GridMode gridMode = options.gridMode.value_or(
+            saved ? apps::ParseGridMode(saved->gridMode).value_or(apps::GridMode::Dynamic) : apps::GridMode::Dynamic);
+        const sandbox::GridObjects grid = sandbox::AddGrid(
+            scene, assets, assets.LoadTexture(gridTexturePath, assets::TextureUsage::Diffuse), gridMode, gridCount);
         if (saved && !saved->gridCubes.empty()) {
-            if (grid.mode == engine::apps::GridMode::Dynamic && saved->gridCount == gridCount) {
+            if (grid.mode == apps::GridMode::Dynamic && saved->gridCount == gridCount) {
                 for (const sandbox::SavedGridCube &cube : saved->gridCubes) {
                     if (cube.index < grid.side * grid.side) {
                         scene.SetObjectWorld({.index = grid.firstObject + cube.index}, cube.world);
@@ -190,10 +186,10 @@ namespace {
             }
         }
         // Static objects are uploaded to the GPU once, here, so any new ones must be added before this point
-        std::vector<engine::render::StaticListHandle> staticLists;
-        if (grid.mode == engine::apps::GridMode::Static) {
-            engine::render::RenderList staticObjects;
-            engine::scene::Extract(scene, staticObjects, engine::scene::Mobility::Static);
+        std::vector<render::StaticListHandle> staticLists;
+        if (grid.mode == apps::GridMode::Static) {
+            render::RenderList staticObjects;
+            scene::Extract(scene, staticObjects, scene::Mobility::Static);
             staticLists.push_back(renderer.Resources().CreateStaticList(staticObjects, L"Grid/Instances"));
         }
 
@@ -226,24 +222,21 @@ namespace {
         }
 
         // Cubes to select and move: one spinning at the origin (unless models are there) and three plain-coloured ones
-        const auto addCube = [&scene, &assets](std::string name, engine::render::TextureHandle texture, float x,
-                                               float z) {
+        const auto addCube = [&scene, &assets](std::string name, render::TextureHandle texture, float x, float z) {
             DirectX::XMFLOAT4X4 world{};
             DirectX::XMStoreFloat4x4(&world, DirectX::XMMatrixTranslation(x, 0.0f, z));
-            return scene.AddObject(std::move(name), assets.CubeModel(texture), world, engine::scene::Mobility::Movable);
+            return scene.AddObject(std::move(name), assets.CubeModel(texture), world, scene::Mobility::Movable);
         };
-        std::optional<engine::scene::ObjectId> spinningCube;
+        std::optional<scene::ObjectId> spinningCube;
         if (modelsShown == 0) {
-            spinningCube =
-                addCube("Spinning cube",
-                        assets.LoadTexture(engine::core::ExecutableDirectory() / sandbox::kSpinningCubeTexture,
-                                           engine::assets::TextureUsage::Diffuse),
-                        0.0f, 0.0f);
+            spinningCube = addCube("Spinning cube",
+                                   assets.LoadTexture(core::ExecutableDirectory() / sandbox::kSpinningCubeTexture,
+                                                      assets::TextureUsage::Diffuse),
+                                   0.0f, 0.0f);
         }
         // With models loaded, the cubes stand behind the row so that they do not end up inside a model
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
-        const engine::scene::ObjectId orangeCube =
-            addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
+        const scene::ObjectId orangeCube = addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
 
         const std::array namedCubes{
             orangeCube,
@@ -252,7 +245,7 @@ namespace {
         };
         if (saved) {
             for (const sandbox::SavedCube &savedCube : saved->cubes) {
-                for (const engine::scene::ObjectId id : namedCubes) {
+                for (const scene::ObjectId id : namedCubes) {
                     if (scene.Object(id).name == savedCube.name) {
                         scene.SetObjectWorld(id, savedCube.world);
                     }
@@ -262,20 +255,19 @@ namespace {
         // The lights stand between and behind the cubes
         sandbox::AddDefaultLights(scene, assets, cubesZ);
 
-        std::optional<engine::scene::ObjectId> selected;
+        std::optional<scene::ObjectId> selected;
         if (smokeTestFrames) {
             selected = scene.LightObjects().front();
         }
 
         // Edited by the renderer window and the shortcuts I and V; the renderer takes a copy in BeginFrame
-        engine::render::RendererSettings settings;
+        render::RendererSettings settings;
 
         // For the renderer window; the grid does not change while the sandbox runs
-        const std::string sceneInfo =
-            std::format("grid {} x {}, {}", grid.side, grid.side, engine::apps::ToString(grid.mode));
+        const std::string sceneInfo = std::format("grid {} x {}, {}", grid.side, grid.side, apps::ToString(grid.mode));
 
         // Game loop: handle all pending window messages, update, render
-        engine::core::FrameTimer frameTimer;
+        core::FrameTimer frameTimer;
         FrameTimeAverages frameTimes;
         uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
@@ -298,7 +290,7 @@ namespace {
             const bool appKeyboard = !ui.WantsKeyboard();
             const bool appMouse = !ui.WantsMouse();
 
-            const engine::render::RendererSettings previousSettings = settings;
+            const render::RendererSettings previousSettings = settings;
             if (appKeyboard) {
                 if (input.WasKeyPressed(VK_ESCAPE)) {
                     window.Close();
@@ -307,9 +299,9 @@ namespace {
                     settings.vsync = !settings.vsync;
                 }
                 if (input.WasKeyPressed('I')) {
-                    settings.drawPath = (settings.drawPath == engine::render::DrawPath::Instanced)
-                                            ? engine::render::DrawPath::NonInstanced
-                                            : engine::render::DrawPath::Instanced;
+                    settings.drawPath = (settings.drawPath == render::DrawPath::Instanced)
+                                            ? render::DrawPath::NonInstanced
+                                            : render::DrawPath::Instanced;
                 }
                 if (input.WasKeyPressed(VK_F11) || (input.WasKeyPressed(VK_RETURN) && input.IsKeyDown(VK_MENU))) {
                     window.ToggleFullscreen();
@@ -322,12 +314,11 @@ namespace {
             // One view for the gizmo, picking and rendering. BeginFrame gives the swap chain the window's size, so
             // the window's aspect ratio is also the rendered one.
             const DirectX::XMFLOAT2 viewportPx{static_cast<float>(window.Width()), static_cast<float>(window.Height())};
-            const engine::render::FrameView frameView =
-                engine::scene::MakeFrameView(camera, viewportPx.x / viewportPx.y);
+            const render::FrameView frameView = scene::MakeFrameView(camera, viewportPx.x / viewportPx.y);
             // The camera ray through the centre of a pixel
             const auto pickRayAt = [&camera, viewportPx](int32_t x, int32_t y) {
-                return engine::scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
-                                                  viewportPx);
+                return scene::MakePickRay(camera, {static_cast<float>(x) + 0.5f, static_cast<float>(y) + 0.5f},
+                                          viewportPx);
             };
             if (spinningCube) {
                 using namespace DirectX;
@@ -343,7 +334,7 @@ namespace {
             }
 
             // Show the gizmo on the selected object, unless it is static
-            if (selected && scene.Object(*selected).mobility == engine::scene::Mobility::Movable) {
+            if (selected && scene.Object(*selected).mobility == scene::Mobility::Movable) {
                 // The whole matrix: the gizmo moves, turns or scales the object around its pivot
                 DirectX::XMFLOAT4X4 gizmoWorld = scene.Object(*selected).world;
                 if (ui.TransformGizmo(frameView.view, frameView.projection, gizmoWorld)) {
@@ -353,8 +344,8 @@ namespace {
             // A left click on the scene selects the object under the cursor, or clears the selection. After the
             // gizmo, so that a click on one of its handles stays the gizmo's.
             if (appMouse && !ui.GizmoWantsMouse() && input.WasKeyPressed(VK_LBUTTON)) {
-                const engine::core::Int2 mouse = input.MousePosition();
-                selected = engine::scene::Pick(scene, pickRayAt(mouse.x, mouse.y));
+                const core::Int2 mouse = input.MousePosition();
+                selected = scene::Pick(scene, pickRayAt(mouse.x, mouse.y));
                 LogInfo("Selected: {}", selected ? std::string_view(scene.Object(*selected).name) : "nothing");
             }
 
@@ -368,19 +359,18 @@ namespace {
                                    .cameraSpeedScale = cameraController.SpeedScale()},
                                   settings);
             if (selected) {
-                const engine::scene::SceneObject &object = scene.Object(*selected);
+                const scene::SceneObject &object = scene.Object(*selected);
                 DirectX::XMFLOAT3 position = scene.ObjectPosition(*selected);
-                if (ui.ShowSelectionWindow(object.name, position,
-                                           object.mobility == engine::scene::Mobility::Movable)) {
+                if (ui.ShowSelectionWindow(object.name, position, object.mobility == scene::Mobility::Movable)) {
                     scene.SetObjectPosition(*selected, position);
                 }
             } else {
                 ui.ShowEmptySelectionWindow();
             }
             // Lights are scene data: the window edits them in place, and this frame's Extract passes them on
-            if (engine::ui::ShowLightsWindow(scene.Environment(),
-                                             selected ? std::string_view(scene.Object(*selected).name) : "",
-                                             selected ? scene.Light(*selected) : nullptr)) {
+            if (ui::ShowLightsWindow(scene.Environment(),
+                                     selected ? std::string_view(scene.Object(*selected).name) : "",
+                                     selected ? scene.Light(*selected) : nullptr)) {
                 sandbox::RecolorMarker(scene, assets, *selected);
             }
             ImDrawData *const uiDrawData = ui.Render();
@@ -392,17 +382,16 @@ namespace {
 
             // Between frames: EndFrame submits their uploads before the frame
             for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
-                const engine::scene::Ray ray = pickRayAt(drop.x, drop.y);
-                sandbox::LoadDroppedFile(drop.path,
-                                         engine::scene::IntersectHorizontalPlane(ray, engine::apps::kGridTop),
+                const scene::Ray ray = pickRayAt(drop.x, drop.y);
+                sandbox::LoadDroppedFile(drop.path, scene::IntersectHorizontalPlane(ray, apps::kGridTop),
                                          renderer.Resources(), assets, scene, nextModelX, grid, models);
             }
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
             const auto recordStart = std::chrono::steady_clock::now();
             renderList.Clear();
-            engine::scene::Extract(scene, renderList, engine::scene::Mobility::Movable);
-            engine::scene::Extract(scene, lights);
+            scene::Extract(scene, renderList, scene::Mobility::Movable);
+            scene::Extract(scene, lights);
             renderer.Render(frameView, lights, renderList, staticLists, uiDrawData); // the UI on top of the scene
             const std::chrono::duration<double, std::milli> recordMs = std::chrono::steady_clock::now() - recordStart;
             frameTimes.Add(frameTimer.DeltaSeconds(), recordMs.count(), renderer.GpuTimes());
@@ -418,7 +407,7 @@ namespace {
                 }
                 // The second half runs on the other draw path, so both stay covered by the smoke test
                 if (framesRendered == frames / 2) {
-                    settings.drawPath = engine::render::DrawPath::NonInstanced;
+                    settings.drawPath = render::DrawPath::NonInstanced;
                     LogInfo("Smoke test: draw path non-instanced from frame {}", framesRendered + 1);
                 }
                 if (framesRendered == frames) {
@@ -431,9 +420,9 @@ namespace {
             const std::filesystem::path file = sandbox::SavePath();
             if (const auto written = sandbox::WriteSandboxSave(
                     file, sandbox::MakeSave(scene, grid, gridCount, namedCubes, models), sandbox::RepositoryRoot())) {
-                LogInfo("Scene saved: {}", engine::core::ToUtf8(file.native()));
+                LogInfo("Scene saved: {}", core::ToUtf8(file.native()));
             } else {
-                engine::core::LogWarning("Scene not saved: {}", written.error());
+                core::LogWarning("Scene not saved: {}", written.error());
             }
         }
 
@@ -445,29 +434,29 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
     // Known before anything that can fail later; the catch below needs it
     bool smokeTest = false;
     try {
-        const std::expected<SandboxOptions, std::string> options = ParseSandboxOptions(engine::core::CommandLineArgs());
+        const std::expected<SandboxOptions, std::string> options = ParseSandboxOptions(core::CommandLineArgs());
         if (!options) {
             // No dialog: a wrong command line usually comes from a script
             LogError("{}", options.error());
             LogInfo("{}", kSandboxUsage);
-            return engine::apps::kExitBadCommandLine;
+            return apps::kExitBadCommandLine;
         }
         smokeTest = options->smokeTestFrames.has_value();
         if (smokeTest) {
             // A failed ImGui or D3D12MA assert must end the run, not wait at a dialog until ctest's timeout
-            engine::apps::RouteCrtAssertsToStderr();
+            apps::RouteCrtAssertsToStderr();
         }
 
         // For the whole run: image files are decoded through WIC, which needs COM
-        const engine::core::ComScope com;
+        const core::ComScope com;
 
         // Outlives the renderer: its device writes the live-object count when it is destroyed
-        engine::rhi::ValidationStats validation;
-        const engine::apps::RunResult run = RunSandbox(*options, validation);
-        engine::apps::LogValidationSummary(validation);
+        rhi::ValidationStats validation;
+        const apps::RunResult run = RunSandbox(*options, validation);
+        apps::LogValidationSummary(validation);
 
         const int exitCode =
-            smokeTest ? engine::apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
+            smokeTest ? apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
         LogInfo("Exiting with code {}", exitCode);
         return exitCode;
     } catch (const std::exception &e) {

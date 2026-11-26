@@ -7,7 +7,7 @@
 
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // The one shader-visible heap for all textures and buffers (bindless, SM 6.6). There is only one because switching
     // heaps on a command list can stall the GPU. Resources stay in fixed slots, and shaders read them by index through
     // ResourceDescriptorHeap[index].
@@ -67,6 +67,6 @@ namespace engine::rhi {
         std::vector<uint32_t> m_freeIndices; // stack: the next Allocate() takes back()
         std::vector<bool> m_allocated;       // catches double frees and views written into free slots
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_BINDLESSHEAP_H

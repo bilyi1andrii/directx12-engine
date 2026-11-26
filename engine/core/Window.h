@@ -10,7 +10,7 @@
 
 #include <Windows.h>
 
-namespace engine::core {
+namespace core {
     struct WindowMessage {
         HWND hwnd;
         UINT message;
@@ -84,6 +84,6 @@ namespace engine::core {
         bool m_inDestructor = false; // the destructor destroys the window: do not post WM_QUIT
         std::exception_ptr m_pendingException;
     };
-} // namespace engine::core
+} // namespace core
 
 #endif //D3D12_ENGINE_WINDOW_H

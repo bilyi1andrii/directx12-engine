@@ -9,7 +9,7 @@
 // The CPU-only part of the frame graph: from the passes and the textures they use, it works out which passes run,
 // which transient textures can share one GPU texture, and the state changes (barriers) between passes.
 // It knows no D3D12 types: FrameGraph turns its result into D3D12 calls.
-namespace engine::render::fg {
+namespace render::fg {
     // How a pass uses a texture. FrameGraph maps each value to one D3D12 resource state.
     enum class Access : uint8_t {
         Present,    // shown on screen; only as the start or end access of an imported texture
@@ -112,6 +112,6 @@ namespace engine::render::fg {
     // Compiles `graph`. Passes keep their order. A pass runs only if it writes an imported texture or a texture
     // that a later running pass uses. Reading a transient that no earlier pass wrote is a bug (asserted).
     [[nodiscard]] CompiledGraph Compile(const GraphDesc &graph);
-} // namespace engine::render::fg
+} // namespace render::fg
 
 #endif // D3D12_ENGINE_FRAMEGRAPHCOMPILER_H

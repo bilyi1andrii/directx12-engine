@@ -9,7 +9,7 @@
 #include "renderdata/MeshData.h"
 #include "renderdata/TextureData.h"
 
-namespace engine::render {
+namespace render {
     // What asset loading needs from the renderer. GpuResources (engine_render) implements it. AssetCache sees only
     // this, so assets does not depend on engine_render and tests can pass a fake without a GPU.
     class GpuUploader {
@@ -33,6 +33,6 @@ namespace engine::render {
         GpuUploader(const GpuUploader &) = default;
         GpuUploader &operator=(const GpuUploader &) = default;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_GPUUPLOADER_H

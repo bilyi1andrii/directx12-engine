@@ -14,13 +14,13 @@
 #include "render/TransientTexturePool.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     class CommandContext;
     class FrameContext;
     class GpuProfiler;
-} // namespace engine::rhi
+} // namespace rhi
 
-namespace engine::render {
+namespace render {
     struct FrameInputs;
     class FrameGraph;
 
@@ -203,6 +203,6 @@ namespace engine::render {
         std::vector<TransientTexturePool::Request> m_poolRequests;
         std::vector<TransientTexturePool::Texture> m_poolTextures;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_FRAMEGRAPH_H

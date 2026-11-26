@@ -8,7 +8,7 @@
 
 #include "common/shared_types.hlsli"
 
-namespace engine::render {
+namespace render {
     namespace {
         // `direction` at unit length; straight down if it has no length
         [[nodiscard]] DirectX::XMFLOAT3 UnitDirection(const DirectX::XMFLOAT3 &direction) {
@@ -90,4 +90,4 @@ namespace engine::render {
                 .points = constants.pointLightCount,
                 .spots = constants.spotLightCount};
     }
-} // namespace engine::render
+} // namespace render

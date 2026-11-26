@@ -13,19 +13,19 @@
 
 namespace {
     using namespace DirectX;
-    using engine::assets::kCubeBounds;
-    using engine::render::Aabb;
-    using engine::render::Model;
-    using engine::render::ModelPart;
-    using engine::scene::Camera;
-    using engine::scene::IntersectHorizontalPlane;
-    using engine::scene::IntersectRayBox;
-    using engine::scene::MakePickRay;
-    using engine::scene::Mobility;
-    using engine::scene::ObjectId;
-    using engine::scene::Pick;
-    using engine::scene::Ray;
-    using engine::scene::Scene;
+    using assets::kCubeBounds;
+    using render::Aabb;
+    using render::Model;
+    using render::ModelPart;
+    using scene::Camera;
+    using scene::IntersectHorizontalPlane;
+    using scene::IntersectRayBox;
+    using scene::MakePickRay;
+    using scene::Mobility;
+    using scene::ObjectId;
+    using scene::Pick;
+    using scene::Ray;
+    using scene::Scene;
 
     constexpr float kTolerance = 1e-4f;
 
@@ -177,7 +177,7 @@ TEST(MakePickRay, CentreOfTheViewLooksAlongTheCamera) {
     const Ray ray = MakePickRay(camera, {640.0f, 360.0f}, {1280.0f, 720.0f});
 
     XMFLOAT3 forward{};
-    XMStoreFloat3(&forward, XMVector3Normalize(engine::scene::Forward(camera)));
+    XMStoreFloat3(&forward, XMVector3Normalize(scene::Forward(camera)));
     ExpectNear(ray.direction, forward);
 }
 
@@ -197,7 +197,7 @@ TEST(MakePickRay, EdgesOfTheViewFollowTheFieldOfViewAndScreenDirections) {
 TEST(MakePickRay, CentreOfTheViewHitsThePointTheCameraLooksAt) {
     Camera camera;
     camera.position = {5.0f, 10.0f, -3.0f};
-    engine::scene::LookAt(camera, {2.0f, -4.0f, 4.0f});
+    scene::LookAt(camera, {2.0f, -4.0f, 4.0f});
 
     const std::optional<XMFLOAT3> hit =
         IntersectHorizontalPlane(MakePickRay(camera, {400.0f, 300.0f}, {800.0f, 600.0f}), -4.0f);

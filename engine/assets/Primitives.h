@@ -9,7 +9,7 @@
 #include "renderdata/Model.h"
 #include "renderdata/TextureData.h"
 
-namespace engine::assets {
+namespace assets {
     // Meshes and textures made in code, uploaded through GpuUploader like imported ones
 
     // The box around MakeCube's vertices
@@ -37,6 +37,6 @@ namespace engine::assets {
 
     // A 256x256 light and dark grey checkerboard, as a colour texture. Without mips, distant cubes would shimmer.
     [[nodiscard]] std::expected<render::TextureData, core::Error> MakeCheckerboard();
-} // namespace engine::assets
+} // namespace assets
 
 #endif // D3D12_ENGINE_PRIMITIVES_H

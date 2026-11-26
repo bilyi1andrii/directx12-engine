@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace engine::render {
+namespace render {
     // How the renderer draws the buckets of a RenderList. Both paths read the same instance data.
     enum class DrawPath : uint8_t {
         Instanced,    // one DrawIndexedInstanced per bucket
@@ -18,6 +18,6 @@ namespace engine::render {
         // the frame rate is not capped; benchmarks run with it off.
         bool vsync = true;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_RENDERERSETTINGS_H

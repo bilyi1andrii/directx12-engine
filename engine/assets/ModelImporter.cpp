@@ -26,7 +26,7 @@
 #include "core/Log.h"
 #include "core/Utf8.h"
 
-namespace engine::assets {
+namespace assets {
     namespace {
         using core::Error;
         using core::ErrorCode;
@@ -348,4 +348,4 @@ namespace engine::assets {
                                [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
         return extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx";
     }
-} // namespace engine::assets
+} // namespace assets

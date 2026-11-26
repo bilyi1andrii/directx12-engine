@@ -8,7 +8,7 @@
 #include "renderdata/MaterialDesc.h"
 #include "renderdata/MeshData.h"
 
-namespace engine::render {
+namespace render {
     // An image stored inside a model file, still compressed (.png, .jpg, .dds)
     struct EmbeddedTextureData {
         std::vector<std::byte> bytes;
@@ -22,6 +22,6 @@ namespace engine::render {
         std::vector<MaterialDesc> materials;
         std::vector<EmbeddedTextureData> embeddedTextures;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_MODELDATA_H

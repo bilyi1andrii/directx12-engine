@@ -20,13 +20,13 @@
 #ifdef __cplusplus
 #include <cstdint>
 
-namespace engine::gpu {
+namespace gpu {
     inline constexpr uint32_t kRootDrawConstants = 0;  // b0
     inline constexpr uint32_t kRootFrameConstants = 1; // b1
     inline constexpr uint32_t kRootPassConstants = 2;  // b2
 
     inline constexpr uint32_t kDrawConstantCount = 4;
-} // namespace engine::gpu
+} // namespace gpu
 #else
 
 #define GLOBAL_ROOT_SIGNATURE                                                                   \

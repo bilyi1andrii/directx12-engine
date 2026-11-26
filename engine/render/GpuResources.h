@@ -20,15 +20,15 @@
 #include "renderdata/TextureData.h"
 #include "renderdata/TransparentSort.h"
 
-namespace engine::rhi {
+namespace rhi {
     class Allocator;
     class BindlessHeap;
     class CommandQueue;
     class FrameContext;
     class UploadContext;
-} // namespace engine::rhi
+} // namespace rhi
 
-namespace engine::render {
+namespace render {
     // Every vertex layout the renderer draws; each pass has its own PSOs per layout
     enum class VertexFormat : uint8_t {
         Mesh, // renderdata/Vertex.h (vs_mesh)
@@ -176,6 +176,6 @@ namespace engine::render {
         // Indexed by StaticListHandle::index
         std::vector<GpuStaticList> m_staticLists;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_GPURESOURCES_H

@@ -13,7 +13,7 @@
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 
-namespace engine::render {
+namespace render {
     static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
                   "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
     inline constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
@@ -28,6 +28,6 @@ namespace engine::render {
         const uint8_t alphaByte = material.alphaMode == AlphaMode::Blend ? material.opacity : material.alphaCutoff;
         return (material.opacityMap.index << 8) | alphaByte;
     }
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_DRAWCONSTANTPACKING_H

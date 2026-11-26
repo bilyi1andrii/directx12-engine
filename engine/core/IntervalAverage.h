@@ -3,7 +3,7 @@
 
 #include <cstdint>
 
-namespace engine::core {
+namespace core {
     class IntervalAverage {
     public:
         static constexpr double kDefaultIntervalSeconds = 1.0;
@@ -24,6 +24,6 @@ namespace engine::core {
         double m_seconds = 0.0;
         uint32_t m_count = 0;
     };
-} // namespace engine::core
+} // namespace core
 
 #endif // D3D12_ENGINE_INTERVALAVERAGE_H

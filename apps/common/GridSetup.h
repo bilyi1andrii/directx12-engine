@@ -6,7 +6,7 @@
 #include <string_view>
 
 // Cube-grid settings shared by the sandbox and the bench
-namespace engine::apps {
+namespace apps {
     // 20 x 20 cubes
     inline constexpr uint32_t kDefaultGridCount = 400;
 
@@ -25,6 +25,6 @@ namespace engine::apps {
 
     // The smallest n with n * n >= count: --count 50000 gives a 224 x 224 grid
     [[nodiscard]] uint32_t GridSide(uint32_t count) noexcept;
-} // namespace engine::apps
+} // namespace apps
 
 #endif // D3D12_ENGINE_GRIDSETUP_H

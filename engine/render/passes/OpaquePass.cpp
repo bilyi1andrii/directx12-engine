@@ -13,7 +13,7 @@
 #include "rhi/DepthFormat.h"
 #include "rhi/SwapChain.h"
 
-namespace engine::render {
+namespace render {
     OpaquePass::OpaquePass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines), m_pipelinesByKey{} {
         constexpr std::array kBackBufferTargets{rhi::SwapChain::kRtvFormat};
 
@@ -86,4 +86,4 @@ namespace engine::render {
                           std::to_underlying(format), std::to_underlying(material.shading), key.alphaTest);
         return pipeline;
     }
-} // namespace engine::render
+} // namespace render

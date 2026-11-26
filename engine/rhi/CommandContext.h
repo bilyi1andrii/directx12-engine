@@ -11,7 +11,7 @@
 #include "rhi/GpuCopyable.h"
 #include "rhi/RhiCommon.h"
 
-namespace engine::rhi {
+namespace rhi {
     // Thin wrapper over a graphics command list. Collects resource barriers and submits them as one
     // ResourceBarrier() call right before the next command that needs them (or at Close()).
     //
@@ -130,6 +130,6 @@ namespace engine::rhi {
     private:
         CommandContext &m_context;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_COMMANDCONTEXT_H

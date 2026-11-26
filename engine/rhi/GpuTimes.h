@@ -9,7 +9,7 @@
 #include <string_view>
 
 // A timestamp is the value of the GPU's tick counter at a point in the command list.
-namespace engine::rhi {
+namespace rhi {
     inline constexpr uint32_t kMaxGpuScopes = 16;
 
     struct GpuScopeTime {
@@ -60,6 +60,6 @@ namespace engine::rhi {
     private:
         std::deque<std::string> m_names;
     };
-} // namespace engine::rhi
+} // namespace rhi
 
 #endif // D3D12_ENGINE_GPUTIMES_H

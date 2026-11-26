@@ -10,12 +10,12 @@
 #include "renderdata/RenderList.h"
 #include "renderdata/TransparentSort.h"
 
-namespace engine::rhi {
+namespace rhi {
     class BindlessHeap;
     class FrameContext;
-} // namespace engine::rhi
+} // namespace rhi
 
-namespace engine::render {
+namespace render {
     class GpuResources;
 
     // The instance data of objects that move, written again every frame, and the draws that read it.
@@ -37,6 +37,6 @@ namespace engine::render {
         std::vector<InstanceRange> m_ranges; // m_ranges[i] holds the objects of m_draws[i]
         std::vector<InstanceDraw> m_draws;
     };
-} // namespace engine::render
+} // namespace render
 
 #endif // D3D12_ENGINE_DYNAMICINSTANCES_H

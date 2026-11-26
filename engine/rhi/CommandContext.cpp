@@ -6,7 +6,7 @@
 #include "core/Assert.h"
 #include "core/ThrowIfFailed.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     CommandContext::CommandContext(NativeDevice *device, D3D12_COMMAND_LIST_TYPE type, std::wstring_view name) {
@@ -201,4 +201,4 @@ namespace engine::rhi {
         ThrowIfFailed(m_list->Close());
         m_recording = false;
     }
-} // namespace engine::rhi
+} // namespace rhi

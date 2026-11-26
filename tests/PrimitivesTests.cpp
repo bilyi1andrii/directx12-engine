@@ -11,13 +11,13 @@
 #include "assets/Primitives.h"
 #include "renderdata/MeshData.h"
 
+using assets::kSphereBounds;
+using assets::kSphereTriangleCount;
+using assets::MakeCube;
+using assets::MakeSphere;
 using DirectX::XMFLOAT3;
-using engine::assets::kSphereBounds;
-using engine::assets::kSphereTriangleCount;
-using engine::assets::MakeCube;
-using engine::assets::MakeSphere;
-using engine::render::MeshData;
-using engine::render::Vertex;
+using render::MeshData;
+using render::Vertex;
 
 namespace {
     constexpr float kTolerance = 1e-5f;

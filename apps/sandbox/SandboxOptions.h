@@ -20,7 +20,7 @@ struct SandboxOptions {
     // --count N: cubes in the grid (0 or more), rounded up to a square n x n; without it, kDefaultGridCount
     std::optional<uint32_t> gridCount;
     // --grid static|dynamic: upload the grid once, or every frame (the default)
-    std::optional<engine::apps::GridMode> gridMode;
+    std::optional<apps::GridMode> gridMode;
     // --model PATH: model shown on the grid; without it, every model in assets/ (not in a smoke test)
     std::optional<std::filesystem::path> modelPath;
 };

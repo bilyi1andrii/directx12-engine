@@ -16,7 +16,7 @@
 #include "core/Utf8.h"
 #include "rhi/DepthFormat.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     namespace {
@@ -237,4 +237,4 @@ namespace engine::rhi {
         }
         return m_shaders.emplace(key, std::move(*bytecode)).first->second;
     }
-} // namespace engine::rhi
+} // namespace rhi

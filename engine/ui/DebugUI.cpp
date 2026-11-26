@@ -11,7 +11,7 @@
 // imgui_impl_win32.h declares it only inside "#if 0", so that the header does not need <windows.h>
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-namespace engine::ui {
+namespace ui {
     namespace {
         // Gap between the panels and the window's edges, before DPI scaling
         constexpr float kPanelMargin = 10.0f;
@@ -215,4 +215,4 @@ namespace engine::ui {
         ImGui::Render();
         return ImGui::GetDrawData();
     }
-} // namespace engine::ui
+} // namespace ui

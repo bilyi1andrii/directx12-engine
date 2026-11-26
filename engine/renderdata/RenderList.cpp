@@ -4,7 +4,7 @@
 
 #include "renderdata/GridLayout.h"
 
-namespace engine::render {
+namespace render {
     void RenderList::Add(const BatchKey &key, const DirectX::XMFLOAT4X4 &world) {
         GetOrCreate(key).worlds.push_back(world);
         ++m_instanceCount;
@@ -74,4 +74,4 @@ namespace engine::render {
             }
         }
     }
-} // namespace engine::render
+} // namespace render

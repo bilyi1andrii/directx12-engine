@@ -13,24 +13,24 @@
 #include "assets/AssetCache.h"
 #include "renderdata/GpuUploader.h"
 
-using engine::assets::AssetCache;
-using engine::assets::TextureUsage;
-using engine::core::ErrorCode;
-using engine::render::AlphaMode;
-using engine::render::MaterialHandle;
-using engine::render::MaterialInfo;
-using engine::render::MeshData;
-using engine::render::MeshHandle;
-using engine::render::Model;
-using engine::render::Shading;
-using engine::render::TextureData;
-using engine::render::TextureHandle;
-using engine::tests::MissingFile;
-using engine::tests::TempFile;
+using assets::AssetCache;
+using assets::TextureUsage;
+using core::ErrorCode;
+using render::AlphaMode;
+using render::MaterialHandle;
+using render::MaterialInfo;
+using render::MeshData;
+using render::MeshHandle;
+using render::Model;
+using render::Shading;
+using render::TextureData;
+using render::TextureHandle;
+using tests::MissingFile;
+using tests::TempFile;
 
 namespace {
     // Stands in for the renderer: counts what the cache asks for and hands out increasing handles
-    class FakeUploader final : public engine::render::GpuUploader {
+    class FakeUploader final : public render::GpuUploader {
     public:
         std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view /*name*/) override {
             ++meshUploads;

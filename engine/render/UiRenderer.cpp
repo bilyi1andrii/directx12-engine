@@ -10,7 +10,7 @@
 #include "core/Assert.h"
 #include "rhi/SwapChain.h"
 
-namespace engine::render {
+namespace render {
     UiRenderer::UiRenderer(ID3D12Device *device, ID3D12CommandQueue *queue, rhi::BindlessHeap &heap) : m_heap(heap) {
         ENGINE_ASSERT_MSG(ImGui::GetCurrentContext() != nullptr, "UiRenderer needs an ImGui context (ui::DebugUI)");
 
@@ -71,4 +71,4 @@ namespace engine::render {
         // waits for the fence like every other bindless index (rhi rule: never Free() directly)
         self->m_frame->DeferFree(self->m_heap, self->m_heap.IndexOf(cpu));
     }
-} // namespace engine::render
+} // namespace render

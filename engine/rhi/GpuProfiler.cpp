@@ -13,7 +13,7 @@
 #include "core/ThrowIfFailed.h"
 #include "rhi/CommandContext.h"
 
-namespace engine::rhi {
+namespace rhi {
     using core::ThrowIfFailed;
 
     namespace {
@@ -118,4 +118,4 @@ namespace engine::rhi {
         return MakeGpuFrameTimes(record.frame, std::span(ticks).first(count), std::span(names).first(record.scopeCount),
                                  m_ticksPerSecond);
     }
-} // namespace engine::rhi
+} // namespace rhi

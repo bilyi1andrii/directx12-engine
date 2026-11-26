@@ -1,6 +1,6 @@
 #include "GridSetup.h"
 
-namespace engine::apps {
+namespace apps {
     std::optional<GridMode> ParseGridMode(std::string_view text) noexcept {
         if (text == "static") {
             return GridMode::Static;
@@ -23,4 +23,4 @@ namespace engine::apps {
         }
         return side;
     }
-} // namespace engine::apps
+} // namespace apps
