@@ -1,20 +1,30 @@
-# The bench: the exe that measures frame times, and its result-file writer.
+# The bench: the exe that measures frame times, and its CPU-only part the tests use: the result-file writer and the
+# collector of the measured frames' GPU times.
 
 add_library(bench_output STATIC
         BenchOutput.cpp
-        BenchOutput.h)
+        BenchOutput.h
+        GpuTimeCollector.cpp
+        GpuTimeCollector.h)
 
 engine_target_defaults(bench_output)
 
 target_include_directories(bench_output PUBLIC "${PROJECT_SOURCE_DIR}/apps")
 
-target_link_libraries(bench_output PRIVATE
+target_link_libraries(bench_output
+        PUBLIC
+        engine_gputimes
+        PRIVATE
         engine_core)
 
 add_executable(bench
         main.cpp
+        BenchApp.cpp
+        BenchApp.h
         BenchOptions.cpp
         BenchOptions.h
+        BenchReport.cpp
+        BenchReport.h
         StressGrid.cpp
         StressGrid.h)
 
@@ -29,6 +39,7 @@ target_compile_definitions(bench PRIVATE "ENGINE_BUILD_CONFIG=\"$<CONFIG>\"")
 
 target_link_libraries(bench PRIVATE
         app_common
+        app_shell
         bench_output
         engine_assets
         engine_core

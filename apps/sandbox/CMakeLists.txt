@@ -16,12 +16,24 @@ target_link_libraries(sandbox_save
 
 add_executable(sandbox
         main.cpp
+        FrameTimeAverages.cpp
+        FrameTimeAverages.h
+        SandboxApp.cpp
+        SandboxApp.h
+        SandboxGrid.cpp
+        SandboxGrid.h
         SandboxLights.cpp
         SandboxLights.h
+        SandboxModels.cpp
+        SandboxModels.h
         SandboxOptions.cpp
         SandboxOptions.h
+        SandboxSaving.cpp
+        SandboxSaving.h
         SandboxScene.cpp
-        SandboxScene.h)
+        SandboxScene.h
+        SmokeTestScript.cpp
+        SmokeTestScript.h)
 
 # A console exe outside Release, so terminals and IDEs show the log
 set_target_properties(sandbox PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)
@@ -33,6 +45,7 @@ engine_target_defaults(sandbox)
 
 target_link_libraries(sandbox PRIVATE
         app_common
+        app_shell
         sandbox_save
         engine_assets
         engine_core
