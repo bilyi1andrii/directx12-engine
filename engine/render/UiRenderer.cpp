@@ -9,7 +9,9 @@
 #include "rhi/SwapChain.h"
 
 namespace render {
-    UiRenderer::UiRenderer(ID3D12Device *device, ID3D12CommandQueue *queue, rhi::BindlessHeap &heap) : m_heap(heap) {
+    UiRenderer::UiRenderer(ID3D12Device *device, ID3D12CommandQueue *queue, rhi::BindlessHeap &heap,
+                           rhi::FrameContext &frame)
+        : m_heap(heap), m_frame(&frame) {
         ImGui_ImplDX12_InitInfo info;
         info.Device = device;
         info.CommandQueue = queue;

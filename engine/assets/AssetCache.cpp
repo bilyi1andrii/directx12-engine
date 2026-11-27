@@ -22,6 +22,8 @@
 #include "core/Timer.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 namespace assets {
     namespace {
         using render::MaterialHandle;
@@ -66,7 +68,7 @@ namespace assets {
 
     } // namespace
 
-    std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const std::filesystem::path &path) {
+    std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const fs::path &path) {
         const std::wstring key = NormalizedPath(path).native();
         if (const auto it = m_models.find(key); it != m_models.end()) {
             return &it->second;
@@ -139,7 +141,7 @@ namespace assets {
         return m_sphereModels.emplace(material.index, std::move(model)).first->second;
     }
 
-    TextureHandle AssetCache::LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
+    TextureHandle AssetCache::LoadTexture(const fs::path &path, TextureUsage usage) {
         const std::wstring key = std::format(L"{}|{}", NormalizedPath(path).native(), static_cast<int>(usage));
         if (const auto it = m_textures.find(key); it != m_textures.end()) {
             return it->second;
@@ -186,7 +188,7 @@ namespace assets {
     std::optional<TextureHandle> AssetCache::MaterialTexture(const render::ModelData &model,
                                                              const render::TextureSource &source, TextureUsage usage,
                                                              EmbeddedTextures &embedded, std::wstring_view modelName) {
-        if (const auto *file = std::get_if<std::filesystem::path>(&source)) {
+        if (const auto *file = std::get_if<fs::path>(&source)) {
             return LoadTexture(*file, usage);
         }
         const auto *inFile = std::get_if<render::EmbeddedTexture>(&source);

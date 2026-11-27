@@ -4,15 +4,17 @@
 #include <cwctype>
 #include <system_error>
 
+namespace fs = std::filesystem;
+
 namespace assets {
-    std::filesystem::path NormalizedPath(const std::filesystem::path &path) {
+    fs::path NormalizedPath(const fs::path &path) {
         std::error_code ec;
         // absolute, .. resolved, letter case on disk
-        const std::filesystem::path result = std::filesystem::weakly_canonical(path, ec);
+        const fs::path result = fs::weakly_canonical(path, ec);
         return ec ? path.lexically_normal() : result; // fallback, text only
     }
 
-    std::wstring LowerCaseExtension(const std::filesystem::path &path) {
+    std::wstring LowerCaseExtension(const fs::path &path) {
         std::wstring extension = path.extension().native();
         std::ranges::transform(extension, extension.begin(),
                                [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });

@@ -16,6 +16,8 @@
 #include "core/Utf8.h"
 #include "rhi/DepthFormat.h"
 
+namespace fs = std::filesystem;
+
 namespace rhi {
     using core::ThrowIfFailed;
 
@@ -86,7 +88,7 @@ namespace rhi {
         }
     } // namespace
 
-    PipelineCache::PipelineCache(NativeDevice *device, std::filesystem::path shaderDirectory)
+    PipelineCache::PipelineCache(NativeDevice *device, fs::path shaderDirectory)
         : m_device(device), m_shaderDirectory(std::move(shaderDirectory)) {
         const std::vector<std::byte> &rootSignature = Shader(L"rs_global.cso");
         ThrowIfFailed(m_device->CreateRootSignature(0, rootSignature.data(), rootSignature.size(),

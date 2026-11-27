@@ -15,6 +15,8 @@
 #include "assets/AssetCache.h"
 #include "renderdata/GpuUploader.h"
 
+namespace fs = std::filesystem;
+
 using assets::AssetCache;
 using assets::TextureUsage;
 using core::ErrorCode;
@@ -112,7 +114,7 @@ namespace {
                std::string(second) + "\n";
     }
 
-    [[nodiscard]] const Model &Load(AssetCache &cache, const std::filesystem::path &path) {
+    [[nodiscard]] const Model &Load(AssetCache &cache, const fs::path &path) {
         const auto model = cache.LoadModel(path);
         EXPECT_TRUE(model.has_value()) << model.error().message;
         return **model;

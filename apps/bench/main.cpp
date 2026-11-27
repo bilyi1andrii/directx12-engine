@@ -35,6 +35,9 @@
 #include "scene/Camera.h"
 #include "scene/CameraPath.h"
 
+namespace fs = std::filesystem;
+namespace chrono = std::chrono;
+
 using bench::FrameTiming;
 using bench::RunField;
 using core::LogError;
@@ -44,7 +47,7 @@ using core::LogWarning;
 ENGINE_EXPORT_AGILITY_SDK()
 
 namespace {
-    using Clock = std::chrono::steady_clock;
+    using Clock = chrono::steady_clock;
 
     constexpr int kExitBenchFailed = 1;
 
@@ -55,7 +58,7 @@ namespace {
 #endif
 
     double ToMs(Clock::duration duration) {
-        return std::chrono::duration<double, std::milli>(duration).count();
+        return chrono::duration<double, std::milli>(duration).count();
     }
 
     template <typename Column> double Median(std::span<const FrameTiming> timings, Column column) {
@@ -292,7 +295,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
                 apps::ToString(options->gridMode), options->count,
                 options->drawPath == render::DrawPath::Instanced ? "instanced" : "non-instanced",
                 core::ToUtf8(options->outDir.native()));
-        const std::chrono::system_clock::time_point started = std::chrono::system_clock::now();
+        const chrono::system_clock::time_point started = chrono::system_clock::now();
 
         const core::ComScope com;
 
@@ -321,7 +324,7 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
         const std::string timestamp = bench::FolderTimestamp(started);
         const std::vector<RunField> fields =
             RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs, medianGpuMs);
-        const std::expected<std::filesystem::path, std::string> folder = bench::WriteResults(
+        const std::expected<fs::path, std::string> folder = bench::WriteResults(
             options->outDir, BenchSceneName(*options), timestamp, run.gpuPasses, run.timings, fields);
         if (!folder) {
             LogError("Results not written: {}", folder.error());

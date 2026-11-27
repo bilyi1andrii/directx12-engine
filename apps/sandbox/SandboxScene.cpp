@@ -22,6 +22,8 @@
 #include "core/Utf8.h"
 #include "renderdata/GridLayout.h"
 
+namespace fs = std::filesystem;
+
 using core::LogInfo;
 using core::LogWarning;
 
@@ -58,16 +60,16 @@ namespace sandbox {
         return worlds;
     }
 
-    std::filesystem::path RepositoryRoot() {
+    fs::path RepositoryRoot() {
         return (core::ExecutableDirectory() / L"../../..").lexically_normal();
     }
 
-    std::vector<std::filesystem::path> FindAssetModels() {
-        const std::filesystem::path root = RepositoryRoot() / L"assets";
-        std::vector<std::filesystem::path> models;
+    std::vector<fs::path> FindAssetModels() {
+        const fs::path root = RepositoryRoot() / L"assets";
+        std::vector<fs::path> models;
         std::error_code ec;
-        for (auto it = std::filesystem::recursive_directory_iterator(root, ec);
-             !ec && it != std::filesystem::recursive_directory_iterator(); it.increment(ec)) {
+        for (auto it = fs::recursive_directory_iterator(root, ec); !ec && it != fs::recursive_directory_iterator();
+             it.increment(ec)) {
             if (assets::IsModelFile(it->path())) {
                 models.push_back(it->path());
             }
@@ -76,9 +78,8 @@ namespace sandbox {
         return models;
     }
 
-    std::optional<PlacedModel> AddModel(scene::Scene &scene, assets::AssetCache &assets,
-                                        const std::filesystem::path &path, float x, float z,
-                                        const std::optional<DirectX::XMFLOAT4X4> &savedWorld) {
+    std::optional<PlacedModel> AddModel(scene::Scene &scene, assets::AssetCache &assets, const fs::path &path, float x,
+                                        float z, const std::optional<DirectX::XMFLOAT4X4> &savedWorld) {
         using namespace DirectX;
 
         const auto model = assets.LoadModel(path);
@@ -101,8 +102,8 @@ namespace sandbox {
         return PlacedModel{.id = id, .path = path};
     }
 
-    std::vector<PlacedModel> AddModels(scene::Scene &scene, assets::AssetCache &assets,
-                                       std::span<const std::filesystem::path> paths, std::optional<float> firstX) {
+    std::vector<PlacedModel> AddModels(scene::Scene &scene, assets::AssetCache &assets, std::span<const fs::path> paths,
+                                       std::optional<float> firstX) {
         std::vector<PlacedModel> added;
         for (size_t i = 0; i < paths.size(); ++i) {
             const float x = firstX ? *firstX + static_cast<float>(i) * kModelSpacing
@@ -114,7 +115,7 @@ namespace sandbox {
         return added;
     }
 
-    void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
+    void LoadDroppedFile(const fs::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,
                          float &nextModelX, const GridObjects &grid, std::vector<PlacedModel> &models) {
         core::Timer timer;
@@ -150,12 +151,12 @@ namespace sandbox {
         LogInfo("Dropped {}: grid texture, loaded in {:.0f} ms", name, timer.ElapsedMs());
     }
 
-    std::filesystem::path SavePath() {
+    fs::path SavePath() {
         return RepositoryRoot() / L"saves" / L"sandbox.json";
     }
 
     std::optional<SandboxSave> ReadSave() {
-        const std::filesystem::path file = SavePath();
+        const fs::path file = SavePath();
         std::expected<SandboxSave, core::Error> save = ReadSandboxSave(file, RepositoryRoot());
         if (save) {
             LogInfo("Scene: {} ({} models, {} cubes, {} grid cubes)", core::ToUtf8(file.native()), save->models.size(),
@@ -165,10 +166,10 @@ namespace sandbox {
         if (save.error().code == core::ErrorCode::FileNotFound) {
             return std::nullopt;
         }
-        std::filesystem::path bad = file;
+        fs::path bad = file;
         bad += L".bad";
         std::error_code ec;
-        std::filesystem::rename(file, bad, ec);
+        fs::rename(file, bad, ec);
         LogWarning("Scene: {}. Starting without it; the file is kept as {}", save.error().message,
                    core::ToUtf8(bad.filename().native()));
         return std::nullopt;

@@ -9,6 +9,8 @@
 #include "common/OptionValues.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 using apps::ParseUint32;
 
 namespace {
@@ -80,11 +82,11 @@ std::expected<BenchOptions, std::string> ParseBenchOptions(std::span<const std::
     return options;
 }
 
-std::filesystem::path BenchSceneName(const BenchOptions &options) {
+fs::path BenchSceneName(const BenchOptions &options) {
     if (!options.modelPath) {
         return L"cube";
     }
-    const std::filesystem::path full = std::filesystem::absolute(*options.modelPath).lexically_normal();
+    const fs::path full = fs::absolute(*options.modelPath).lexically_normal();
     const std::wstring folder = full.parent_path().filename().wstring();
     return folder.empty() ? full.stem().wstring() : folder + L"-" + full.stem().wstring();
 }

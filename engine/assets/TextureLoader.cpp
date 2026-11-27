@@ -15,6 +15,8 @@
 #include "core/Assert.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 namespace assets {
     namespace {
         using core::Error;
@@ -121,8 +123,7 @@ namespace assets {
         }
     }
 
-    std::expected<render::TextureData, core::Error> ImportTexture(const std::filesystem::path &path,
-                                                                  TextureUsage usage) {
+    std::expected<render::TextureData, core::Error> ImportTexture(const fs::path &path, TextureUsage usage) {
         const std::string source = core::ToUtf8(path.native());
         const std::wstring extension = LowerCaseExtension(path);
 

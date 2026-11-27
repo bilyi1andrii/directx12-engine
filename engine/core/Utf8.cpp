@@ -4,6 +4,8 @@
 
 #include "core/ThrowIfFailed.h"
 
+namespace fs = std::filesystem;
+
 namespace core {
     std::string ToUtf8(std::wstring_view text) {
         if (text.empty()) {
@@ -17,7 +19,7 @@ namespace core {
         return result;
     }
 
-    std::filesystem::path PathFromUtf8(std::string_view text) {
-        return std::filesystem::path(std::u8string(text.begin(), text.end()));
+    fs::path PathFromUtf8(std::string_view text) {
+        return fs::path(std::u8string(text.begin(), text.end()));
     }
 } // namespace core

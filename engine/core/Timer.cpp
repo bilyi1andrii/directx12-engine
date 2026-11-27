@@ -1,14 +1,16 @@
 #include "core/Timer.h"
 
+namespace chrono = std::chrono;
+
 namespace core {
     double Timer::ElapsedMs() const {
-        return std::chrono::duration<double, std::milli>(Clock::now() - m_start).count();
+        return chrono::duration<double, std::milli>(Clock::now() - m_start).count();
     }
 
     void FrameTimer::Tick() {
         const Clock::time_point now = Clock::now();
-        m_deltaSeconds = std::chrono::duration<double>(now - m_last).count();
-        m_totalSeconds = std::chrono::duration<double>(now - m_start).count();
+        m_deltaSeconds = chrono::duration<double>(now - m_last).count();
+        m_totalSeconds = chrono::duration<double>(now - m_start).count();
         m_last = now;
 
         m_fpsWindowSeconds += m_deltaSeconds;

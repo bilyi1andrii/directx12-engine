@@ -11,6 +11,8 @@
 
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 namespace sandbox {
     namespace {
         using core::Error;
@@ -38,23 +40,22 @@ namespace sandbox {
             return matrix;
         }
 
-        [[nodiscard]] std::string PathToJson(const std::filesystem::path &path, const std::filesystem::path &root) {
-            const std::filesystem::path relative = path.lexically_normal().lexically_relative(root.lexically_normal());
+        [[nodiscard]] std::string PathToJson(const fs::path &path, const fs::path &root) {
+            const fs::path relative = path.lexically_normal().lexically_relative(root.lexically_normal());
             const bool inside = !relative.empty() && *relative.begin() != "..";
             return core::ToUtf8((inside ? relative : path).generic_wstring());
         }
 
-        [[nodiscard]] std::filesystem::path PathFromJson(const std::string &text, const std::filesystem::path &root) {
-            const std::filesystem::path path(std::u8string(text.begin(), text.end()));
+        [[nodiscard]] fs::path PathFromJson(const std::string &text, const fs::path &root) {
+            const fs::path path(std::u8string(text.begin(), text.end()));
             return (path.is_absolute() ? path : root / path).lexically_normal();
         }
     } // namespace
 
-    std::expected<SandboxSave, Error> ReadSandboxSave(const std::filesystem::path &file,
-                                                      const std::filesystem::path &root) {
+    std::expected<SandboxSave, Error> ReadSandboxSave(const fs::path &file, const fs::path &root) {
         const std::string name = core::ToUtf8(file.native());
         std::error_code ec;
-        if (!std::filesystem::is_regular_file(file, ec)) {
+        if (!fs::is_regular_file(file, ec)) {
             return std::unexpected(Error{ErrorCode::FileNotFound, std::format("{}: file not found", name)});
         }
         std::ifstream stream(file, std::ios::binary);
@@ -93,8 +94,8 @@ namespace sandbox {
         }
     }
 
-    std::expected<void, std::string> WriteSandboxSave(const std::filesystem::path &file, const SandboxSave &save,
-                                                      const std::filesystem::path &root) {
+    std::expected<void, std::string> WriteSandboxSave(const fs::path &file, const SandboxSave &save,
+                                                      const fs::path &root) {
         json grid{{"count", save.gridCount}, {"mode", save.gridMode}, {"cubes", json::array()}};
         for (const SavedGridCube &cube : save.gridCubes) {
             grid["cubes"].push_back({{"index", cube.index}, {"world", MatrixToJson(cube.world)}});
@@ -114,11 +115,11 @@ namespace sandbox {
 
         const std::string name = core::ToUtf8(file.native());
         std::error_code ec;
-        std::filesystem::create_directories(file.parent_path(), ec);
+        fs::create_directories(file.parent_path(), ec);
         if (ec) {
             return std::unexpected(std::format("{}: cannot create the folder: {}", name, ec.message()));
         }
-        std::filesystem::path temporary = file;
+        fs::path temporary = file;
         temporary += L".tmp";
         {
             std::ofstream stream(temporary, std::ios::binary | std::ios::trunc);
@@ -127,8 +128,8 @@ namespace sandbox {
                 return std::unexpected(std::format("{}: cannot write", core::ToUtf8(temporary.native())));
             }
         }
-        
-        std::filesystem::rename(temporary, file, ec);
+
+        fs::rename(temporary, file, ec);
         if (ec) {
             return std::unexpected(std::format("{}: cannot replace it: {}", name, ec.message()));
         }

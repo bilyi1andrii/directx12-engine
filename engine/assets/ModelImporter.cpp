@@ -24,6 +24,8 @@
 #include "core/Log.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 namespace assets {
     namespace {
         using core::Error;
@@ -101,7 +103,7 @@ namespace assets {
             }
         }
 
-        [[nodiscard]] std::optional<std::filesystem::path> TryPathFromUtf8(std::string_view text) {
+        [[nodiscard]] std::optional<fs::path> TryPathFromUtf8(std::string_view text) {
             try {
                 return core::PathFromUtf8(text);
             } catch (const std::system_error &) {
@@ -115,7 +117,7 @@ namespace assets {
 
         struct MaterialReader {
             const aiScene &scene;
-            std::filesystem::path directory;
+            fs::path directory;
             std::string_view source;
             ModelData &model;
             std::unordered_map<const aiTexture *, uint32_t> embeddedIndices{}; // each embedded image copied once
@@ -264,7 +266,7 @@ namespace assets {
                     return EmbeddedTexture{it->second};
                 }
 
-                const std::optional<std::filesystem::path> file = TryPathFromUtf8(text);
+                const std::optional<fs::path> file = TryPathFromUtf8(text);
                 if (!file) {
                     LogWarning("{}: texture path \"{}\" is not valid UTF-8", source, text);
                     return {};
@@ -274,10 +276,10 @@ namespace assets {
 
             [[nodiscard]] TextureSource FindBySuffix(std::string_view materialName, std::string_view suffix) const {
                 for (const std::string_view extension : {".png", ".jpg", ".jpeg"}) {
-                    const std::optional<std::filesystem::path> file =
+                    const std::optional<fs::path> file =
                         TryPathFromUtf8(std::format("{}{}{}", materialName, suffix, extension));
                     std::error_code ec;
-                    if (file && std::filesystem::is_regular_file(directory / *file, ec)) {
+                    if (file && fs::is_regular_file(directory / *file, ec)) {
                         return NormalizedPath(directory / *file);
                     }
                 }
@@ -286,11 +288,11 @@ namespace assets {
         };
     } // namespace
 
-    std::expected<render::ModelData, core::Error> ImportModel(const std::filesystem::path &path) {
+    std::expected<render::ModelData, core::Error> ImportModel(const fs::path &path) {
         const std::string source = core::ToUtf8(path.native());
 
         std::error_code ec;
-        if (!std::filesystem::is_regular_file(path, ec)) {
+        if (!fs::is_regular_file(path, ec)) {
             return std::unexpected(Error{ErrorCode::FileNotFound, std::format("{}: file not found", source)});
         }
 
@@ -330,7 +332,7 @@ namespace assets {
         return model;
     }
 
-    bool IsModelFile(const std::filesystem::path &path) {
+    bool IsModelFile(const fs::path &path) {
         const std::wstring extension = LowerCaseExtension(path);
         return extension == L".gltf" || extension == L".glb" || extension == L".obj" || extension == L".fbx";
     }

@@ -10,6 +10,8 @@
 
 #include "core/ThrowIfFailed.h"
 
+namespace fs = std::filesystem;
+
 namespace core {
     namespace {
         constexpr wchar_t kClassName[] = L"EngineWindow";
@@ -21,9 +23,9 @@ namespace core {
         };
         using UniqueDrop = std::unique_ptr<std::remove_pointer_t<HDROP>, DropFinisher>;
 
-        std::vector<std::filesystem::path> DroppedPaths(HDROP drop) {
+        std::vector<fs::path> DroppedPaths(HDROP drop) {
             const UINT count = ::DragQueryFileW(drop, 0xFFFFFFFF, nullptr, 0);
-            std::vector<std::filesystem::path> paths;
+            std::vector<fs::path> paths;
             paths.reserve(count);
             for (UINT i = 0; i < count; ++i) {
                 std::wstring path(::DragQueryFileW(drop, i, nullptr, 0), L'\0');
@@ -182,7 +184,7 @@ namespace core {
         }
         case WM_DROPFILES: {
             const UniqueDrop drop(reinterpret_cast<HDROP>(msg.wParam));
-            const std::vector<std::filesystem::path> paths = DroppedPaths(drop.get());
+            const std::vector<fs::path> paths = DroppedPaths(drop.get());
             POINT point{};
             ::DragQueryPoint(drop.get(), &point);
             if (m_callbacks.onFilesDropped) {

@@ -186,7 +186,7 @@ namespace render {
     }
 
     void Renderer::EnableUi() {
-        m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
+        m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap, CurrentFrame());
     }
 
     std::vector<rhi::GpuFrameTimes> Renderer::FinishGpuTimes() {
