@@ -24,6 +24,7 @@ namespace render {
         bool operator==(const EmbeddedTexture &) const = default;
     };
 
+    // none, file path or image embedded in model
     using TextureSource = std::variant<std::monostate, std::filesystem::path, EmbeddedTexture>;
 
     struct MaterialDesc {

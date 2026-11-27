@@ -16,6 +16,7 @@ namespace gpu {
     using float4x4 = DirectX::XMFLOAT4X4;
 #endif
 
+// b0 root constants
 struct DrawConstants
 {
     uint instanceOffset;

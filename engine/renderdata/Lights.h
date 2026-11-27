@@ -29,12 +29,13 @@ namespace render {
 
     enum class LightType : uint8_t { Point, Spot };
 
+    // light component, position and direction come from object
     struct LocalLight {
         LightType type = LightType::Point;
         bool enabled = true;
         DirectX::XMFLOAT3 color{1.0f, 1.0f, 1.0f};
         float strength = 1.0f;
-        DirectX::XMFLOAT3 attenuation{1.0f, 0.045f, 0.0075f};
+        DirectX::XMFLOAT3 attenuation{1.0f, 0.045f, 0.0075f}; // constant, linear, quadratic
         float innerAngleDegrees = 18.0f;
         float outerAngleDegrees = 28.0f;
     };
@@ -54,7 +55,7 @@ namespace render {
         LightEnvironment environment;
         std::vector<PointLight> points;
         std::vector<SpotLight> spots;
-        Aabb shadowBounds;
+        Aabb shadowBounds; // all parts' world boxes, shadow map fits it
     };
 } // namespace render
 

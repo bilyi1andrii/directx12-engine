@@ -25,6 +25,7 @@ namespace render {
     };
 
     struct BatchKeyHash {
+        // packs both indices into one 64-bit value
         [[nodiscard]] size_t operator()(const BatchKey &key) const noexcept {
             return std::hash<uint64_t>{}((uint64_t{key.mesh.index} << 32) | key.material.index);
         }
@@ -48,10 +49,10 @@ namespace render {
     private:
         [[nodiscard]] BatchBucket &GetOrCreate(const BatchKey &key);
 
-        std::vector<BatchBucket> m_buckets;
+        std::vector<BatchBucket> m_buckets; // fast path for repeated key
         std::unordered_map<BatchKey, uint32_t, BatchKeyHash> m_bucketIndices;
         uint32_t m_lastBucket = 0;
-        std::vector<std::vector<DirectX::XMFLOAT4X4>> m_spareWorlds;
+        std::vector<std::vector<DirectX::XMFLOAT4X4>> m_spareWorlds; // emptied vectors kept for reuse
         size_t m_instanceCount = 0;
     };
 

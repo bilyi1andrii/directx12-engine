@@ -16,14 +16,17 @@ namespace render {
     public:
         virtual ~GpuUploader() = default;
 
+        // one handle per submesh, all share one vertex and index buffer
         [[nodiscard]] virtual std::vector<MeshHandle> CreateMesh(const MeshData &mesh, std::wstring_view name) = 0;
 
         [[nodiscard]] virtual TextureHandle CreateTexture(const TextureData &data, std::wstring_view name) = 0;
 
+        // grey fallback for textures that failed to load
         [[nodiscard]] virtual TextureHandle UnloadedTexture() const noexcept = 0;
 
         [[nodiscard]] virtual MaterialHandle CreateMaterial(const MaterialInfo &material) = 0;
 
+    // protected copy prevents slicing through base
     protected:
         GpuUploader() = default;
         GpuUploader(const GpuUploader &) = default;

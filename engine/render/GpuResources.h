@@ -20,7 +20,6 @@
 #include "renderdata/MeshData.h"
 #include "renderdata/RenderList.h"
 #include "renderdata/TextureData.h"
-#include "renderdata/TransparentSort.h"
 
 namespace rhi {
     class Allocator;
