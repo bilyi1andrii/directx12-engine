@@ -49,44 +49,44 @@ data.
 There is no tonemapping yet, so very bright areas clip to white.
 
 ## Showcase
- 
-### Soft shadows
- 
+
+### Shadows
+
 Shadow map, 3×3 filtering.
- 
+
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/ccbae54d-bef2-4426-aed9-3ba671b762d8" width="100%" alt="Shadows in the Assisi courtyard"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/9e1d123a-e8d5-411a-8813-4938496ec643" width="100%" alt="Shadows on the Assisi square"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/12e55d66-0893-42da-a249-fe86fc70dd8b" width="100%" alt="Shadows in the Assisi courtyard"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/cc38ce9e-e00e-46a0-85d9-0aa16c345ce2" width="100%" alt="Shadows on the Assisi square"></td>
   </tr>
 </table>
 
 ### Point and spot lights
- 
-Blinn-Phong, editable.
- 
+
+Blinn-Phong.
+
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/295c6454-5bb5-41aa-9fd0-411242f9a028" width="100%" alt="Spot lights in an Assisi alley"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/ed071ed9-4609-4aad-bcbc-61252b157987" width="100%" alt="Spot light behind the gate"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ed19215a-1fcb-47b2-8e7a-3692467c874c" width="100%" alt="Spot lights in an Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/8bd4870b-bf2f-49b3-ab39-4979358b8c9b" width="100%" alt="Spot light behind the gate"></td>
   </tr>
 </table>
 
 ### Transparency
- 
+
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/566dba9c-a204-4e11-967f-237d41a68603" width="100%" alt="Ducks among lily pads"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/c3275c8b-4de9-4f2e-bffa-28209b38f557" width="100%" alt="Transparent pond water"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/4ab0a65b-31f2-4fdc-9888-58e71b16633b" width="100%" alt="Ducks among lily pads"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/a1946f65-1cb8-4aca-8d58-46d8d1bc5b26" width="100%" alt="Transparent pond water"></td>
   </tr>
 </table>
 
-### Scenes
- 
+### More scenes
+
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/6e22e054-95bf-4305-a487-50371f2d69b8" width="100%" alt="Kyoto street"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/b9efdf82-cdfa-461f-80c0-9e6070855f0c" width="100%" alt="Selected object with the gizmo"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/0c40c555-3c63-4bc0-9608-61e0bc89547b" width="100%" alt="Kyoto street"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/2f7942d9-0369-4e77-ae7b-84b35afd83cc" width="100%" alt="Kyoto torii"></td>
   </tr>
 </table>
 
@@ -94,11 +94,11 @@ Blinn-Phong, editable.
  
 Models from Sketchfab, not included in the repository.
  
-| Model | Author |
-|---|---|
-| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens]|
-| [Assisi city scene](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | - |
-| [Duck Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | - |
+| Model | Author | License |
+|---|---|---|
+| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens](https://sketchfab.com/mathiastossens) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [Assisi - City Scene Assignment](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | [Nioma van der Steen](https://sketchfab.com/fromthestone) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
+| [Duck-Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | [td991](https://sketchfab.com/td991) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
 
 ## How to run
 
