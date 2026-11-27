@@ -59,6 +59,7 @@ namespace render {
 
     FgTexture FrameGraph::CreateTexture(std::string_view name, const TransientTextureDesc &desc) {
         uint32_t descId = 0;
+        // one id per distinct desc
         while (descId < m_transientDescs.size() && m_transientDescs[descId] != desc) {
             ++descId;
         }
@@ -80,7 +81,7 @@ namespace render {
 
         m_setupUses.clear();
         PassBuilder builder(*this, passIndex);
-        setup(builder);
+        setup(builder); // records uses into m_setupUses
         m_desc.AddPass(m_setupUses);
     }
 
@@ -129,6 +130,7 @@ namespace render {
             const rhi::ScopedGpuEvent event(commands, pass.name.c_str());
             const rhi::ScopedGpuTimer timer(commands, m_profiler, pass.timerId);
             BindTargetsAndClear(pass, commands);
+            // per pass, ImGui sets its own
             commands.SetGraphicsRootSignature(m_rootSignature);
             commands.SetGraphicsRootConstantBufferView(gpu::kRootFrameConstants, inputs.frameConstants);
 
@@ -168,7 +170,7 @@ namespace render {
             }
             for (const ColorTarget &target : m_passes[pass].colors) {
                 const uint32_t gpu = m_compiled.textures[target.texture.index].gpuTexture;
-                if (target.clear && !clearColors[gpu]) {
+                if (target.clear && !clearColors[gpu]) { // first clear colour wins
                     clearColors[gpu] = target.clear;
                 }
             }
@@ -238,7 +240,7 @@ namespace render {
         }
 
         commands.SetRenderTargets(std::span(rtvs.data(), pass.colors.size()), pass.depth ? &dsv : nullptr);
-        if (width != 0) {
+        if (width != 0) { // no targets, no viewport
             commands.SetViewportAndScissor(width, height);
         }
     }

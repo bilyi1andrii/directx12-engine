@@ -10,6 +10,7 @@
 #include <vector>
 
 namespace render::fg {
+    // how pass uses texture, also state it needs
     enum class Access : uint8_t {
         Present,
         ColorWrite,
@@ -21,8 +22,9 @@ namespace render::fg {
         return access == Access::ColorWrite || access == Access::DepthWrite;
     }
 
-    inline constexpr uint32_t kNoIndex = std::numeric_limits<uint32_t>::max();
+    inline constexpr uint32_t kNoIndex = std::numeric_limits<uint32_t>::max(); // unused or not assigned
 
+    // one line of pass declaration
     struct TextureUse {
         uint32_t texture = 0;
         Access access = Access::ShaderRead;
@@ -30,13 +32,13 @@ namespace render::fg {
 
     struct GraphDesc {
         struct Texture {
-            bool imported = false;
-            Access start = Access::Present;
-            Access end = Access::Present;
-            uint32_t descId = 0;
+            bool imported = false;          // owned outside graph, e.g. back buffer
+            Access start = Access::Present; // state import arrives in
+            Access end = Access::Present;   // state import must leave in
+            uint32_t descId = 0;            // size and format, same id means interchangeable
         };
         struct Pass {
-            uint32_t firstUse = 0;
+            uint32_t firstUse = 0; // position in uses
             uint32_t useCount = 0;
         };
 
@@ -65,25 +67,27 @@ namespace render::fg {
     struct CompiledGraph {
         struct Pass {
             bool kept = false;
-            uint32_t firstTransition = 0;
+            uint32_t firstTransition = 0; // position in transitions
             uint32_t transitionCount = 0;
         };
+        // per graph texture
         struct Texture {
-            uint32_t firstPass = kNoIndex;
+            uint32_t firstPass = kNoIndex; // first and last kept pass using it
             uint32_t lastPass = kNoIndex;
-            uint32_t gpuTexture = kNoIndex;
+            uint32_t gpuTexture = kNoIndex; // real texture it maps to
         };
+        // one real texture, several graph textures may share it
         struct GpuTexture {
             bool imported = false;
             uint32_t descId = 0;
-            Access restAccess = Access::Present;
+            Access restAccess = Access::Present; // state at frame start and end, transients only
         };
 
         std::vector<Pass> passes;
         std::vector<Texture> textures;
         std::vector<GpuTexture> gpuTextures;
         std::vector<Transition> transitions;
-        std::vector<Transition> finalTransitions;
+        std::vector<Transition> finalTransitions; // imports back to end state
 
         [[nodiscard]] std::span<const Transition> TransitionsBefore(uint32_t pass) const {
             return std::span(transitions).subspan(passes[pass].firstTransition, passes[pass].transitionCount);

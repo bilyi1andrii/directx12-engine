@@ -30,17 +30,20 @@ namespace render::fg {
 
     namespace {
         void CullPasses(const GraphDesc &graph, CompiledGraph &out) {
+            // imports are roots, their contents leave graph
             std::vector<bool> needed(graph.textures.size());
             for (size_t i = 0; i < graph.textures.size(); ++i) {
                 needed[i] = graph.textures[i].imported;
             }
+            // backwards, later passes decide first
             for (size_t pass = graph.passes.size(); pass-- > 0;) {
                 bool kept = false;
                 for (const TextureUse &use : graph.UsesOf(static_cast<uint32_t>(pass))) {
-                    kept = kept || (IsWrite(use.access) && needed[use.texture]);
+                    kept = kept || (IsWrite(use.access) && needed[use.texture]); // writes something needed
                 }
                 out.passes[pass].kept = kept;
                 if (kept) {
+                    // any use may need previous contents, so mark all
                     for (const TextureUse &use : graph.UsesOf(static_cast<uint32_t>(pass))) {
                         needed[use.texture] = true;
                     }
@@ -84,6 +87,7 @@ namespace render::fg {
                     }
                     for (uint32_t gpu = 0; gpu < out.gpuTextures.size(); ++gpu) {
                         const CompiledGraph::GpuTexture &candidate = out.gpuTextures[gpu];
+                        // reuse if same desc and its last user finished before this pass
                         if (!candidate.imported && candidate.descId == desc.descId && busyUntil[gpu] < pass) {
                             texture.gpuTexture = gpu;
                             break;
@@ -101,6 +105,7 @@ namespace render::fg {
         }
 
         void FindTransitions(const GraphDesc &graph, CompiledGraph &out) {
+            // play frame once to find rest state
             std::vector<Access> state(out.gpuTextures.size(), Access::Present);
             for (uint32_t pass = 0; pass < graph.passes.size(); ++pass) {
                 if (out.passes[pass].kept) {
@@ -114,6 +119,7 @@ namespace render::fg {
                     out.gpuTextures[gpu].restAccess = state[gpu];
                 }
             }
+            // imports start in start state, transients in rest state
             for (size_t i = 0; i < graph.textures.size(); ++i) {
                 if (graph.textures[i].imported) {
                     state[out.textures[i].gpuTexture] = graph.textures[i].start;
@@ -135,6 +141,7 @@ namespace render::fg {
                 compiled.transitionCount = static_cast<uint32_t>(out.transitions.size()) - compiled.firstTransition;
             }
 
+            // imports must leave in end state
             for (size_t i = 0; i < graph.textures.size(); ++i) {
                 const GraphDesc::Texture &desc = graph.textures[i];
                 const uint32_t gpu = out.textures[i].gpuTexture;

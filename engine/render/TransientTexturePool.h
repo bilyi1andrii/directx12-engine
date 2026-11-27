@@ -40,9 +40,9 @@ namespace render {
     public:
         struct Request {
             TransientTextureDesc desc;
-            std::optional<std::array<float, 4>> clearColor;
-            D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
-            std::string_view name; // ASCII
+            std::optional<std::array<float, 4>> clearColor;            // optimized clear value, part of match
+            D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON; // graph's rest state
+            std::string_view name;                                     // ASCII
         };
         struct Texture {
             ID3D12Resource *resource = nullptr;
@@ -50,6 +50,7 @@ namespace render {
             uint32_t width = 0;
             uint32_t height = 0;
             uint32_t srvIndex = kNoSrv; // bindless
+            // before this build, graph fixes difference
             D3D12_RESOURCE_STATES currentState = D3D12_RESOURCE_STATE_COMMON;
         };
         static constexpr uint32_t kNoSrv = UINT32_MAX;
@@ -87,7 +88,7 @@ namespace render {
         rhi::DescriptorAllocator &m_dsvAllocator;
         rhi::BindlessHeap &m_heap;
         std::vector<Entry> m_entries;
-        std::vector<bool> m_acquired;
+        std::vector<bool> m_acquired; // taken in current Acquire
     };
 } // namespace render
 

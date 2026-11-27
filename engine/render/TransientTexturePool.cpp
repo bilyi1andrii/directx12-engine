@@ -25,6 +25,7 @@ namespace render {
         textures.clear();
         m_acquired.assign(m_entries.size(), false);
         for (const Request &request : requests) {
+            // first free entry with same desc and clear colour
             size_t index = 0;
             while (index < m_entries.size() && (m_acquired[index] || m_entries[index].desc != request.desc ||
                                                 m_entries[index].clearColor != request.clearColor)) {
@@ -46,6 +47,7 @@ namespace render {
             entry.state = request.state;
         }
 
+        // untaken entries destroyed, survivors packed to front
         size_t kept = 0;
         for (size_t i = 0; i < m_entries.size(); ++i) {
             if (m_acquired[i]) {
@@ -73,13 +75,14 @@ namespace render {
 
         static_assert(rhi::kDepthFormat == DXGI_FORMAT_D32_FLOAT,
                       "The typeless and shader-view formats below are those of D32_FLOAT: change them with the format");
+        // depth read by shader needs typeless resource for DSV and SRV
         const DXGI_FORMAT resourceFormat = depth && desc.shaderRead ? DXGI_FORMAT_R32_TYPELESS : desc.format;
         const DXGI_FORMAT srvFormat = depth ? DXGI_FORMAT_R32_FLOAT : desc.format;
 
         D3D12_RESOURCE_FLAGS flags =
             depth ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
         if (depth && !desc.shaderRead) {
-            flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+            flags |= D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE; // lets driver compress more
         }
         const D3D12_RESOURCE_DESC resourceDesc{
             .Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D,
@@ -94,6 +97,7 @@ namespace render {
             .Flags = flags,
         };
 
+        // clearing to this value is fast clear
         D3D12_CLEAR_VALUE clearValue{.Format = depth ? rhi::kDepthFormat : desc.format, .Color = {}};
         if (depth) {
             clearValue.DepthStencil = {.Depth = rhi::kClearDepth, .Stencil = 0};
@@ -139,6 +143,6 @@ namespace render {
             frame.DeferFree(m_heap, entry.srvIndex);
             entry.srvIndex = kNoSrv;
         }
-        entry.view.Reset();
+        entry.view.Reset(); // immediate, view already copied into command list
     }
 } // namespace render

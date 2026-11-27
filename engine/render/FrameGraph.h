@@ -27,14 +27,16 @@ namespace render {
     struct FrameInputs;
     class FrameGraph;
 
+    // graph texture number
     struct FgTexture {
         uint32_t index = fg::kNoIndex;
     };
 
+    // real resource and views behind graph texture
     struct TextureBinding {
         FgTexture texture;
         ID3D12Resource *resource = nullptr;
-        std::array<D3D12_CPU_DESCRIPTOR_HANDLE, 2> views{};
+        std::array<D3D12_CPU_DESCRIPTOR_HANDLE, 2> views{}; // RTV/DSV, two for back buffer (sRGB, UNORM)
         uint32_t width = 0;
         uint32_t height = 0;
     };
@@ -43,6 +45,7 @@ namespace render {
 
     class PassBuilder {
     public:
+        // no clear value keeps previous contents
         void WriteColor(FgTexture texture, std::optional<ClearColor> clear, uint32_t view = 0);
         void WriteDepth(FgTexture texture, std::optional<float> clear);
         void Read(FgTexture texture);
@@ -90,8 +93,10 @@ namespace render {
 
         [[nodiscard]] FgTexture CreateTexture(std::string_view name, const TransientTextureDesc &desc);
 
+        // runs setup now, stores execute for each frame
         void AddPass(std::string_view name, const std::function<void(PassBuilder &)> &setup, ExecuteFn execute);
 
+        // on build only, also acquires transients
         void Compile(TransientTexturePool &pool, rhi::FrameContext &frame);
 
         void Execute(rhi::CommandContext &commands, rhi::FrameContext &frame, std::span<const TextureBinding> imports,
@@ -119,6 +124,7 @@ namespace render {
             std::vector<ColorTarget> colors;
             std::optional<DepthTarget> depth;
         };
+        // reused pool texture in other state, fixed once at next Execute
         struct StateFix {
             ID3D12Resource *resource = nullptr;
             D3D12_RESOURCE_STATES before = D3D12_RESOURCE_STATE_COMMON;
@@ -142,7 +148,7 @@ namespace render {
         std::vector<fg::TextureUse> m_setupUses;
         fg::CompiledGraph m_compiled;
         std::vector<TextureBinding> m_gpuBindings;
-        std::vector<uint32_t> m_gpuShaderIndices;
+        std::vector<uint32_t> m_gpuShaderIndices; // bindless SRV per GPU texture
         std::vector<StateFix> m_stateFixes;
         std::vector<TransientTexturePool::Request> m_poolRequests;
         std::vector<TransientTexturePool::Texture> m_poolTextures;

@@ -18,7 +18,7 @@ namespace render {
     struct FrameInputs {
         D3D12_GPU_VIRTUAL_ADDRESS frameConstants = 0;
         DrawPath drawPath = DrawPath::Instanced;
-        std::span<const std::span<const InstanceDraw>> drawSets;
+        std::span<const std::span<const InstanceDraw>> drawSets; // static lists then moving objects
         std::span<const TransparentObject> transparentObjects;
         ShadowView shadow;
         ImDrawData *ui = nullptr;
