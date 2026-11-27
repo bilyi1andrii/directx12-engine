@@ -67,7 +67,7 @@ Blinn-Phong.
 
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/ed19215a-1fcb-47b2-8e7a-3692467c874c" width="100%" alt="Spot lights in an Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ea607f18-e3ed-43ef-9f68-0665b904fa28" width="100%" alt="Spot lights in an Assisi alley"></td>
     <td width="50%"><img src="https://github.com/user-attachments/assets/8bd4870b-bf2f-49b3-ab39-4979358b8c9b" width="100%" alt="Spot light behind the gate"></td>
   </tr>
 </table>
@@ -77,7 +77,7 @@ Blinn-Phong.
 <table>
   <tr>
     <td width="50%"><img src="https://github.com/user-attachments/assets/4ab0a65b-31f2-4fdc-9888-58e71b16633b" width="100%" alt="Ducks among lily pads"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/a1946f65-1cb8-4aca-8d58-46d8d1bc5b26" width="100%" alt="Transparent pond water"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/46ccb3c9-2890-46c6-9bdc-cc33775ceeec" width="100%" alt="Transparent pond water"></td>
   </tr>
 </table>
 
@@ -85,8 +85,8 @@ Blinn-Phong.
 
 <table>
   <tr>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/0c40c555-3c63-4bc0-9608-61e0bc89547b" width="100%" alt="Kyoto street"></td>
-    <td width="50%"><img src="https://github.com/user-attachments/assets/2f7942d9-0369-4e77-ae7b-84b35afd83cc" width="100%" alt="Kyoto torii"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/42887299-f36b-4848-a0cc-1ac8998290aa" width="100%" alt="Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/b8987fd0-f7f0-4f51-8d99-094e761d5827" width="100%" alt="Kyoto torii"></td>
   </tr>
 </table>
 
