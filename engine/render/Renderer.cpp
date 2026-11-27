@@ -8,12 +8,10 @@
 #include <span>
 
 #include <DirectXMath.h>
-#include <directx/d3dx12.h>
 
 #include "core/Assert.h"
 #include "core/File.h"
 #include "core/Log.h"
-#include "core/ThrowIfFailed.h"
 #include "render/FrameInputs.h"
 #include "rhi/DepthFormat.h"
 #include "render/UiRenderer.h"
@@ -21,12 +19,9 @@
 #include "renderdata/LightPacking.h"
 #include "rhi/UploadRing.h"
 
-#include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 
 namespace render {
-    using core::ThrowIfFailed;
-
     namespace {
         gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
@@ -35,6 +30,7 @@ namespace render {
             const XMMATRIX projection = XMLoadFloat4x4(&view.projection);
 
             gpu::FrameConstants constants{};
+            // HLSL reads column_major, so transpose
             XMStoreFloat4x4(&constants.view, XMMatrixTranspose(viewMatrix));
             XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
             XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(viewMatrix * projection));
@@ -43,8 +39,8 @@ namespace render {
             return constants;
         }
 
-        constexpr uint32_t kBackBufferSrgbView = 0;
-        constexpr uint32_t kBackBufferUnormView = 1;
+        constexpr uint32_t kBackBufferSrgbView = 0;  // for scene, gamma applied on write
+        constexpr uint32_t kBackBufferUnormView = 1; // for ImGui, colours already sRGB
         constexpr uint32_t kRtvCapacity = 64;
         constexpr uint32_t kDsvCapacity = 16;
     } // namespace
@@ -73,7 +69,7 @@ namespace render {
         try {
             m_resources.CreateDefaults();
             m_upload.Submit(m_queue);
-        } catch (...) {
+        } catch (...) { // destructor won't run, so clean up and rethrow
             DestroyResources();
             throw;
         }
@@ -85,7 +81,7 @@ namespace render {
 
     void Renderer::DestroyResources() noexcept {
         try {
-            m_device.LogDeviceRemovedInfo();
+            m_device.LogDeviceRemovedInfo(); // DRED report if device was removed
         } catch (const std::exception &e) {
             core::LogError("Renderer: logging why the device was removed failed: {}", e.what());
         }
@@ -94,6 +90,7 @@ namespace render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
+        // released when frame contexts are destroyed
         m_resources.DestroyAll(CurrentFrame());
         m_transients.DestroyAll(CurrentFrame());
     }
@@ -101,16 +98,16 @@ namespace render {
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "BeginFrame before EndFrame of frame {}", m_frameNumber);
         m_frameStage = FrameStage::Begun;
-        m_settings = settings;
+        m_settings = settings; // read once, UI can't change it mid-frame
 
         rhi::FrameContext &frame = CurrentFrame();
-        frame.WaitAndReset(m_queue);
-        m_upload.ReleaseCompleted(m_queue);
+        frame.WaitAndReset(m_queue);        // waits for frame two frames ago
+        m_upload.ReleaseCompleted(m_queue); // frees finished staging buffers
 
-        m_swapChain.Resize(width, height);
+        m_swapChain.Resize(width, height); // flushes only if size changed
 
         m_context.Begin(frame.CommandAllocator());
-        m_context.SetDescriptorHeap(m_bindlessHeap.Native());
+        m_context.SetDescriptorHeap(m_bindlessHeap.Native()); // before any root signature
         m_profiler.BeginFrame(m_context, m_frameNumber);
     }
 
@@ -126,14 +123,10 @@ namespace render {
 
         m_dynamicInstances.Upload(list, CurrentFrame(), m_bindlessHeap);
         m_drawSets.clear();
-        for (const StaticListHandle handle : staticLists) {
-            m_drawSets.emplace_back(m_resources.StaticList(handle).draws);
-        }
-        m_drawSets.emplace_back(m_dynamicInstances.Draws());
-
         m_transparentObjects.clear();
         for (const StaticListHandle handle : staticLists) {
             const GpuStaticList &staticList = m_resources.StaticList(handle);
+            m_drawSets.emplace_back(staticList.draws);
             for (const StaticTransparentObject &object : staticList.transparent) {
                 m_transparentObjects.push_back({.key = object.key,
                                                 .instanceBufferIndex = staticList.instanceBufferIndex,
@@ -141,11 +134,12 @@ namespace render {
                                                 .viewDepth = ViewDepth(view.view, object.position)});
             }
         }
+        m_drawSets.emplace_back(m_dynamicInstances.Draws());
         m_dynamicInstances.AppendTransparent(list, m_resources, view.view, m_transparentObjects);
         SortBackToFront(m_transparentObjects);
 
         const GraphKey key{.width = m_swapChain.Width(), .height = m_swapChain.Height(), .ui = m_ui != nullptr};
-        if (m_graphKey != key) {
+        if (m_graphKey != key) { // first frame, resize, UI on
             BuildGraph();
             m_graphKey = key;
         }
@@ -197,7 +191,7 @@ namespace render {
 
     std::vector<rhi::GpuFrameTimes> Renderer::FinishGpuTimes() {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "FinishGpuTimes inside frame {}", m_frameNumber);
-        m_queue.Flush();
+        m_queue.Flush(); // bench end, nothing in flight after
         return m_profiler.ReadRemaining();
     }
 
@@ -208,13 +202,14 @@ namespace render {
         m_profiler.EndFrame(m_context);
         m_context.Close();
 
+        // submit uploads first, so their copies finish before this frame's draws
         if (m_upload.IsRecording()) {
             m_upload.Submit(m_queue);
         }
 
         m_queue.ExecuteCommandList(m_context.Native());
         m_swapChain.Present(m_settings.vsync);
-        CurrentFrame().SetFenceValue(m_queue.Signal());
+        CurrentFrame().SetFenceValue(m_queue.Signal()); // slot free once GPU passes this value
         m_device.DrainDxgiMessages();
         ++m_frameNumber;
     }
