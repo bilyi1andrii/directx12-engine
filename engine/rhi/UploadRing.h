@@ -22,8 +22,8 @@ namespace rhi {
     inline constexpr uint64_t kConstantBufferAlignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 
     struct UploadAllocation {
-        std::byte *cpu = nullptr;          // where the CPU writes this piece
-        D3D12_GPU_VIRTUAL_ADDRESS gpu = 0; // the same piece's GPU address
+        std::byte *cpu = nullptr;          // CPU writes here
+        D3D12_GPU_VIRTUAL_ADDRESS gpu = 0; // GPU address of same piece
         ID3D12Resource *resource = nullptr;
         uint64_t offset = 0; // in `resource`
         uint64_t size = 0;   // bytes
@@ -56,7 +56,7 @@ namespace rhi {
 
     class UploadRing {
     public:
-        // one allocation fits in a page: instance data is split into page-sized chunks
+        // allocation must fit a page, so instance data is split into page-sized chunks
         static constexpr uint64_t kPageSize = 2 * 1024 * 1024;
 
         UploadRing(Allocator &allocator, std::wstring_view name);
@@ -79,7 +79,7 @@ namespace rhi {
         [[nodiscard]] uint64_t PageSize() const noexcept { return kPageSize; }
 
     private:
-        // one mapped 2 MB upload buffer, pages grow to a frame's peak and are reused
+        // one mapped 2 MB upload buffer, pages grow to frame peak and are reused
         struct Page {
             Allocation allocation;
             std::byte *cpuBase = nullptr;          // CPU writes

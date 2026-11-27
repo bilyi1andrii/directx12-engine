@@ -45,6 +45,8 @@ namespace render {
 
         constexpr uint32_t kBackBufferSrgbView = 0;
         constexpr uint32_t kBackBufferUnormView = 1;
+        constexpr uint32_t kRtvCapacity = 64;
+        constexpr uint32_t kDsvCapacity = 16;
     } // namespace
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
@@ -54,8 +56,8 @@ namespace render {
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_profiler(m_device.Native(), m_allocator, m_queue.TimestampFrequency()),
-          m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
-          m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
+          m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kRtvCapacity, L"RTV heap"),
+          m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, kDsvCapacity, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),

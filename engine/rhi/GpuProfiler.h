@@ -43,10 +43,13 @@ namespace rhi {
         struct SlotRecord {
             uint64_t frame = 0;
             bool resolved = false;
+
+            // names are looked up when slot is read
             std::array<uint32_t, kMaxGpuScopes> scopeIds{};
             uint32_t scopeCount = 0;
         };
 
+        // each frame slot has own block of queries
         [[nodiscard]] static uint32_t FirstQuery(uint32_t slot) noexcept { return slot * timestamp::kPerFrame; }
 
         [[nodiscard]] GpuFrameTimes ReadSlot(uint32_t slot, const SlotRecord &record) const;

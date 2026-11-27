@@ -20,6 +20,7 @@ namespace rhi {
     using core::ThrowIfFailed;
 
     namespace {
+        // FNV-1a 64-bit hash
         class Hasher {
         public:
             void AddBytes(std::span<const std::byte> bytes) noexcept {
@@ -43,8 +44,8 @@ namespace rhi {
             [[nodiscard]] uint64_t Value() const noexcept { return m_hash; }
 
         private:
-            static constexpr uint64_t kPrime = 1099511628211ull;
-            uint64_t m_hash = 14695981039346656037ull;
+            static constexpr uint64_t kPrime = 1099511628211ull; // FNV prime
+            uint64_t m_hash = 14695981039346656037ull;           // FNV offset basis
         };
 
         [[nodiscard]] D3D12_CULL_MODE NativeCullMode(CullMode mode) noexcept {
@@ -171,6 +172,8 @@ namespace rhi {
 
     ComPtr<ID3D12PipelineState> PipelineCache::Create(const GraphicsPipelineDesc &desc) {
         const std::vector<std::byte> &vertexShader = Shader(desc.vertexShader);
+
+        // no pixel shader gives a depth-only PSO
         const std::vector<std::byte> *pixelShader = desc.pixelShader.empty() ? nullptr : &Shader(desc.pixelShader);
 
         D3D12_RASTERIZER_DESC rasterizer = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
@@ -179,7 +182,7 @@ namespace rhi {
         rasterizer.SlopeScaledDepthBias = desc.depthBias.slopeScaled;
 
         D3D12_DEPTH_STENCIL_DESC depthStencil = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
-        depthStencil.DepthFunc = kDepthComparison;
+        depthStencil.DepthFunc = kDepthComparison; // reversed-Z
         depthStencil.DepthWriteMask = NativeDepthWrite(desc.depth);
         if (desc.depthFormat == DXGI_FORMAT_UNKNOWN) {
             depthStencil.DepthEnable = FALSE;

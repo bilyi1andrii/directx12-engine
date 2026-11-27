@@ -54,7 +54,7 @@ namespace rhi {
                               "Mip {}: {} rows of {} bytes do not fit in {} bytes of pixels", mip, rowCount, rowSize,
                               source.pixels.size());
 
-            // the GPU rows are padded
+            // GPU rows are padded
             for (uint32_t row = 0; row < rowCount; ++row) {
                 staging.WriteRange(footprint.Offset + uint64_t{row} * footprint.Footprint.RowPitch,
                                    source.pixels.subspan(row * source.rowPitch, rowSize));

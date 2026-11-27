@@ -12,10 +12,12 @@ namespace gpu {
     inline constexpr uint32_t kRootFrameConstants = 1; // b1
     inline constexpr uint32_t kRootPassConstants = 2;  // b2
 
-    inline constexpr uint32_t kDrawConstantCount = 4;
+    inline constexpr uint32_t kDrawConstantCount = 4; // 32-bit values in b0
 }
 #else
 
+// DIRECTLY_INDEXED lets shaders read ResourceDescriptorHeap[i]
+// DATA_STATIC_WHILE_SET_AT_EXECUTE promises CBV data won't change while GPU uses it
 #define GLOBAL_ROOT_SIGNATURE                                                                   \
     "RootFlags(ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT"                                              \
     "        | CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED"                                               \

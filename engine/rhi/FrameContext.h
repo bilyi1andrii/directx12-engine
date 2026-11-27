@@ -17,7 +17,7 @@ namespace rhi {
     class BindlessHeap;
     class CommandQueue;
 
-    // the CPU records at most one frame ahead of the GPU
+    // CPU records at most one frame ahead of GPU
     inline constexpr uint32_t kFramesInFlight = 2;
 
     class FrameContext {
@@ -52,7 +52,7 @@ namespace rhi {
 
         ComPtr<ID3D12CommandAllocator> m_commandAllocator;
         UploadRing m_uploadRing;
-        uint64_t m_fenceValue = 0; // set after the frame is submitted
+        uint64_t m_fenceValue = 0; // set after frame is submitted
         std::vector<Allocation> m_deferredReleases;
         std::vector<DeferredIndex> m_deferredIndices;
     };
