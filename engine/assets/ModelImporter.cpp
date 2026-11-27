@@ -39,6 +39,7 @@ namespace assets {
         using render::TextureSource;
         using render::Vertex;
 
+        // triangles only, left-handed like D3D, normals and tangents made if missing
         constexpr unsigned kImportFlags = aiProcess_ValidateDataStructure | aiProcess_Triangulate |
                                           aiProcess_ConvertToLeftHanded | aiProcess_GenSmoothNormals |
                                           aiProcess_CalcTangentSpace;
@@ -70,7 +71,7 @@ namespace assets {
             geometry.indices.reserve(geometry.indices.size() + size_t{mesh.mNumFaces} * 3);
             for (unsigned i = 0; i < mesh.mNumFaces; ++i) {
                 const aiFace &face = mesh.mFaces[i];
-                if (face.mNumIndices != 3) {
+                if (face.mNumIndices != 3) { // points and lines left after triangulation
                     ++skippedFaces;
                     continue;
                 }
@@ -86,6 +87,7 @@ namespace assets {
         }
 
         void AddNodes(const aiNode &node, DirectX::FXMMATRIX parent, std::vector<MeshNode> &nodes) {
+            // Assimp multiplies M*v, DirectXMath v*M, so transpose
             const DirectX::XMMATRIX transform = DirectX::XMMatrixMultiply(
                 DirectX::XMMatrixTranspose(DirectX::XMMATRIX(&node.mTransformation.a1)), parent);
 
@@ -95,7 +97,7 @@ namespace assets {
                 nodes.push_back(meshNode);
             }
             for (unsigned i = 0; i < node.mNumChildren; ++i) {
-                AddNodes(*node.mChildren[i], transform, nodes);
+                AddNodes(*node.mChildren[i], transform, nodes); // children inherit parent transform
             }
         }
 
@@ -116,7 +118,7 @@ namespace assets {
             std::filesystem::path directory;
             std::string_view source;
             ModelData &model;
-            std::unordered_map<const aiTexture *, uint32_t> embeddedIndices{};
+            std::unordered_map<const aiTexture *, uint32_t> embeddedIndices{}; // each embedded image copied once
 
             [[nodiscard]] MaterialDesc Read(const aiMaterial &material) {
                 MaterialDesc desc;
@@ -148,7 +150,7 @@ namespace assets {
                 }
 
                 if (!IsSet(desc.albedo) && !IsSet(desc.metallic) && !IsSet(desc.roughness)) {
-                    ApplyNonPbrRules(material, desc);
+                    ApplyNonPbrRules(material, desc); // older formats like OBJ
                 }
                 ReadAlphaMode(material, desc);
                 return desc;
@@ -185,6 +187,7 @@ namespace assets {
 
             static void ReadAlphaMode(const aiMaterial &material, MaterialDesc &desc) {
                 const bool hasOpacityMap = IsSet(desc.opacityMap);
+                // alpha already in albedo
                 if (hasOpacityMap && desc.opacityMap == desc.albedo) {
                     desc.opacityMap = {};
                 }
@@ -196,11 +199,11 @@ namespace assets {
                                      : mode == "BLEND" ? AlphaMode::Blend
                                                        : AlphaMode::Opaque;
                     material.Get(AI_MATKEY_GLTF_ALPHACUTOFF, desc.alphaCutoff);
-                } else if (desc.baseColor.w < 1.0f) {
+                } else if (desc.baseColor.w < 1.0f) { // see-through without glTF alpha mode
                     desc.alphaMode = AlphaMode::Blend;
                     int twoSided = 0;
                     if (material.Get(AI_MATKEY_TWOSIDED, twoSided) != AI_SUCCESS) {
-                        desc.doubleSided = true;
+                        desc.doubleSided = true; // glass shows back through front unless file says otherwise
                     }
                 } else if (hasOpacityMap) {
                     desc.alphaMode = AlphaMode::Mask;
@@ -213,6 +216,7 @@ namespace assets {
                     desc.baseColor = {1.0f, 1.0f, 1.0f, desc.baseColor.w};
                 }
 
+                // maps found by name next to model, e.g. <material>_n.png
                 const std::pair<TextureSource *, std::string_view> suffixes[] = {
                     {&desc.metallic, "_m"},   {&desc.roughness, "_r"}, {&desc.ambientOcclusion, "_ao"},
                     {&desc.normal, "_n"},     {&desc.emissive, "_e"},  {&desc.height, "_h"},
@@ -245,7 +249,7 @@ namespace assets {
                 }
 
                 if (const aiTexture *texture = scene.GetEmbeddedTexture(path.C_Str())) {
-                    if (texture->mHeight != 0) {
+                    if (texture->mHeight != 0) { // raw pixels, only compressed images supported
                         LogWarning("{}: texture \"{}\" is stored uncompressed in the file, which is not supported",
                                    source, text);
                         return {};

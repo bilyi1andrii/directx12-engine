@@ -7,8 +7,9 @@
 namespace assets {
     std::filesystem::path NormalizedPath(const std::filesystem::path &path) {
         std::error_code ec;
+        // absolute, .. resolved, letter case on disk
         const std::filesystem::path result = std::filesystem::weakly_canonical(path, ec);
-        return ec ? path.lexically_normal() : result;
+        return ec ? path.lexically_normal() : result; // fallback, text only
     }
 
     std::wstring LowerCaseExtension(const std::filesystem::path &path) {

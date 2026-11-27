@@ -22,7 +22,7 @@ namespace assets {
         using render::TextureData;
         using render::TextureMip;
 
-        constexpr size_t kMaxTextureSide = 16384;
+        constexpr size_t kMaxTextureSide = 16384; // D3D12 limit
 
         [[nodiscard]] Error ErrorFromHResult(HRESULT hr, std::string_view source) {
             ErrorCode code = ErrorCode::DecodeFailed;
@@ -55,6 +55,7 @@ namespace assets {
                                                          metadata.width, metadata.height, kMaxTextureSide)});
             }
 
+            // grey image as colour would read red, so expand to RGBA
             if (IsSrgbUsage(usage) && IsSingleChannel(metadata.format)) {
                 DirectX::ScratchImage rgba;
                 const HRESULT hr = DirectX::Convert(image.GetImages(), image.GetImageCount(), image.GetMetadata(),
@@ -66,12 +67,14 @@ namespace assets {
                 image = std::move(rgba);
             }
 
+            // usage decides sRGB or linear, same bytes
             const DXGI_FORMAT format =
                 IsSrgbUsage(usage) ? DirectX::MakeSRGB(metadata.format) : DirectX::MakeLinear(metadata.format);
             [[maybe_unused]] const bool overridden = image.OverrideFormat(format);
             ENGINE_ASSERT_MSG(overridden, "{}: DirectXTex refused format {} for the image", source,
                               static_cast<int>(format));
 
+            // only when file has none and isn't block-compressed
             const bool generateMips = image.GetMetadata().mipLevels == 1 && !DirectX::IsCompressed(format) &&
                                       (metadata.width > 1 || metadata.height > 1);
             if (generateMips) {
@@ -93,7 +96,7 @@ namespace assets {
                 data.mips.push_back(TextureMip{
                     .width = static_cast<uint32_t>(mip.width),
                     .height = static_cast<uint32_t>(mip.height),
-                    .offset = static_cast<uint64_t>(mip.pixels - image.GetPixels()),
+                    .offset = static_cast<uint64_t>(mip.pixels - image.GetPixels()), // into pixels
                     .rowPitch = mip.rowPitch,
                     .slicePitch = mip.slicePitch,
                 });
@@ -125,6 +128,7 @@ namespace assets {
 
         DirectX::ScratchImage image;
         HRESULT hr = S_OK;
+        // file's own sRGB flag ignored, usage decides
         if (extension == L".dds") {
             hr = DirectX::LoadFromDDSFile(path.c_str(), DirectX::DDS_FLAGS_NONE, nullptr, image);
         } else if (extension == L".tga") {

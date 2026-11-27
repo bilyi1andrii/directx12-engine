@@ -75,12 +75,13 @@ namespace assets {
         core::Timer timer;
         const std::expected<render::ModelData, core::Error> data = ImportModel(path);
         if (!data) {
-            return std::unexpected(data.error());
+            return std::unexpected(data.error()); // not cached, fixed file loads next time
         }
 
         const std::wstring name = (path.parent_path().filename() / path.stem()).generic_wstring();
         const std::vector<render::MeshHandle> meshes = m_gpu->CreateMesh(data->mesh, L"Model/" + name);
 
+        // each material made once per model
         std::vector<std::optional<MaterialHandle>> materials(data->materials.size());
         EmbeddedTextures embedded;
         const size_t texturesBefore = TextureCount();
@@ -90,7 +91,7 @@ namespace assets {
         model.parts.reserve(data->nodes.size());
         for (const render::MeshNode &node : data->nodes) {
             const render::SubmeshData &submesh = data->mesh.submeshes[node.submesh];
-            if (submesh.indexCount == 0) {
+            if (submesh.indexCount == 0) { // nothing to draw
                 continue;
             }
             std::optional<MaterialHandle> &material = materials[submesh.materialIndex];
@@ -170,6 +171,7 @@ namespace assets {
             info.opacity = ToByte(material.baseColor.w);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
+            // grey would cut out almost everything, use white
             if (mask == m_gpu->UnloadedTexture()) {
                 core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
                                  "without one.",
@@ -209,6 +211,7 @@ namespace assets {
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
         render::MaterialInfo used = material;
         const render::MaterialInfo defaults;
+        // reset unused fields, so equal-looking materials share handle
         if (used.alphaMode != render::AlphaMode::Mask) {
             used.alphaCutoff = defaults.alphaCutoff;
         }
@@ -240,7 +243,7 @@ namespace assets {
         const uint8_t red = ToByte(material.baseColor.x);
         const uint8_t green = ToByte(material.baseColor.y);
         const uint8_t blue = ToByte(material.baseColor.z);
-        if (red == 0 && green == 0 && blue == 0) {
+        if (red == 0 && green == 0 && blue == 0) { // files often say black for no colour
             return m_gpu->UnloadedTexture();
         }
         return SolidColor(red, green, blue);

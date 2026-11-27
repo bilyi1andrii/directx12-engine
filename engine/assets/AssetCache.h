@@ -54,6 +54,7 @@ namespace assets {
         [[nodiscard]] size_t TextureCount() const noexcept { return m_createdTextures; }
 
     private:
+        // per model load, image index and usage
         using EmbeddedTextures = std::map<std::pair<uint32_t, TextureUsage>, render::TextureHandle>;
 
         struct MaterialInfoHash {
@@ -78,6 +79,7 @@ namespace assets {
         std::unordered_map<uint32_t, render::Model> m_cubeModels;
         std::optional<render::MeshHandle> m_sphereMesh;
         std::unordered_map<uint32_t, render::Model> m_sphereModels;
+        // path and usage, one file can be colour and data
         std::unordered_map<std::wstring, render::TextureHandle> m_textures;
         std::unordered_map<uint32_t, render::TextureHandle> m_solidColors;
         std::unordered_map<render::MaterialInfo, render::MaterialHandle, MaterialInfoHash> m_materials;
