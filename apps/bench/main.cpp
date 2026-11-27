@@ -6,13 +6,13 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <exception>
 #include <expected>
 #include <filesystem>
 #include <format>
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "BenchOptions.h"
@@ -20,9 +20,9 @@
 #include "StressGrid.h"
 #include "assets/AssetCache.h"
 #include "common/AppChecks.h"
+#include "common/AppMain.h"
+#include "common/AppShell.h"
 #include "common/GridSetup.h"
-#include "core/CommandLine.h"
-#include "core/ComScope.h"
 #include "core/Input.h"
 #include "core/Log.h"
 #include "core/Utf8.h"
@@ -109,18 +109,10 @@ namespace {
     }
 
     std::expected<BenchRun, std::string> RunBench(const BenchOptions &options, rhi::ValidationStats &validation) {
-        core::Input input;
-        core::Window window({.title = L"D3D12 Engine - bench", .width = 1280, .height = 720});
-        window.SetCallbacks({
-            .onMessage =
-                [&input](const core::WindowMessage &message) {
-                    input.HandleMessage(message);
-                    return false;
-                },
-        });
-        window.SetFullscreen(true);
-
-        render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
+        apps::AppShell shell({.title = L"D3D12 Engine - bench", .fullscreen = true}, validation);
+        core::Input &input = shell.Input();
+        core::Window &window = shell.Window();
+        render::Renderer &renderer = shell.Renderer();
         if (!renderer.TearingSupported()) {
             LogWarning("Tearing not supported: Present without vsync may still wait for the display");
         }
@@ -280,35 +272,16 @@ namespace {
         }
         return fields;
     }
-} // namespace
 
-int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
-    apps::RouteCrtAssertsToStderr();
-    try {
-        const std::expected<BenchOptions, std::string> options = ParseBenchOptions(core::CommandLineArgs());
-        if (!options) {
-            LogError("{}", options.error());
-            LogInfo("{}", kBenchUsage);
-            return apps::kExitBadCommandLine;
-        }
-        LogInfo("Bench: {}, grid {}, --count {}, {}, results in '{}'", core::ToUtf8(BenchSceneName(*options).native()),
-                apps::ToString(options->gridMode), options->count,
-                options->drawPath == render::DrawPath::Instanced ? "instanced" : "non-instanced",
-                core::ToUtf8(options->outDir.native()));
-        const chrono::system_clock::time_point started = chrono::system_clock::now();
-
-        const core::ComScope com;
-
-        rhi::ValidationStats validation;
-        const std::expected<BenchRun, std::string> outcome = RunBench(*options, validation);
-        apps::LogValidationSummary(validation);
+    int FinishBench(const BenchOptions &options, const std::expected<BenchRun, std::string> &outcome,
+                    chrono::system_clock::time_point started, [[maybe_unused]] const rhi::ValidationStats &validation) {
         if (!outcome) {
             LogError("{}; nothing written", outcome.error());
             return kExitBenchFailed;
         }
         const BenchRun &run = *outcome;
 
-        const uint64_t expectedFrames = uint64_t{options->warmupFrames} + options->frames;
+        const uint64_t expectedFrames = uint64_t{options.warmupFrames} + options.frames;
         if (run.result.framesRendered != expectedFrames) {
             LogError("Bench stopped early: {} of {} frames rendered; nothing written", run.result.framesRendered,
                      expectedFrames);
@@ -323,9 +296,9 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 
         const std::string timestamp = bench::FolderTimestamp(started);
         const std::vector<RunField> fields =
-            RunInfo(*options, run, timestamp, medianFrameMs, medianRecordMs, medianGpuMs);
-        const std::expected<fs::path, std::string> folder = bench::WriteResults(
-            options->outDir, BenchSceneName(*options), timestamp, run.gpuPasses, run.timings, fields);
+            RunInfo(options, run, timestamp, medianFrameMs, medianRecordMs, medianGpuMs);
+        const std::expected<fs::path, std::string> folder =
+            bench::WriteResults(options.outDir, BenchSceneName(options), timestamp, run.gpuPasses, run.timings, fields);
         if (!folder) {
             LogError("Results not written: {}", folder.error());
             return kExitBenchFailed;
@@ -337,8 +310,37 @@ int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLin
 #else
         return run.result.exitCode;
 #endif
-    } catch (const std::exception &e) {
-        LogError("{}", e.what());
-        return -1;
     }
+} // namespace
+
+int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
+    std::optional<BenchOptions> options;
+    chrono::system_clock::time_point started;
+    std::optional<std::expected<BenchRun, std::string>> outcome;
+    return apps::AppMain({
+        .usage = kBenchUsage,
+        .errorDialog = false,
+        .parse = [&options](std::span<const std::string> args) -> std::expected<apps::RunKind, std::string> {
+            std::expected<BenchOptions, std::string> parsed = ParseBenchOptions(args);
+            if (!parsed) {
+                return std::unexpected(std::move(parsed.error()));
+            }
+            options = std::move(*parsed);
+            return apps::RunKind::Unattended;
+        },
+        .run =
+            [&](rhi::ValidationStats &validation) {
+                LogInfo("Bench: {}, grid {}, --count {}, {}, results in '{}'",
+                        core::ToUtf8(BenchSceneName(*options).native()), apps::ToString(options->gridMode),
+                        options->count,
+                        options->drawPath == render::DrawPath::Instanced ? "instanced" : "non-instanced",
+                        core::ToUtf8(options->outDir.native()));
+                started = chrono::system_clock::now();
+                outcome = RunBench(*options, validation);
+            },
+        .finish =
+            [&](const rhi::ValidationStats &validation) {
+                return FinishBench(*options, *outcome, started, validation);
+            },
+    });
 }

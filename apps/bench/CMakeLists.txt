@@ -29,6 +29,7 @@ target_compile_definitions(bench PRIVATE "ENGINE_BUILD_CONFIG=\"$<CONFIG>\"")
 
 target_link_libraries(bench PRIVATE
         app_common
+        app_shell
         bench_output
         engine_assets
         engine_core

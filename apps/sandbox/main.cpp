@@ -26,9 +26,9 @@
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
 #include "common/AppChecks.h"
+#include "common/AppMain.h"
+#include "common/AppShell.h"
 #include "common/GridSetup.h"
-#include "core/CommandLine.h"
-#include "core/ComScope.h"
 #include "core/File.h"
 #include "core/Log.h"
 #include "core/Timer.h"
@@ -48,7 +48,6 @@
 namespace fs = std::filesystem;
 namespace chrono = std::chrono;
 
-using core::LogError;
 using core::LogInfo;
 
 ENGINE_EXPORT_AGILITY_SDK()
@@ -63,40 +62,14 @@ namespace {
         }
     }
 
-    struct DroppedFile {
-        fs::path path;
-        int32_t x = 0;
-        int32_t y = 0;
-    };
-
     apps::RunResult RunSandbox(const SandboxOptions &options, rhi::ValidationStats &validation) {
         core::Timer initTimer;
 
-        core::Input input;
-        std::vector<DroppedFile> droppedFiles;
-
-        core::Window window({.title = L"D3D12 Engine", .width = 1280, .height = 720});
-
-        // After the window (its backend needs the HWND), before the renderer (its ImGui backend needs the context)
-        ui::DebugUI ui(window);
-
-        window.SetCallbacks({
-            .onMessage =
-                [&input](const core::WindowMessage &message) {
-                    const bool handledByUi = ui::DebugUI::HandleMessage(message);
-                    input.HandleMessage(message);
-                    return handledByUi;
-                },
-            .onFilesDropped =
-                [&droppedFiles](std::span<const fs::path> paths, int32_t x, int32_t y) {
-                    for (const fs::path &path : paths) {
-                        droppedFiles.push_back({.path = path, .x = x, .y = y});
-                    }
-                },
-        });
-
-        render::Renderer renderer(window.Handle(), window.Width(), window.Height(), validation);
-        renderer.EnableUi();
+        apps::AppShell shell({.title = L"D3D12 Engine", .ui = true}, validation);
+        core::Input &input = shell.Input();
+        core::Window &window = shell.Window();
+        ui::DebugUI &ui = shell.Ui();
+        render::Renderer &renderer = shell.Renderer();
 
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 renderer.TearingSupported() ? "supported" : "not supported");
@@ -308,7 +281,7 @@ namespace {
 
             input.EndFrame();
 
-            for (const DroppedFile &drop : std::exchange(droppedFiles, {})) {
+            for (const apps::DroppedFile &drop : shell.TakeDroppedFiles()) {
                 const scene::Ray ray = pickRayAt(drop.x, drop.y);
                 sandbox::LoadDroppedFile(drop.path, scene::IntersectHorizontalPlane(ray, apps::kGridTop),
                                          renderer.Resources(), assets, scene, nextModelX, grid, models);
@@ -355,35 +328,27 @@ namespace {
 } // namespace
 
 int WINAPI wWinMain(HINSTANCE /*hInst*/, HINSTANCE /*prevInst*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
-    bool smokeTest = false;
-    try {
-        const std::expected<SandboxOptions, std::string> options = ParseSandboxOptions(core::CommandLineArgs());
-        if (!options) {
-            LogError("{}", options.error());
-            LogInfo("{}", kSandboxUsage);
-            return apps::kExitBadCommandLine;
-        }
-        smokeTest = options->smokeTestFrames.has_value();
-        if (smokeTest) {
-            apps::RouteCrtAssertsToStderr();
-        }
-
-        const core::ComScope com;
-
-        rhi::ValidationStats validation;
-        const apps::RunResult run = RunSandbox(*options, validation);
-        apps::LogValidationSummary(validation);
-
-        const int exitCode =
-            smokeTest ? apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation) : run.exitCode;
-        LogInfo("Exiting with code {}", exitCode);
-        return exitCode;
-    } catch (const std::exception &e) {
-        LogError("{}", e.what());
-        // No dialog in a smoke test: it would block the unattended run
-        if (!smokeTest) {
-            MessageBoxA(nullptr, e.what(), "Error", MB_OK | MB_ICONERROR);
-        }
-        return -1;
-    }
+    std::optional<SandboxOptions> options;
+    apps::RunResult run;
+    return apps::AppMain({
+        .usage = kSandboxUsage,
+        .errorDialog = true,
+        .parse = [&options](std::span<const std::string> args) -> std::expected<apps::RunKind, std::string> {
+            std::expected<SandboxOptions, std::string> parsed = ParseSandboxOptions(args);
+            if (!parsed) {
+                return std::unexpected(std::move(parsed.error()));
+            }
+            options = std::move(*parsed);
+            return options->smokeTestFrames ? apps::RunKind::Unattended : apps::RunKind::Interactive;
+        },
+        .run = [&](rhi::ValidationStats &validation) { run = RunSandbox(*options, validation); },
+        .finish =
+            [&](const rhi::ValidationStats &validation) {
+                const int exitCode = options->smokeTestFrames
+                                         ? apps::SmokeTestExitCode(*options->smokeTestFrames, run, validation)
+                                         : run.exitCode;
+                LogInfo("Exiting with code {}", exitCode);
+                return exitCode;
+            },
+    });
 }

@@ -35,6 +35,7 @@ engine_target_defaults(sandbox)
 
 target_link_libraries(sandbox PRIVATE
         app_common
+        app_shell
         sandbox_save
         engine_assets
         engine_core
