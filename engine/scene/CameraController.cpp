@@ -12,6 +12,7 @@ namespace scene {
         if (!allowed.mouse || !input.IsKeyDown(VK_RBUTTON)) {
             return;
         }
+        // each wheel drag scales speed by kSpeedStep
         m_speedScale =
             std::clamp(m_speedScale * std::pow(kSpeedStep, input.WheelDelta()), kMinSpeedScale, kMaxSpeedScale);
         const core::Int2 delta = input.RawMouseDelta();

@@ -15,7 +15,7 @@ namespace scene {
     class CameraController {
     public:
         static constexpr float kRotationSpeed = 0.01f;
-        static constexpr float kMoveSpeed = 0.0125f;
+        static constexpr float kMoveSpeed = 0.0125f; // units per millisecond
         static constexpr float kSpeedStep = 1.25f;
         static constexpr float kMinSpeedScale = 1.0f / 8.0f;
         static constexpr float kMaxSpeedScale = 8.0f;

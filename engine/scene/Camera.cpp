@@ -21,6 +21,7 @@ namespace scene {
 
     XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio) {
         const float fovRadians = XMConvertToRadians(camera.fovDegrees);
+        // far and near swapped for reversed-Z
         return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.farZ, camera.nearZ);
     }
 
@@ -48,7 +49,7 @@ namespace scene {
         camera.rotation.z += roll;
 
         constexpr float kEps = 0.001f;
-        constexpr float kMaxPitch = XM_PIDIV2 - kEps;
+        constexpr float kMaxPitch = XM_PIDIV2 - kEps; // at 90 degrees forward and up are parallel
         camera.rotation.x = camera.rotation.x > kMaxPitch ? kMaxPitch : camera.rotation.x;
         camera.rotation.x = camera.rotation.x < -kMaxPitch ? -kMaxPitch : camera.rotation.x;
     }

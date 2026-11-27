@@ -16,6 +16,7 @@ namespace scene {
 
     CameraPose EvaluateCameraPath(std::span<const CameraKeyframe> keyframes, uint32_t frame) {
         ENGINE_ASSERT_MSG(!keyframes.empty(), "Camera path has no keyframes");
+        // first keyframe after frame
         const auto next = std::ranges::upper_bound(keyframes, frame, {}, &CameraKeyframe::frame);
         if (next == keyframes.begin()) {
             return {.position = keyframes.front().position, .target = keyframes.front().target};

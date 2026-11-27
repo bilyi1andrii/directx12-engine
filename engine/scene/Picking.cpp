@@ -27,10 +27,12 @@ namespace scene {
     }
 
     std::optional<float> IntersectRayBox(const Ray &ray, const XMFLOAT4X4 &world, const render::Aabb &box) {
+        // box is axis-aligned in part's local space
         const XMMATRIX toLocal = XMMatrixInverse(nullptr, XMLoadFloat4x4(&world));
         XMFLOAT3 origin{};
         XMFLOAT3 direction{};
         XMStoreFloat3(&origin, XMVector3TransformCoord(XMLoadFloat3(&ray.origin), toLocal));
+        // direction not normalized, so t stays world distance
         XMStoreFloat3(&direction, XMVector3TransformNormal(XMLoadFloat3(&ray.direction), toLocal));
         const std::array origins{origin.x, origin.y, origin.z};
         const std::array directions{direction.x, direction.y, direction.z};
@@ -70,6 +72,7 @@ namespace scene {
             const SceneObject &object = objects[index];
             for (uint32_t i = object.firstEntity; i < object.firstEntity + object.entityCount; ++i) {
                 const std::optional<float> distance = IntersectRayBox(ray, transforms[i].world, parts[i].bounds);
+                // ray starting inside box ignores that box
                 if (distance && *distance > 0.0f && *distance < nearestDistance) {
                     nearest = ObjectId{.index = index};
                     nearestDistance = *distance;
