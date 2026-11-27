@@ -4,6 +4,7 @@
 // The files a benchmark run writes: frames.csv with every measured frame,
 // and run.txt with the settings and the medians.
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -13,6 +14,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bench {
     inline constexpr size_t kMaxGpuPasses = 16;
@@ -30,6 +32,17 @@ namespace bench {
     };
 
     inline constexpr std::string_view kEngineName = "dx12";
+
+    template <typename Column> double Median(std::span<const FrameTiming> timings, Column column) {
+        std::vector<double> values;
+        values.reserve(timings.size());
+        for (const FrameTiming &timing : timings) {
+            values.push_back(column(timing));
+        }
+        const auto middle = values.begin() + static_cast<std::ptrdiff_t>(values.size() / 2);
+        std::ranges::nth_element(values, middle);
+        return *middle;
+    }
 
     [[nodiscard]] std::string GpuPassColumn(std::string_view passName);
 

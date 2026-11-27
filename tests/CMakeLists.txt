@@ -10,6 +10,7 @@ add_executable(engine_tests
         CameraTests.cpp
         FileTests.cpp
         FrameGraphCompilerTests.cpp
+        GpuTimeCollectorTests.cpp
         GpuTimesTests.cpp
         GridLayoutTests.cpp
         InstanceChunksTests.cpp
