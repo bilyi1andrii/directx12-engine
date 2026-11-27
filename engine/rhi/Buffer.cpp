@@ -4,6 +4,8 @@
 #include <string>
 #include <utility>
 
+#include <directx/d3dx12.h>
+
 #include "core/Assert.h"
 #include "rhi/CommandContext.h"
 #include "rhi/FrameContext.h"
@@ -11,23 +13,6 @@
 #include "rhi/UploadRing.h"
 
 namespace rhi {
-    namespace {
-        D3D12_RESOURCE_DESC BufferDesc(uint64_t size) {
-            return {
-                .Dimension = D3D12_RESOURCE_DIMENSION_BUFFER,
-                .Alignment = 0,
-                .Width = size,
-                .Height = 1,
-                .DepthOrArraySize = 1,
-                .MipLevels = 1,
-                .Format = DXGI_FORMAT_UNKNOWN,
-                .SampleDesc = {.Count = 1, .Quality = 0},
-                .Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                .Flags = D3D12_RESOURCE_FLAG_NONE,
-            };
-        }
-    } // namespace
-
     Buffer::~Buffer() {
         ENGINE_ASSERT_MSG(!IsValid() || std::uncaught_exceptions() > 0,
                           "Buffer of {} bytes destroyed without Destroy()", m_size);
@@ -35,7 +20,6 @@ namespace rhi {
 
     void Buffer::Destroy(FrameContext &frame) {
         frame.DeferRelease(std::move(m_allocation));
-        m_allocation = nullptr;
         m_size = 0;
     }
 
@@ -45,8 +29,9 @@ namespace rhi {
         buffer.m_size = sizeBytes;
 
         const std::wstring bufferName(name);
-        buffer.m_allocation = allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, BufferDesc(buffer.m_size),
-                                                       D3D12_RESOURCE_STATE_COMMON, nullptr, bufferName);
+        buffer.m_allocation =
+            allocator.CreateResource(D3D12_HEAP_TYPE_DEFAULT, CD3DX12_RESOURCE_DESC::Buffer(sizeBytes),
+                                     D3D12_RESOURCE_STATE_COMMON, nullptr, bufferName);
 
         staging = upload.AllocateStaging(buffer.m_size, bufferName + L" upload");
 

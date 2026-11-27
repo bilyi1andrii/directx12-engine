@@ -23,12 +23,14 @@ namespace rhi {
 
         void ExecuteCommandList(ID3D12CommandList *commandList);
 
+        // adds a command to the queue to increment the fence value
         [[nodiscard]] uint64_t Signal();
 
         [[nodiscard]] bool IsFenceComplete(uint64_t fenceValue) const;
 
         void WaitForFenceValue(uint64_t fenceValue);
 
+        // waits until the GPU is idle: on resize, shutdown and upload completion
         void Flush();
 
         [[nodiscard]] uint64_t TimestampFrequency() const;

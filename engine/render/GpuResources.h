@@ -69,8 +69,8 @@ namespace render {
         friend class Renderer;
 
     public:
-        GpuResources(rhi::Allocator &allocator, rhi::UploadContext &upload, rhi::CommandQueue &queue,
-                     rhi::BindlessHeap &bindlessHeap) noexcept;
+        GpuResources(rhi::NativeDevice *device, rhi::Allocator &allocator, rhi::UploadContext &upload,
+                     rhi::CommandQueue &queue, rhi::BindlessHeap &bindlessHeap) noexcept;
         ~GpuResources() override;
 
         GpuResources(const GpuResources &) = delete;
@@ -111,6 +111,7 @@ namespace render {
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
                                                             std::wstring_view name);
 
+        rhi::NativeDevice *m_device;
         rhi::Allocator &m_allocator;
         rhi::UploadContext &m_upload;
         rhi::CommandQueue &m_queue;

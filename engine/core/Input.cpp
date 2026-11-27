@@ -6,7 +6,10 @@
 
 namespace core {
     namespace {
+        // set for the right-hand Ctrl and Alt
         constexpr LPARAM kExtendedKeyBit = LPARAM{1} << 24;
+
+        // set on auto-repeat: the key was already down
         constexpr LPARAM kPreviousStateBit = LPARAM{1} << 30;
 
         uint8_t ResolveSidedKey(WPARAM wParam, LPARAM lParam) {

@@ -8,7 +8,6 @@
 #include <directx/d3dx12.h>
 
 #include "core/Assert.h"
-#include "core/ThrowIfFailed.h"
 #include "rhi/BindlessHeap.h"
 #include "rhi/CommandContext.h"
 #include "rhi/FrameContext.h"
@@ -16,15 +15,13 @@
 #include "rhi/UploadRing.h"
 
 namespace rhi {
-    using core::ThrowIfFailed;
-
     Texture::~Texture() {
         ENGINE_ASSERT_MSG(!IsValid() || std::uncaught_exceptions() > 0,
                           "Texture with bindless index {} destroyed without Destroy()", m_bindlessIndex);
     }
 
-    Texture Texture::Create(Allocator &allocator, UploadContext &upload, BindlessHeap &heap, DXGI_FORMAT format,
-                            std::span<const TextureMipData> mips, std::wstring_view name) {
+    Texture Texture::Create(NativeDevice *device, Allocator &allocator, UploadContext &upload, BindlessHeap &heap,
+                            DXGI_FORMAT format, std::span<const TextureMipData> mips, std::wstring_view name) {
         const auto mipCount = static_cast<uint32_t>(mips.size());
         const D3D12_RESOURCE_DESC desc =
             CD3DX12_RESOURCE_DESC::Tex2D(format, mips[0].width, mips[0].height, 1, static_cast<UINT16>(mipCount));
@@ -39,8 +36,8 @@ namespace rhi {
         std::array<UINT, D3D12_REQ_MIP_LEVELS> rowCounts{};
         std::array<UINT64, D3D12_REQ_MIP_LEVELS> rowSizes{};
         UINT64 totalBytes = 0;
-        ComPtr<ID3D12Device> device;
-        ThrowIfFailed(resource->GetDevice(IID_PPV_ARGS(&device)));
+
+        // where each mip and row go in staging, GPU wants rows 256-byte aligned
         device->GetCopyableFootprints(&desc, 0, mipCount, 0, footprints.data(), rowCounts.data(), rowSizes.data(),
                                       &totalBytes);
 
@@ -57,6 +54,7 @@ namespace rhi {
                               "Mip {}: {} rows of {} bytes do not fit in {} bytes of pixels", mip, rowCount, rowSize,
                               source.pixels.size());
 
+            // the GPU rows are padded
             for (uint32_t row = 0; row < rowCount; ++row) {
                 staging.WriteRange(footprint.Offset + uint64_t{row} * footprint.Footprint.RowPitch,
                                    source.pixels.subspan(row * source.rowPitch, rowSize));
@@ -76,7 +74,6 @@ namespace rhi {
     void Texture::Destroy(FrameContext &frame, BindlessHeap &heap) {
         frame.DeferFree(heap, m_bindlessIndex);
         frame.DeferRelease(std::move(m_allocation));
-        m_allocation = nullptr;
         m_bindlessIndex = 0;
     }
 } // namespace rhi

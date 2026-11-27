@@ -59,8 +59,8 @@ namespace render {
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
-          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_shadow(m_pipelines), m_opaque(m_pipelines),
-          m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
+          m_resources(m_device.Native(), m_allocator, m_upload, m_queue, m_bindlessHeap), m_shadow(m_pipelines),
+          m_opaque(m_pipelines), m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,

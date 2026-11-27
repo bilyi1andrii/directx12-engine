@@ -37,8 +37,8 @@ namespace core {
         void OnMouseButton(const WindowMessage &message, uint8_t button, bool down);
         void OnRawInput(LPARAM lParam);
 
-        std::bitset<256> m_down;
-        std::bitset<256> m_pressed;
+        std::bitset<256> m_down; // held down
+        std::bitset<256> m_pressed; // went down this frame
         Int2 m_mousePosition;
         Int2 m_rawMouseDelta;
         float m_wheelDelta = 0.0f;

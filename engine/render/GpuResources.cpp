@@ -22,9 +22,9 @@
 #include "rhi/UploadContext.h"
 
 namespace render {
-    GpuResources::GpuResources(rhi::Allocator &allocator, rhi::UploadContext &upload, rhi::CommandQueue &queue,
-                               rhi::BindlessHeap &bindlessHeap) noexcept
-        : m_allocator(allocator), m_upload(upload), m_queue(queue), m_bindlessHeap(bindlessHeap) {}
+    GpuResources::GpuResources(rhi::NativeDevice *device, rhi::Allocator &allocator, rhi::UploadContext &upload,
+                               rhi::CommandQueue &queue, rhi::BindlessHeap &bindlessHeap) noexcept
+        : m_device(device), m_allocator(allocator), m_upload(upload), m_queue(queue), m_bindlessHeap(bindlessHeap) {}
 
     GpuResources::~GpuResources() {
         ENGINE_ASSERT_MSG(m_textures.empty() && m_geometries.empty() && m_staticLists.empty(),
@@ -76,9 +76,9 @@ namespace render {
         }
 
         PrepareUpload(pixels.size_bytes());
-        rhi::Texture texture =
-            rhi::Texture::Create(m_allocator, m_upload, m_bindlessHeap, static_cast<DXGI_FORMAT>(data.dxgiFormat),
-                                 std::span(mips).first(data.mips.size()), name);
+        rhi::Texture texture = rhi::Texture::Create(m_device, m_allocator, m_upload, m_bindlessHeap,
+                                                    static_cast<DXGI_FORMAT>(data.dxgiFormat),
+                                                    std::span(mips).first(data.mips.size()), name);
         const TextureHandle handle{.index = texture.BindlessIndex()};
         m_textures.push_back(std::move(texture));
         return handle;

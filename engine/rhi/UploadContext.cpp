@@ -3,8 +3,6 @@
 #include <string>
 #include <utility>
 
-#include <directx/d3dx12.h>
-
 #include "core/ThrowIfFailed.h"
 #include "rhi/CommandQueue.h"
 
@@ -29,23 +27,10 @@ namespace rhi {
     }
 
     UploadAllocation UploadContext::AllocateStaging(uint64_t sizeBytes, std::wstring_view name) {
-        Allocation staging =
-            m_allocator->CreateResource(D3D12_HEAP_TYPE_UPLOAD, CD3DX12_RESOURCE_DESC::Buffer(sizeBytes),
-                                        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, name);
-
-        ID3D12Resource *resource = staging->GetResource();
-        void *mapped = nullptr;
-        const D3D12_RANGE noRead{.Begin = 0, .End = 0};
-        ThrowIfFailed(resource->Map(0, &noRead, &mapped));
-
-        const UploadAllocation allocation{.cpu = static_cast<std::byte *>(mapped),
-                                          .gpu = resource->GetGPUVirtualAddress(),
-                                          .resource = resource,
-                                          .offset = 0,
-                                          .size = sizeBytes};
-        m_staging.push_back(std::move(staging));
+        UploadBuffer staging = CreateUploadBuffer(*m_allocator, sizeBytes, name);
+        m_staging.push_back(std::move(staging.allocation));
         m_stagingBytes += sizeBytes;
-        return allocation;
+        return staging.whole;
     }
 
     void UploadContext::Submit(CommandQueue &queue) {
