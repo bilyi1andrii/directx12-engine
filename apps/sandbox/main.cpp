@@ -1,30 +1,27 @@
 // The sandbox: a window with the cube grid, models and lights to look around, select and move, and the debug UI. It
 // saves the scene when it closes.
 
-#include <format>
-
-#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <cstddef>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <iterator>
 #include <optional>
-#include <set>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "FrameTimeAverages.h"
+#include "SandboxGrid.h"
 #include "SandboxLights.h"
+#include "SandboxModels.h"
 #include "SandboxOptions.h"
+#include "SandboxSaving.h"
 #include "SandboxScene.h"
 #include "assets/AssetCache.h"
+#include "assets/ModelImporter.h"
 #include "common/AppChecks.h"
 #include "common/AppMain.h"
 #include "common/AppShell.h"
@@ -62,6 +59,16 @@ namespace {
         }
     }
 
+    void LoadDroppedFile(const fs::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
+                         sandbox::SandboxGrid &grid, sandbox::SandboxModels &models) {
+        LogInfo("Dropped {}: loading...", core::ToUtf8(path.filename().wstring()));
+        if (assets::IsModelFile(path)) {
+            models.AddDropped(path, dropPoint);
+        } else {
+            grid.LoadDroppedTexture(path);
+        }
+    }
+
     apps::RunResult RunSandbox(const SandboxOptions &options, rhi::ValidationStats &validation) {
         core::Timer initTimer;
 
@@ -79,7 +86,7 @@ namespace {
             LogInfo("Smoke test: rendering {} frames", *smokeTestFrames);
         }
 
-        const bool keepScene = !smokeTestFrames && !options.modelPath;
+        const bool keepScene = sandbox::UsesSave(options);
         const std::optional<sandbox::SandboxSave> saved = keepScene ? sandbox::ReadSave() : std::nullopt;
 
         scene::Camera camera;
@@ -94,59 +101,9 @@ namespace {
         assets::AssetCache assets(renderer.Resources());
         scene::Scene scene;
 
-        const fs::path gridTexturePath =
-            options.texturePath.value_or(core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
-        const uint32_t gridCount =
-            options.gridCount.value_or(saved && saved->gridCount > 0 ? saved->gridCount : apps::kDefaultGridCount);
-        const apps::GridMode gridMode = options.gridMode.value_or(
-            saved ? apps::ParseGridMode(saved->gridMode).value_or(apps::GridMode::Dynamic) : apps::GridMode::Dynamic);
-        const sandbox::GridObjects grid = sandbox::AddGrid(
-            scene, assets, assets.LoadTexture(gridTexturePath, assets::TextureUsage::Diffuse), gridMode, gridCount);
-        if (saved && !saved->gridCubes.empty()) {
-            if (grid.mode == apps::GridMode::Dynamic && saved->gridCount == gridCount) {
-                for (const sandbox::SavedGridCube &cube : saved->gridCubes) {
-                    if (cube.index < grid.side * grid.side) {
-                        scene.SetObjectWorld({.index = grid.firstObject + cube.index}, cube.world);
-                    }
-                }
-            } else {
-                LogInfo("Scene: {} saved grid cubes left out (they belong to a dynamic grid of {} cubes)",
-                        saved->gridCubes.size(), saved->gridCount);
-            }
-        }
-        std::vector<render::StaticListHandle> staticLists;
-        if (grid.mode == apps::GridMode::Static) {
-            render::RenderList staticObjects;
-            scene::Extract(scene, staticObjects, scene::Mobility::Static);
-            staticLists.push_back(renderer.Resources().CreateStaticList(staticObjects, L"Grid/Instances"));
-        }
-
-        std::vector<sandbox::PlacedModel> models;
-        if (options.modelPath) {
-            if (std::optional<sandbox::PlacedModel> placed =
-                    sandbox::AddModel(scene, assets, *options.modelPath, 0.0f, 0.0f)) {
-                models.push_back(std::move(*placed));
-            }
-        } else if (!smokeTestFrames) {
-            std::set<fs::path> savedPaths;
-            if (saved) {
-                for (const sandbox::SavedModel &model : saved->models) {
-                    savedPaths.insert(model.path);
-                    if (std::optional<sandbox::PlacedModel> placed =
-                            sandbox::AddModel(scene, assets, model.path, 0.0f, 0.0f, model.world)) {
-                        models.push_back(std::move(*placed));
-                    }
-                }
-            }
-            std::vector<fs::path> newModels = sandbox::FindAssetModels();
-            std::erase_if(newModels,
-                          [&savedPaths](const fs::path &path) { return savedPaths.contains(path.lexically_normal()); });
-            const std::optional<float> firstX = sandbox::NextFreeModelX(scene, models);
-            std::ranges::move(sandbox::AddModels(scene, assets, newModels, firstX), std::back_inserter(models));
-        }
-        const size_t modelsShown = models.size();
-        float nextModelX =
-            std::max(sandbox::kModelSpacing, sandbox::NextFreeModelX(scene, models).value_or(sandbox::kModelSpacing));
+        sandbox::SandboxGrid grid(scene, assets, renderer.Resources(), options, saved);
+        sandbox::SandboxModels models(scene, assets);
+        sandbox::AddDefaultModels(models, options, saved);
 
         const auto addCube = [&scene, &assets](std::string name, render::TextureHandle texture, float x, float z) {
             DirectX::XMFLOAT4X4 world{};
@@ -154,26 +111,20 @@ namespace {
             return scene.AddObject(std::move(name), assets.CubeModel(texture), world, scene::Mobility::Movable);
         };
         std::optional<scene::ObjectId> spinningCube;
-        if (modelsShown == 0) {
+        if (models.Empty()) {
             spinningCube = addCube("Spinning cube",
                                    assets.LoadTexture(core::ExecutableDirectory() / sandbox::kSpinningCubeTexture,
                                                       assets::TextureUsage::Diffuse),
                                    0.0f, 0.0f);
         }
-        const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
+        const float cubesZ = models.Empty() ? 0.0f : sandbox::kModelSize / 2 + 3.0f;
         const std::array namedCubes{
             addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ),
             addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ),
             addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f),
         };
         if (saved) {
-            for (const sandbox::SavedCube &savedCube : saved->cubes) {
-                for (const scene::ObjectId id : namedCubes) {
-                    if (scene.Object(id).name == savedCube.name) {
-                        scene.SetObjectWorld(id, savedCube.world);
-                    }
-                }
-            }
+            sandbox::RestoreNamedCubes(scene, namedCubes, *saved);
         }
         sandbox::AddDefaultLights(scene, assets, cubesZ);
 
@@ -184,7 +135,7 @@ namespace {
 
         render::RendererSettings settings;
 
-        const std::string sceneInfo = std::format("grid {} x {}, {}", grid.side, grid.side, apps::ToString(grid.mode));
+        const std::string sceneInfo = grid.Describe();
 
         core::FrameTimer frameTimer;
         sandbox::FrameTimeAverages frameTimes;
@@ -283,8 +234,7 @@ namespace {
 
             for (const apps::DroppedFile &drop : shell.TakeDroppedFiles()) {
                 const scene::Ray ray = pickRayAt(drop.x, drop.y);
-                sandbox::LoadDroppedFile(drop.path, scene::IntersectHorizontalPlane(ray, apps::kGridTop),
-                                         renderer.Resources(), assets, scene, nextModelX, grid, models);
+                LoadDroppedFile(drop.path, scene::IntersectHorizontalPlane(ray, apps::kGridTop), grid, models);
             }
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
@@ -292,7 +242,7 @@ namespace {
             renderList.Clear();
             scene::Extract(scene, renderList, scene::Mobility::Movable);
             scene::Extract(scene, lights);
-            renderer.Render(frameView, lights, renderList, staticLists, uiDrawData);
+            renderer.Render(frameView, lights, renderList, grid.StaticLists(), uiDrawData);
             const chrono::duration<double, std::milli> recordMs = chrono::steady_clock::now() - recordStart;
             frameTimes.Add(frameTimer.DeltaSeconds(), recordMs.count(), renderer.GpuTimes());
             renderer.EndFrame();
@@ -314,13 +264,7 @@ namespace {
         }
 
         if (keepScene) {
-            const fs::path file = sandbox::SavePath();
-            if (const auto written = sandbox::WriteSandboxSave(
-                    file, sandbox::MakeSave(scene, grid, gridCount, namedCubes, models), sandbox::RepositoryRoot())) {
-                LogInfo("Scene saved: {}", core::ToUtf8(file.native()));
-            } else {
-                core::LogWarning("Scene not saved: {}", written.error());
-            }
+            sandbox::WriteSave(scene, grid, namedCubes, models);
         }
 
         return {.exitCode = window.ExitCode(), .framesRendered = framesRendered};

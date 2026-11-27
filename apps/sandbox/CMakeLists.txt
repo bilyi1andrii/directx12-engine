@@ -18,10 +18,16 @@ add_executable(sandbox
         main.cpp
         FrameTimeAverages.cpp
         FrameTimeAverages.h
+        SandboxGrid.cpp
+        SandboxGrid.h
         SandboxLights.cpp
         SandboxLights.h
+        SandboxModels.cpp
+        SandboxModels.h
         SandboxOptions.cpp
         SandboxOptions.h
+        SandboxSaving.cpp
+        SandboxSaving.h
         SandboxScene.cpp
         SandboxScene.h)
 
