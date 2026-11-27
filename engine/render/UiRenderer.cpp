@@ -17,7 +17,7 @@ namespace render {
         info.RTVFormat = rhi::SwapChain::kFormat;
         info.DSVFormat = DXGI_FORMAT_UNKNOWN;
         info.UserData = this;
-        info.SrvDescriptorHeap = heap.Native();
+        info.SrvDescriptorHeap = heap.Native(); // ImGui's font descriptor from bindless heap
         info.SrvDescriptorAllocFn = &UiRenderer::AllocateDescriptor;
         info.SrvDescriptorFreeFn = &UiRenderer::FreeDescriptor;
         if (!ImGui_ImplDX12_Init(&info)) {

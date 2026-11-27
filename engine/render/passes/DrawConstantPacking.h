@@ -15,6 +15,7 @@
 namespace render {
     static_assert(sizeof(gpu::DrawConstants) <= gpu::kDrawConstantCount * sizeof(uint32_t),
                   "DrawConstants must fit in the root constants of b0 (common/root_signature.hlsli)");
+    // instanceOffset's slot in b0, non-instanced path rewrites it
     inline constexpr uint32_t kInstanceOffsetConstant = offsetof(gpu::DrawConstants, instanceOffset) / sizeof(uint32_t);
 
     static_assert(rhi::BindlessHeap::kDefaultCapacity <= (1u << 24),

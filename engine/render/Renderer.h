@@ -120,7 +120,7 @@ namespace render {
         OpaquePass m_opaque;
         TransparentPass m_transparent;
         DynamicInstances m_dynamicInstances;
-        std::unique_ptr<UiRenderer> m_ui;   // its shutdown defers a free into frames and heap
+        std::unique_ptr<UiRenderer> m_ui;   // destroyed before frames and heap, its shutdown frees a slot through them
         FrameGraph m_graph;                 // first to go, its passes refer to members above
         std::optional<GraphKey> m_graphKey; // empty until first build
         FgTexture m_backBuffer;

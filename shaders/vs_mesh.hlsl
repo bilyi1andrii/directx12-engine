@@ -23,6 +23,7 @@ struct VSInput
 VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
 {
     StructuredBuffer<InstanceData> instances = ResourceDescriptorHeap[g_draw.instanceBufferIndex];
+    // SV_InstanceID starts at 0 each draw
     const float4x4 world = instances[g_draw.instanceOffset + instanceId].world;
 
     VSOutput output;
@@ -33,6 +34,7 @@ VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
     output.position = mul(worldPosition, g_frame.viewProjection);
 #endif
     output.uv = input.uv;
+    // cofactor of world axes keeps normal at right angle to surface
     const float3 axisX = world[0].xyz;
     const float3 axisY = world[1].xyz;
     const float3 axisZ = world[2].xyz;
