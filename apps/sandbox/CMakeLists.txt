@@ -29,7 +29,9 @@ add_executable(sandbox
         SandboxSaving.cpp
         SandboxSaving.h
         SandboxScene.cpp
-        SandboxScene.h)
+        SandboxScene.h
+        SmokeTestScript.cpp
+        SmokeTestScript.h)
 
 # A console exe outside Release, so terminals and IDEs show the log
 set_target_properties(sandbox PROPERTIES WIN32_EXECUTABLE $<CONFIG:Release>)

@@ -20,6 +20,7 @@
 #include "SandboxOptions.h"
 #include "SandboxSaving.h"
 #include "SandboxScene.h"
+#include "SmokeTestScript.h"
 #include "assets/AssetCache.h"
 #include "assets/ModelImporter.h"
 #include "common/AppChecks.h"
@@ -81,9 +82,9 @@ namespace {
         LogInfo("Initialized in {:.0f} ms: {}x{}, tearing {}", initTimer.ElapsedMs(), window.Width(), window.Height(),
                 renderer.TearingSupported() ? "supported" : "not supported");
 
-        const std::optional<uint32_t> smokeTestFrames = options.smokeTestFrames;
-        if (smokeTestFrames) {
-            LogInfo("Smoke test: rendering {} frames", *smokeTestFrames);
+        std::optional<sandbox::SmokeTestScript> smokeTest;
+        if (options.smokeTestFrames) {
+            smokeTest.emplace(*options.smokeTestFrames);
         }
 
         const bool keepScene = sandbox::UsesSave(options);
@@ -103,7 +104,11 @@ namespace {
 
         sandbox::SandboxGrid grid(scene, assets, renderer.Resources(), options, saved);
         sandbox::SandboxModels models(scene, assets);
-        sandbox::AddDefaultModels(models, options, saved);
+        if (smokeTest) {
+            sandbox::SmokeTestScript::AddModels(models, options.modelPath);
+        } else {
+            sandbox::AddDefaultModels(models, options, saved);
+        }
 
         const auto addCube = [&scene, &assets](std::string name, render::TextureHandle texture, float x, float z) {
             DirectX::XMFLOAT4X4 world{};
@@ -129,8 +134,8 @@ namespace {
         sandbox::AddDefaultLights(scene, assets, cubesZ);
 
         std::optional<scene::ObjectId> selected;
-        if (smokeTestFrames) {
-            selected = scene.LightObjects().front();
+        if (smokeTest) {
+            selected = sandbox::SmokeTestScript::InitialSelection(scene);
         }
 
         render::RendererSettings settings;
@@ -144,7 +149,7 @@ namespace {
             frameTimer.Tick();
 
             // A smoke test keeps rendering while minimized, or it would never reach its frame count
-            if (window.IsMinimized() && !smokeTestFrames) {
+            if (window.IsMinimized() && !smokeTest) {
                 input.EndFrame();
                 ::WaitMessage();
                 continue;
@@ -248,18 +253,8 @@ namespace {
             renderer.EndFrame();
             ++framesRendered;
 
-            if (smokeTestFrames) {
-                const uint32_t frames = *smokeTestFrames;
-                if (framesRendered == frames / 3 || framesRendered == 2 * frames / 3) {
-                    window.ToggleFullscreen();
-                }
-                if (framesRendered == frames / 2) {
-                    settings.drawPath = render::DrawPath::NonInstanced;
-                    LogInfo("Smoke test: draw path non-instanced from frame {}", framesRendered + 1);
-                }
-                if (framesRendered == frames) {
-                    window.Close();
-                }
+            if (smokeTest) {
+                smokeTest->AfterFrame(framesRendered, window, settings);
             }
         }
 

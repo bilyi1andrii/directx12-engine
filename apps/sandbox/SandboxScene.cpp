@@ -35,9 +35,6 @@ namespace sandbox {
             models.Add(*options.modelPath);
             return;
         }
-        if (options.smokeTestFrames) {
-            return;
-        }
         std::set<fs::path> savedPaths;
         if (saved) {
             for (const SavedModel &model : saved->models) {
