@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cwctype>
 #include <format>
 #include <cstring>
 #include <string>
@@ -12,6 +11,8 @@
 #include <DirectXTex.h>
 #include <wincodec.h>
 
+#include "assets/Paths.h"
+#include "core/Assert.h"
 #include "core/Utf8.h"
 
 namespace assets {
@@ -67,7 +68,9 @@ namespace assets {
 
             const DXGI_FORMAT format =
                 IsSrgbUsage(usage) ? DirectX::MakeSRGB(metadata.format) : DirectX::MakeLinear(metadata.format);
-            (void)image.OverrideFormat(format);
+            [[maybe_unused]] const bool overridden = image.OverrideFormat(format);
+            ENGINE_ASSERT_MSG(overridden, "{}: DirectXTex refused format {} for the image", source,
+                              static_cast<int>(format));
 
             const bool generateMips = image.GetMetadata().mipLevels == 1 && !DirectX::IsCompressed(format) &&
                                       (metadata.width > 1 || metadata.height > 1);
@@ -98,13 +101,6 @@ namespace assets {
             const auto *pixels = reinterpret_cast<const std::byte *>(image.GetPixels());
             data.pixels.assign(pixels, pixels + image.GetPixelsSize());
             return data;
-        }
-
-        [[nodiscard]] std::wstring LowerCaseExtension(const std::filesystem::path &path) {
-            std::wstring extension = path.extension().wstring();
-            std::ranges::transform(extension, extension.begin(),
-                                   [](wchar_t c) { return static_cast<wchar_t>(std::towlower(c)); });
-            return extension;
         }
     } // namespace
 
