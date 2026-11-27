@@ -23,6 +23,7 @@ namespace ui {
         double ms = 0.0;
     };
 
+    // what Renderer window shows, filled by app
     struct FrameStats {
         double fps = 0.0;
         double cpuRecordMs = 0.0;
@@ -44,6 +45,7 @@ namespace ui {
         DebugUI(DebugUI &&) = delete;
         DebugUI &operator=(DebugUI &&) = delete;
 
+        // static, forwards to ImGui's current context
         [[nodiscard]] static bool HandleMessage(const core::WindowMessage &message);
 
         void NewFrame();
@@ -51,15 +53,19 @@ namespace ui {
         [[nodiscard]] bool WantsMouse() const;
         [[nodiscard]] bool WantsKeyboard() const;
 
+        // like WantsMouse, but hovering gizmo doesn't block camera
         [[nodiscard]] bool WantsMouseForCamera() const;
 
+        // edits world in place, true if moved
         bool TransformGizmo(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT4X4 &projection,
                             DirectX::XMFLOAT4X4 &world);
 
+        // click on gizmo handle must not pick object behind it
         [[nodiscard]] bool GizmoWantsMouse() const;
 
         void ShowRendererWindow(const FrameStats &stats, render::RendererSettings &settings);
 
+        // true if position edited
         [[nodiscard]] bool ShowSelectionWindow(std::string_view name, DirectX::XMFLOAT3 &position, bool movable);
 
         void ShowEmptySelectionWindow();
@@ -73,7 +79,7 @@ namespace ui {
         GizmoMode m_gizmoMode = GizmoMode::Translate;
         bool m_gizmoDrawn = false;
         bool m_gizmoHovered = false;
-        bool m_gizmoHoveredLastFrame = false;
+        bool m_gizmoHoveredLastFrame = false; // camera updates before gizmo draws
     };
 } // namespace ui
 

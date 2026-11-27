@@ -8,6 +8,7 @@
 #include "renderdata/Lights.h"
 
 namespace ui {
+    // returns true when colour edit ends, caller recolours marker once
     [[nodiscard]] bool ShowLightsWindow(render::LightEnvironment &environment, std::string_view selectedName,
                                         render::LocalLight *selected);
 } // namespace ui
