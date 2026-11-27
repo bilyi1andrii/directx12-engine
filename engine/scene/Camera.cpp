@@ -20,7 +20,7 @@ namespace scene {
     }
 
     XMMATRIX ProjectionMatrix(const Camera &camera, float aspectRatio) {
-        const float fovRadians = (camera.fovDegrees / 360.0f) * XM_2PI;
+        const float fovRadians = XMConvertToRadians(camera.fovDegrees);
         return XMMatrixPerspectiveFovLH(fovRadians, aspectRatio, camera.farZ, camera.nearZ);
     }
 

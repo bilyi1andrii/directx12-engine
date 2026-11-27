@@ -1,6 +1,8 @@
-#include "CameraPath.h"
+#include "scene/CameraPath.h"
 
 #include <algorithm>
+
+#include "core/Assert.h"
 
 namespace scene {
     namespace {
@@ -13,6 +15,7 @@ namespace scene {
     } // namespace
 
     CameraPose EvaluateCameraPath(std::span<const CameraKeyframe> keyframes, uint32_t frame) {
+        ENGINE_ASSERT_MSG(!keyframes.empty(), "Camera path has no keyframes");
         const auto next = std::ranges::upper_bound(keyframes, frame, {}, &CameraKeyframe::frame);
         if (next == keyframes.begin()) {
             return {.position = keyframes.front().position, .target = keyframes.front().target};
