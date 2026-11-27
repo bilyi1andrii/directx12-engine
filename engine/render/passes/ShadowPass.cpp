@@ -18,9 +18,10 @@ namespace render {
     } // namespace
 
     ShadowPass::ShadowPass(rhi::PipelineCache &pipelines) : m_pipelines(pipelines) {
-        const auto create = [&](rhi::CullMode cull, std::wstring_view name) {
+        const auto create = [&](rhi::CullMode cull, std::wstring_view pixelShader, std::wstring_view name) {
             return pipelines.Get({
-                .vertexShader = L"vs_mesh_shadow.cso", // no pixel shader, depth only
+                .vertexShader = L"vs_mesh_shadow.cso",
+                .pixelShader = pixelShader,
                 .inputLayout = kVertexLayout,
                 .cull = cull,
                 .depthBias = kCasterBias,
@@ -28,8 +29,11 @@ namespace render {
                 .name = name,
             });
         };
-        m_culled = create(rhi::CullMode::Back, L"Shadow PSO");
-        m_twoSided = create(rhi::CullMode::None, L"Shadow two-sided PSO");
+        m_culled = create(rhi::CullMode::Back, {}, L"Shadow PSO");
+        m_twoSided = create(rhi::CullMode::None, {}, L"Shadow two-sided PSO");
+        m_alphaTestCulled = create(rhi::CullMode::Back, L"ps_shadow_alpha_test.cso", L"Shadow alpha-test PSO");
+        m_alphaTestTwoSided =
+            create(rhi::CullMode::None, L"ps_shadow_alpha_test.cso", L"Shadow two-sided alpha-test PSO");
     }
 
     void ShadowPass::AddTo(FrameGraph &graph, FgTexture shadowMap, const GpuResources &resources) const {
@@ -39,14 +43,19 @@ namespace render {
                 BindShadowConstants(context, 0); // shadow VS reads only matrix, slot unused
                 const FrameInputs &inputs = context.Inputs();
                 RecordMeshDraws(context.Commands(), m_pipelines, resources, inputs.drawPath, inputs.drawSets,
-                                [this](VertexFormat, const MaterialInfo &material) {
-                                    // light spheres and see-through objects cast no shadow
-                                    if (material.shading == Shading::Unlit || material.alphaMode == AlphaMode::Blend) {
-                                        return rhi::PipelineHandle{};
-                                    }
-                                    return material.doubleSided ? m_twoSided : m_culled;
-                                });
+                                [this](VertexFormat, const MaterialInfo &material) { return PipelineFor(material); });
             });
+    }
+
+    rhi::PipelineHandle ShadowPass::PipelineFor(const MaterialInfo &material) const {
+        // light spheres and see-through objects cast no shadow
+        if (material.shading == Shading::Unlit || material.alphaMode == AlphaMode::Blend) {
+            return {};
+        }
+        if (material.alphaMode == AlphaMode::Mask) {
+            return material.doubleSided ? m_alphaTestTwoSided : m_alphaTestCulled;
+        }
+        return material.doubleSided ? m_twoSided : m_culled;
     }
 
     void BindShadowConstants(PassContext &context, uint32_t shadowMapIndex) {

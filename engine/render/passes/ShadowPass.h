@@ -8,6 +8,7 @@
 
 #include "render/FrameGraph.h"
 #include "render/GpuResources.h"
+#include "renderdata/Material.h"
 #include "rhi/PipelineCache.h"
 
 namespace render {
@@ -23,9 +24,13 @@ namespace render {
         void AddTo(FrameGraph &graph, FgTexture shadowMap, const GpuResources &resources) const;
 
     private:
+        [[nodiscard]] rhi::PipelineHandle PipelineFor(const MaterialInfo &material) const;
+
         const rhi::PipelineCache &m_pipelines;
         rhi::PipelineHandle m_culled;
         rhi::PipelineHandle m_twoSided;
+        rhi::PipelineHandle m_alphaTestCulled;
+        rhi::PipelineHandle m_alphaTestTwoSided;
     };
 
     // b2 for every pass that samples shadow map

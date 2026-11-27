@@ -1,6 +1,7 @@
 // Lights a textured surface: ambient, the shadowed directional light, and the point and spot lights. Also built as a
 // cut-out and a see-through variant.
 
+#include "common/alpha_test.hlsli"
 #include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 #include "common/vs_output.hlsli"
@@ -90,9 +91,8 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     const float3 albedo = albedoSample.rgb;
 
 #if defined(ALPHA_TEST) || defined(ALPHA_BLEND)
-    Texture2D<float4> opacityTexture = ResourceDescriptorHeap[g_draw.alphaInfo >> 8];
-    const float alpha = albedoSample.a * opacityTexture.Sample(g_anisotropicWrap, input.uv).r;
-    const float alphaByte = (g_draw.alphaInfo & 0xFF) / 255.0f;
+    const float alpha = albedoSample.a * OpacityMapAlpha(g_draw.alphaInfo, g_anisotropicWrap, input.uv);
+    const float alphaByte = AlphaByte(g_draw.alphaInfo);
 #endif
 #ifdef ALPHA_TEST
     clip(alpha - alphaByte); // drops pixel below cutoff
