@@ -16,6 +16,8 @@ target_link_libraries(sandbox_save
 
 add_executable(sandbox
         main.cpp
+        FrameTimeAverages.cpp
+        FrameTimeAverages.h
         SandboxLights.cpp
         SandboxLights.h
         SandboxOptions.cpp

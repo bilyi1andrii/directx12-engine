@@ -1,7 +1,7 @@
 #ifndef D3D12_ENGINE_SANDBOXSCENE_H
 #define D3D12_ENGINE_SANDBOXSCENE_H
 
-// Builds the sandbox's scene: the cube grid, the models in assets/ and dropped files, 
+// Builds the sandbox's scene: the cube grid, the models in assets/ and dropped files,
 // and the save of what the user moved.
 
 #include <cstddef>
@@ -54,6 +54,8 @@ namespace sandbox {
     std::vector<PlacedModel> AddModels(scene::Scene &scene, assets::AssetCache &assets,
                                        std::span<const std::filesystem::path> paths,
                                        std::optional<float> firstX = std::nullopt);
+
+    [[nodiscard]] std::optional<float> NextFreeModelX(const scene::Scene &scene, std::span<const PlacedModel> models);
 
     void LoadDroppedFile(const std::filesystem::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,

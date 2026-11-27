@@ -115,6 +115,15 @@ namespace sandbox {
         return added;
     }
 
+    std::optional<float> NextFreeModelX(const scene::Scene &scene, std::span<const PlacedModel> models) {
+        std::optional<float> next;
+        for (const PlacedModel &model : models) {
+            const float x = scene.ObjectPosition(model.id).x + kModelSpacing;
+            next = next ? std::max(*next, x) : x;
+        }
+        return next;
+    }
+
     void LoadDroppedFile(const fs::path &path, const std::optional<DirectX::XMFLOAT3> &dropPoint,
                          const render::GpuUploader &gpu, assets::AssetCache &assets, scene::Scene &scene,
                          float &nextModelX, const GridObjects &grid, std::vector<PlacedModel> &models) {

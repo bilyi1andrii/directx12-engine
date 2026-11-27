@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cfloat>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -14,12 +13,14 @@
 #include <filesystem>
 #include <iterator>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "FrameTimeAverages.h"
 #include "SandboxLights.h"
 #include "SandboxOptions.h"
 #include "SandboxScene.h"
@@ -29,7 +30,6 @@
 #include "core/CommandLine.h"
 #include "core/ComScope.h"
 #include "core/File.h"
-#include "core/IntervalAverage.h"
 #include "core/Log.h"
 #include "core/Timer.h"
 #include "core/Utf8.h"
@@ -62,42 +62,6 @@ namespace {
             LogInfo("VSync {}", after.vsync ? "on" : "off");
         }
     }
-
-    class FrameTimeAverages {
-    public:
-        void Add(double deltaSeconds, double cpuRecordMs, const std::optional<rhi::GpuFrameTimes> &gpu) {
-            m_cpuRecord.Add(cpuRecordMs, deltaSeconds);
-            if (!gpu) {
-                return;
-            }
-            m_gpuTotal.Add(gpu->totalMs, deltaSeconds);
-
-            const std::span<const rhi::GpuScopeTime> passes = gpu->Scopes();
-            if (passes.size() != m_passCount) {
-                for (core::IntervalAverage &average : m_passAverages) {
-                    average.Reset();
-                }
-                m_passCount = passes.size();
-            }
-            for (size_t i = 0; i < passes.size(); ++i) {
-                m_passAverages[i].Add(passes[i].ms, deltaSeconds);
-                m_passes[i] = {.name = passes[i].name, .ms = m_passAverages[i].Value()};
-            }
-        }
-
-        [[nodiscard]] double CpuRecordMs() const noexcept { return m_cpuRecord.Value(); }
-        [[nodiscard]] double GpuTotalMs() const noexcept { return m_gpuTotal.Value(); }
-        [[nodiscard]] std::span<const ui::PassTime> GpuPasses() const noexcept {
-            return std::span(m_passes).first(m_passCount);
-        }
-
-    private:
-        core::IntervalAverage m_cpuRecord;
-        core::IntervalAverage m_gpuTotal;
-        std::array<core::IntervalAverage, rhi::kMaxGpuScopes> m_passAverages;
-        std::array<ui::PassTime, rhi::kMaxGpuScopes> m_passes{};
-        size_t m_passCount = 0;
-    };
 
     struct DroppedFile {
         fs::path path;
@@ -186,30 +150,30 @@ namespace {
 
         std::vector<sandbox::PlacedModel> models;
         if (options.modelPath) {
-            models = sandbox::AddModels(scene, assets, {&*options.modelPath, 1});
+            if (std::optional<sandbox::PlacedModel> placed =
+                    sandbox::AddModel(scene, assets, *options.modelPath, 0.0f, 0.0f)) {
+                models.push_back(std::move(*placed));
+            }
         } else if (!smokeTestFrames) {
-            std::vector<fs::path> newModels = sandbox::FindAssetModels();
+            std::set<fs::path> savedPaths;
             if (saved) {
                 for (const sandbox::SavedModel &model : saved->models) {
-                    std::erase_if(newModels,
-                                  [&model](const fs::path &path) { return path.lexically_normal() == model.path; });
+                    savedPaths.insert(model.path);
                     if (std::optional<sandbox::PlacedModel> placed =
                             sandbox::AddModel(scene, assets, model.path, 0.0f, 0.0f, model.world)) {
                         models.push_back(std::move(*placed));
                     }
                 }
             }
-            std::optional<float> firstX;
-            for (const sandbox::PlacedModel &model : models) {
-                firstX = std::max(firstX.value_or(-FLT_MAX), scene.ObjectPosition(model.id).x + sandbox::kModelSpacing);
-            }
+            std::vector<fs::path> newModels = sandbox::FindAssetModels();
+            std::erase_if(newModels,
+                          [&savedPaths](const fs::path &path) { return savedPaths.contains(path.lexically_normal()); });
+            const std::optional<float> firstX = sandbox::NextFreeModelX(scene, models);
             std::ranges::move(sandbox::AddModels(scene, assets, newModels, firstX), std::back_inserter(models));
         }
         const size_t modelsShown = models.size();
-        float nextModelX = sandbox::kModelSpacing;
-        for (const sandbox::PlacedModel &model : models) {
-            nextModelX = std::max(nextModelX, scene.ObjectPosition(model.id).x + sandbox::kModelSpacing);
-        }
+        float nextModelX =
+            std::max(sandbox::kModelSpacing, sandbox::NextFreeModelX(scene, models).value_or(sandbox::kModelSpacing));
 
         const auto addCube = [&scene, &assets](std::string name, render::TextureHandle texture, float x, float z) {
             DirectX::XMFLOAT4X4 world{};
@@ -224,10 +188,8 @@ namespace {
                                    0.0f, 0.0f);
         }
         const float cubesZ = modelsShown > 0 ? sandbox::kModelSize / 2 + 3.0f : 0.0f;
-        const scene::ObjectId orangeCube = addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ);
-
         const std::array namedCubes{
-            orangeCube,
+            addCube("Orange cube", assets.SolidColor(230, 120, 30), -5.0f, cubesZ),
             addCube("Green cube", assets.SolidColor(60, 170, 70), 5.0f, cubesZ),
             addCube("Blue cube", assets.SolidColor(50, 110, 220), 0.0f, cubesZ + 5.0f),
         };
@@ -252,7 +214,7 @@ namespace {
         const std::string sceneInfo = std::format("grid {} x {}, {}", grid.side, grid.side, apps::ToString(grid.mode));
 
         core::FrameTimer frameTimer;
-        FrameTimeAverages frameTimes;
+        sandbox::FrameTimeAverages frameTimes;
         uint64_t framesRendered = 0;
         while (window.PumpMessages()) {
             frameTimer.Tick();
