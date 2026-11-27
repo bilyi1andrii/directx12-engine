@@ -48,6 +48,58 @@ data.
 
 There is no tonemapping yet, so very bright areas clip to white.
 
+## Showcase
+
+### Shadows
+
+Shadow map, 3×3 filtering.
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/12e55d66-0893-42da-a249-fe86fc70dd8b" width="100%" alt="Shadows in the Assisi courtyard"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/cc38ce9e-e00e-46a0-85d9-0aa16c345ce2" width="100%" alt="Shadows on the Assisi square"></td>
+  </tr>
+</table>
+
+### Point and spot lights
+
+Blinn-Phong.
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/ea607f18-e3ed-43ef-9f68-0665b904fa28" width="100%" alt="Spot lights in an Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/8bd4870b-bf2f-49b3-ab39-4979358b8c9b" width="100%" alt="Spot light behind the gate"></td>
+  </tr>
+</table>
+
+### Transparency
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/4ab0a65b-31f2-4fdc-9888-58e71b16633b" width="100%" alt="Ducks among lily pads"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/46ccb3c9-2890-46c6-9bdc-cc33775ceeec" width="100%" alt="Transparent pond water"></td>
+  </tr>
+</table>
+
+### More scenes
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/42887299-f36b-4848-a0cc-1ac8998290aa" width="100%" alt="Assisi alley"></td>
+    <td width="50%"><img src="https://github.com/user-attachments/assets/b8987fd0-f7f0-4f51-8d99-094e761d5827" width="100%" alt="Kyoto torii"></td>
+  </tr>
+</table>
+
+## Models
+ 
+Models from Sketchfab, not included in the repository.
+ 
+| Model | Author | License |
+|---|---|---|
+| [Tanabata evening - Kyoto inspired city scene](https://sketchfab.com/3d-models/tanabata-evening-kyoto-inspired-city-scene-04dc9402b74d43ef86c4795311c0e4bb) | [Mathias Tossens](https://sketchfab.com/mathiastossens) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| [Assisi - City Scene Assignment](https://sketchfab.com/3d-models/assisi-city-scene-assignment-8b3dc82bc269464e8a9632b8094d538d) | [Nioma van der Steen](https://sketchfab.com/fromthestone) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
+| [Duck-Duck](https://sketchfab.com/3d-models/duck-duck-98604d4f895b4fc79d880dd427bf3a01) | [td991](https://sketchfab.com/td991) | [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) |
+
 ## How to run
 
 You need:
