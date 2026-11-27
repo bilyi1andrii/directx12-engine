@@ -37,7 +37,8 @@ namespace render {
         uint32_t chunksStarted = 0;
         gpu::InstanceData instance{};
         for (const InstanceRange &range : ranges) {
-            if (range.chunk == chunksStarted) {
+            if (range.chunk == chunksStarted) { // first range of new chunk
+                // last chunk holds only what's left
                 const auto elementCount = static_cast<uint32_t>(
                     std::min<uint64_t>(chunkCapacity, instanceCount - uint64_t{range.chunk} * chunkCapacity));
                 chunk = beginChunk(elementCount);
@@ -53,6 +54,7 @@ namespace render {
             uint64_t offset = uint64_t{range.firstElement} * kInstanceStride;
             for (uint32_t i = 0; i < range.count; ++i) {
                 const DirectX::XMFLOAT4X4 &world = bucket.worlds[range.firstObject + i];
+                // HLSL reads column_major, so transpose
                 DirectX::XMStoreFloat4x4(&instance.world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&world)));
                 chunk.memory.Write(offset, instance);
                 offset += kInstanceStride;

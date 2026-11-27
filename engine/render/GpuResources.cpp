@@ -34,7 +34,7 @@ namespace render {
 
     void GpuResources::CreateDefaults() {
         m_unloadedTexture = CreateSolidColorTexture(100, 100, 100, L"Fallback/Unloaded (grey)");
-        m_materials.push_back(MaterialInfo{.albedo = m_unloadedTexture});
+        m_materials.push_back(MaterialInfo{.albedo = m_unloadedTexture}); // material 0, default handle draws grey
     }
 
     std::vector<MeshHandle> GpuResources::CreateMesh(const MeshData &mesh, std::wstring_view name) {
@@ -79,7 +79,7 @@ namespace render {
         rhi::Texture texture = rhi::Texture::Create(m_device, m_allocator, m_upload, m_bindlessHeap,
                                                     static_cast<DXGI_FORMAT>(data.dxgiFormat),
                                                     std::span(mips).first(data.mips.size()), name);
-        const TextureHandle handle{.index = texture.BindlessIndex()};
+        const TextureHandle handle{.index = texture.BindlessIndex()}; // handle is bindless slot
         m_textures.push_back(std::move(texture));
         return handle;
     }
@@ -95,6 +95,7 @@ namespace render {
     }
 
     StaticListHandle GpuResources::CreateStaticList(const RenderList &list, std::wstring_view name) {
+        // static objects never move, so sort points computed once
         std::vector<StaticTransparentObject> transparent;
         uint32_t element = 0;
         for (const BatchBucket &bucket : list.Buckets()) {
@@ -108,6 +109,7 @@ namespace render {
             element += static_cast<uint32_t>(bucket.worlds.size());
         }
 
+        // so push_back below can't throw after buffer exists
         m_staticLists.reserve(m_staticLists.size() + 1);
         std::optional<rhi::Buffer> instances;
         uint32_t instanceBufferIndex = 0;
@@ -127,6 +129,7 @@ namespace render {
                 return chunk;
             };
             std::vector<InstanceRange> ranges;
+            // capacity is whole list, so one chunk
             WriteInstances(list, static_cast<uint32_t>(instanceCount), beginChunk, ranges, draws);
         }
 

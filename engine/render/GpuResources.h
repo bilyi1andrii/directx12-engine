@@ -43,28 +43,31 @@ namespace render {
         VertexFormat vertexFormat = VertexFormat::Mesh;
     };
 
+    // one submesh, index range into shared geometry
     struct GpuMesh {
         uint32_t geometry = 0;
         uint32_t firstIndex = 0;
         uint32_t indexCount = 0;
         int32_t baseVertex = 0;
-        DirectX::XMFLOAT3 center{};
+        DirectX::XMFLOAT3 center{}; // for transparency sort
     };
 
     struct StaticTransparentObject {
         BatchKey key;
         uint32_t element = 0;
-        DirectX::XMFLOAT3 position{};
+        DirectX::XMFLOAT3 position{}; // world sort point, computed once
     };
 
+    // one instance buffer for whole list, one chunk
     struct GpuStaticList {
         rhi::Buffer instances;
         uint32_t instanceBufferIndex = 0; // bindless
         std::vector<InstanceDraw> draws;
-        std::vector<StaticTransparentObject> transparent;
+        std::vector<StaticTransparentObject> transparent; // Blend objects, sorted each frame by view depth
     };
 
     class GpuResources final : public GpuUploader {
+        // only Renderer creates defaults and destroys all
         friend class Renderer;
 
     public:
@@ -100,11 +103,13 @@ namespace render {
     private:
         void CreateDefaults();
 
+        // only release, at shutdown after flush
         void DestroyAll(rhi::FrameContext &frame) noexcept;
 
         [[nodiscard]] uint32_t AddGeometry(GpuGeometry geometry);
         [[nodiscard]] MeshHandle AddMesh(const GpuMesh &mesh);
 
+        // opens upload batch
         void PrepareUpload(uint64_t bytes);
 
         [[nodiscard]] TextureHandle CreateSolidColorTexture(uint8_t red, uint8_t green, uint8_t blue,
@@ -116,6 +121,7 @@ namespace render {
         rhi::CommandQueue &m_queue;
         rhi::BindlessHeap &m_bindlessHeap;
 
+        // append-only, nothing freed before DestroyAll
         std::vector<GpuGeometry> m_geometries;
         std::vector<GpuMesh> m_meshes;
         std::vector<rhi::Texture> m_textures;
