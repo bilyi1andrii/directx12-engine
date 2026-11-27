@@ -30,11 +30,13 @@ namespace scene {
         render::MaterialHandle material;
     };
 
+    // one model part, indexed like transforms and renderers
     struct EntityPart {
-        DirectX::XMFLOAT4X4 toObject{};
+        DirectX::XMFLOAT4X4 toObject{}; // part to object, pivot applied
         render::Aabb bounds;
     };
 
+    // static objects upload once, can be selected but not moved
     enum class Mobility : uint8_t { Static, Movable };
 
     using ObjectId = render::Handle<struct ObjectTag>;
@@ -43,12 +45,13 @@ namespace scene {
         std::string name;
         Mobility mobility = Mobility::Movable;
         DirectX::XMFLOAT4X4 world{};
-        uint32_t firstEntity = 0;
+        uint32_t firstEntity = 0; // range in transforms, renderers and parts
         uint32_t entityCount = 0;
     };
 
     class Scene {
     public:
+        // pivot is point of model placed at object origin
         ObjectId AddObject(std::string name, const render::Model &model, const DirectX::XMFLOAT4X4 &world,
                            Mobility mobility, DirectX::XMFLOAT3 pivot = {});
 
@@ -80,9 +83,11 @@ namespace scene {
 
     private:
         std::vector<SceneObject> m_objects;
+        // one entry per part, same index in all three
         std::vector<Transform> m_transforms;
         std::vector<MeshRenderer> m_renderers;
         std::vector<EntityPart> m_parts;
+        // light components, side by side with m_lights
         std::vector<ObjectId> m_lightObjects;
         std::vector<render::LocalLight> m_lights;
         render::LightEnvironment m_environment;

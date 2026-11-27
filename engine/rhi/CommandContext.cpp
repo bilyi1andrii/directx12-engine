@@ -131,7 +131,7 @@ namespace rhi {
     }
 
     void CommandContext::BeginEvent(const char *name) {
-        constexpr UINT kAnsiString = 1;
+        constexpr UINT kAnsiString = 1; // format PIX reads without its event runtime
         m_list->BeginEvent(kAnsiString, name, static_cast<UINT>(std::strlen(name) + 1));
     }
 

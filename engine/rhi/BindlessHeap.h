@@ -23,8 +23,10 @@ namespace rhi {
         BindlessHeap(BindlessHeap &&) = delete;
         BindlessHeap &operator=(BindlessHeap &&) = delete;
 
+        // write view right away, free through FrameContext::DeferFree
         [[nodiscard]] uint32_t Allocate();
 
+        // only after frame finished reading slot
         void Free(uint32_t index) noexcept;
 
         void CreateStructuredBufferSrv(uint32_t index, ID3D12Resource *buffer, uint64_t firstElement,
@@ -32,8 +34,13 @@ namespace rhi {
 
         void CreateTexture2DSrv(uint32_t index, ID3D12Resource *texture, DXGI_FORMAT format, uint32_t mipLevels);
 
+        // where view is written
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE CpuHandle(uint32_t index) const noexcept;
+
+        // for descriptor tables, only ImGui uses them
         [[nodiscard]] D3D12_GPU_DESCRIPTOR_HANDLE GpuHandle(uint32_t index) const noexcept;
+
+        // ImGui frees by CPU handle
         [[nodiscard]] uint32_t IndexOf(D3D12_CPU_DESCRIPTOR_HANDLE handle) const noexcept;
 
         [[nodiscard]] ID3D12DescriptorHeap *Native() const noexcept { return m_heap.Get(); }
@@ -46,6 +53,8 @@ namespace rhi {
         uint32_t m_descriptorSize = 0; // bytes
         uint32_t m_capacity = 0;
         std::vector<uint32_t> m_freeIndices;
+
+        // for double-free asserts
         std::vector<bool> m_allocated;
     };
 } // namespace rhi

@@ -1,7 +1,7 @@
 #ifndef D3D12_ENGINE_GPUTIMES_H
 #define D3D12_ENGINE_GPUTIMES_H
 
-// Turns GPU timestamps into milliseconds per frame and per pass, 
+// Turns GPU timestamps into milliseconds per frame and per pass,
 // and keeps pass names alive for results that arrive later.
 
 #include <array>
@@ -28,6 +28,7 @@ namespace rhi {
         [[nodiscard]] std::span<const GpuScopeTime> Scopes() const noexcept { return {scopes.data(), scopeCount}; }
     };
 
+    // slots 0 and 1 hold frame, then begin/end pair per scope
     namespace timestamp {
         inline constexpr uint32_t kFrameBegin = 0;
         inline constexpr uint32_t kFrameEnd = 1;
@@ -59,7 +60,7 @@ namespace rhi {
         [[nodiscard]] std::string_view Name(uint32_t id) const;
 
     private:
-        std::deque<std::string> m_names;
+        std::deque<std::string> m_names; // keeps names in place as it grows
     };
 } // namespace rhi
 

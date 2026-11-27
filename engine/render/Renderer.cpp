@@ -8,12 +8,10 @@
 #include <span>
 
 #include <DirectXMath.h>
-#include <directx/d3dx12.h>
 
 #include "core/Assert.h"
 #include "core/File.h"
 #include "core/Log.h"
-#include "core/ThrowIfFailed.h"
 #include "render/FrameInputs.h"
 #include "rhi/DepthFormat.h"
 #include "render/UiRenderer.h"
@@ -21,12 +19,9 @@
 #include "renderdata/LightPacking.h"
 #include "rhi/UploadRing.h"
 
-#include "common/root_signature.hlsli"
 #include "common/shared_types.hlsli"
 
 namespace render {
-    using core::ThrowIfFailed;
-
     namespace {
         gpu::FrameConstants MakeFrameConstants(const FrameView &view, const LightSet &lights) {
             using namespace DirectX;
@@ -35,6 +30,7 @@ namespace render {
             const XMMATRIX projection = XMLoadFloat4x4(&view.projection);
 
             gpu::FrameConstants constants{};
+            // HLSL reads column_major, so transpose
             XMStoreFloat4x4(&constants.view, XMMatrixTranspose(viewMatrix));
             XMStoreFloat4x4(&constants.projection, XMMatrixTranspose(projection));
             XMStoreFloat4x4(&constants.viewProjection, XMMatrixTranspose(viewMatrix * projection));
@@ -43,8 +39,10 @@ namespace render {
             return constants;
         }
 
-        constexpr uint32_t kBackBufferSrgbView = 0;
-        constexpr uint32_t kBackBufferUnormView = 1;
+        constexpr uint32_t kBackBufferSrgbView = 0;  // for scene, gamma applied on write
+        constexpr uint32_t kBackBufferUnormView = 1; // for ImGui, colours already sRGB
+        constexpr uint32_t kRtvCapacity = 64;
+        constexpr uint32_t kDsvCapacity = 16;
     } // namespace
 
     Renderer::Renderer(HWND hwnd, uint32_t width, uint32_t height, rhi::ValidationStats &validation)
@@ -54,13 +52,13 @@ namespace render {
           m_context(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Main command list"),
           m_queue(m_device.Native(), D3D12_COMMAND_LIST_TYPE_DIRECT, L"Direct queue"),
           m_profiler(m_device.Native(), m_allocator, m_queue.TimestampFrequency()),
-          m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, 64, L"RTV heap"),
-          m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, 16, L"DSV heap"),
+          m_rtvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, kRtvCapacity, L"RTV heap"),
+          m_dsvAllocator(m_device.Native(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, kDsvCapacity, L"DSV heap"),
           m_swapChain(m_device, m_queue, m_rtvAllocator, hwnd, width, height),
           m_transients(m_device.Native(), m_allocator, m_rtvAllocator, m_dsvAllocator, m_bindlessHeap),
           m_pipelines(m_device.Native(), core::ExecutableDirectory() / L"shaders"),
-          m_resources(m_allocator, m_upload, m_queue, m_bindlessHeap), m_shadow(m_pipelines), m_opaque(m_pipelines),
-          m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
+          m_resources(m_device.Native(), m_allocator, m_upload, m_queue, m_bindlessHeap), m_shadow(m_pipelines),
+          m_opaque(m_pipelines), m_transparent(m_pipelines), m_graph(m_pipelines.RootSignature(), m_profiler) {
         m_frames.reserve(rhi::kFramesInFlight);
         for (uint32_t i = 0; i < rhi::kFramesInFlight; ++i) {
             m_frames.emplace_back(m_device.Native(), m_allocator, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -71,7 +69,7 @@ namespace render {
         try {
             m_resources.CreateDefaults();
             m_upload.Submit(m_queue);
-        } catch (...) {
+        } catch (...) { // destructor won't run, so clean up and rethrow
             DestroyResources();
             throw;
         }
@@ -83,7 +81,7 @@ namespace render {
 
     void Renderer::DestroyResources() noexcept {
         try {
-            m_device.LogDeviceRemovedInfo();
+            m_device.LogDeviceRemovedInfo(); // DRED report if device was removed
         } catch (const std::exception &e) {
             core::LogError("Renderer: logging why the device was removed failed: {}", e.what());
         }
@@ -92,6 +90,7 @@ namespace render {
         } catch (const std::exception &e) {
             core::LogError("Renderer: flush at destruction failed: {}", e.what());
         }
+        // released when frame contexts are destroyed
         m_resources.DestroyAll(CurrentFrame());
         m_transients.DestroyAll(CurrentFrame());
     }
@@ -99,16 +98,16 @@ namespace render {
     void Renderer::BeginFrame(uint32_t width, uint32_t height, const RendererSettings &settings) {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "BeginFrame before EndFrame of frame {}", m_frameNumber);
         m_frameStage = FrameStage::Begun;
-        m_settings = settings;
+        m_settings = settings; // read once, UI can't change it mid-frame
 
         rhi::FrameContext &frame = CurrentFrame();
-        frame.WaitAndReset(m_queue);
-        m_upload.ReleaseCompleted(m_queue);
+        frame.WaitAndReset(m_queue);        // waits for frame two frames ago
+        m_upload.ReleaseCompleted(m_queue); // frees finished staging buffers
 
-        m_swapChain.Resize(width, height);
+        m_swapChain.Resize(width, height); // flushes only if size changed
 
         m_context.Begin(frame.CommandAllocator());
-        m_context.SetDescriptorHeap(m_bindlessHeap.Native());
+        m_context.SetDescriptorHeap(m_bindlessHeap.Native()); // before any root signature
         m_profiler.BeginFrame(m_context, m_frameNumber);
     }
 
@@ -124,14 +123,10 @@ namespace render {
 
         m_dynamicInstances.Upload(list, CurrentFrame(), m_bindlessHeap);
         m_drawSets.clear();
-        for (const StaticListHandle handle : staticLists) {
-            m_drawSets.emplace_back(m_resources.StaticList(handle).draws);
-        }
-        m_drawSets.emplace_back(m_dynamicInstances.Draws());
-
         m_transparentObjects.clear();
         for (const StaticListHandle handle : staticLists) {
             const GpuStaticList &staticList = m_resources.StaticList(handle);
+            m_drawSets.emplace_back(staticList.draws);
             for (const StaticTransparentObject &object : staticList.transparent) {
                 m_transparentObjects.push_back({.key = object.key,
                                                 .instanceBufferIndex = staticList.instanceBufferIndex,
@@ -139,11 +134,12 @@ namespace render {
                                                 .viewDepth = ViewDepth(view.view, object.position)});
             }
         }
+        m_drawSets.emplace_back(m_dynamicInstances.Draws());
         m_dynamicInstances.AppendTransparent(list, m_resources, view.view, m_transparentObjects);
         SortBackToFront(m_transparentObjects);
 
         const GraphKey key{.width = m_swapChain.Width(), .height = m_swapChain.Height(), .ui = m_ui != nullptr};
-        if (m_graphKey != key) {
+        if (m_graphKey != key) { // first frame, resize, UI on
             BuildGraph();
             m_graphKey = key;
         }
@@ -190,12 +186,12 @@ namespace render {
     }
 
     void Renderer::EnableUi() {
-        m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap);
+        m_ui = std::make_unique<UiRenderer>(m_device.Native(), m_queue.Native(), m_bindlessHeap, CurrentFrame());
     }
 
     std::vector<rhi::GpuFrameTimes> Renderer::FinishGpuTimes() {
         ENGINE_ASSERT_MSG(m_frameStage == FrameStage::Idle, "FinishGpuTimes inside frame {}", m_frameNumber);
-        m_queue.Flush();
+        m_queue.Flush(); // bench end, nothing in flight after
         return m_profiler.ReadRemaining();
     }
 
@@ -206,13 +202,14 @@ namespace render {
         m_profiler.EndFrame(m_context);
         m_context.Close();
 
+        // submit uploads first, so their copies finish before this frame's draws
         if (m_upload.IsRecording()) {
             m_upload.Submit(m_queue);
         }
 
         m_queue.ExecuteCommandList(m_context.Native());
         m_swapChain.Present(m_settings.vsync);
-        CurrentFrame().SetFenceValue(m_queue.Signal());
+        CurrentFrame().SetFenceValue(m_queue.Signal()); // slot free once GPU passes this value
         m_device.DrainDxgiMessages();
         ++m_frameNumber;
     }

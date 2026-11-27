@@ -10,6 +10,8 @@ namespace render {
         const XMVECTOR minCorner = XMLoadFloat3(&bounds.min);
         const XMVECTOR maxCorner = XMLoadFloat3(&bounds.max);
         const XMVECTOR center = XMVectorScale(XMVectorAdd(minCorner, maxCorner), 0.5f);
+
+        // fit sphere, not box, so view keeps same size whatever light direction
         const float radius =
             std::max(0.5f * XMVectorGetX(XMVector3Length(XMVectorSubtract(maxCorner, minCorner))), 1.0f);
 
@@ -17,15 +19,19 @@ namespace render {
         if (XMVector3Equal(direction, XMVectorZero()) || XMVector3IsNaN(direction)) {
             direction = XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f);
         }
+
+        // up must not be parallel to light direction
         const XMVECTOR up = std::abs(XMVectorGetY(direction)) > 0.99f ? XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f)
                                                                       : XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
         const XMVECTOR eye = XMVectorSubtract(center, XMVectorScale(direction, radius));
         const XMMATRIX view = XMMatrixLookToLH(eye, direction, up);
+
+        // near 2r, far 0 for reversed-Z
         const XMMATRIX projection = XMMatrixOrthographicLH(2.0f * radius, 2.0f * radius, 2.0f * radius, 0.0f);
 
         ShadowView shadow;
         XMStoreFloat4x4(&shadow.viewProjection, view * projection);
-        shadow.texelWorldSize = 2.0f * radius / static_cast<float>(mapSize);
+        shadow.texelWorldSize = 2.0f * radius / static_cast<float>(mapSize); // for normal offset bias
         return shadow;
     }
 
@@ -35,6 +41,8 @@ namespace render {
             XMVectorScale(XMVectorSubtract(XMLoadFloat3(&local.max), XMLoadFloat3(&local.min)), 0.5f);
         const XMMATRIX matrix = XMLoadFloat4x4(&world);
         const XMVECTOR worldCenter = XMVector3TransformCoord(center, matrix);
+
+        // abs of rotation rows gives world extent
         const XMMATRIX absolute(XMVectorAbs(matrix.r[0]), XMVectorAbs(matrix.r[1]), XMVectorAbs(matrix.r[2]),
                                 XMVectorZero());
         const XMVECTOR worldExtent = XMVector3TransformNormal(extent, absolute);

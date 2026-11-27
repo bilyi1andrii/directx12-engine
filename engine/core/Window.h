@@ -17,8 +17,8 @@ namespace core {
     struct WindowMessage {
         HWND hwnd;
         UINT message;
-        WPARAM wParam;
-        LPARAM lParam;
+        WPARAM wParam; // flags
+        LPARAM lParam; // packed values or pointer
     };
 
     struct WindowDesc {
@@ -60,6 +60,7 @@ namespace core {
         [[nodiscard]] int ExitCode() const noexcept { return m_exitCode; }
 
     private:
+        // called by Windows, routes each message to its Window
         static LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
         LRESULT HandleMessage(const WindowMessage &message);
 
@@ -69,9 +70,15 @@ namespace core {
         uint32_t m_height = 0;
         bool m_minimized = false;
         bool m_fullscreen = false;
+
+        // restored on leaving fullscreen
         WINDOWPLACEMENT m_windowedPlacement{.length = sizeof(WINDOWPLACEMENT)};
         int m_exitCode = 0;
+
+        // no WM_QUIT from destructor
         bool m_inDestructor = false;
+
+        // exceptions must not cross Windows code, WndProc stores them
         std::exception_ptr m_pendingException;
     };
 } // namespace core

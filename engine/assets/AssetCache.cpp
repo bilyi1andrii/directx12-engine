@@ -22,6 +22,8 @@
 #include "core/Timer.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 namespace assets {
     namespace {
         using render::MaterialHandle;
@@ -66,7 +68,7 @@ namespace assets {
 
     } // namespace
 
-    std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const std::filesystem::path &path) {
+    std::expected<const render::Model *, core::Error> AssetCache::LoadModel(const fs::path &path) {
         const std::wstring key = NormalizedPath(path).native();
         if (const auto it = m_models.find(key); it != m_models.end()) {
             return &it->second;
@@ -75,12 +77,13 @@ namespace assets {
         core::Timer timer;
         const std::expected<render::ModelData, core::Error> data = ImportModel(path);
         if (!data) {
-            return std::unexpected(data.error());
+            return std::unexpected(data.error()); // not cached, fixed file loads next time
         }
 
         const std::wstring name = (path.parent_path().filename() / path.stem()).generic_wstring();
         const std::vector<render::MeshHandle> meshes = m_gpu->CreateMesh(data->mesh, L"Model/" + name);
 
+        // each material made once per model
         std::vector<std::optional<MaterialHandle>> materials(data->materials.size());
         EmbeddedTextures embedded;
         const size_t texturesBefore = TextureCount();
@@ -90,7 +93,7 @@ namespace assets {
         model.parts.reserve(data->nodes.size());
         for (const render::MeshNode &node : data->nodes) {
             const render::SubmeshData &submesh = data->mesh.submeshes[node.submesh];
-            if (submesh.indexCount == 0) {
+            if (submesh.indexCount == 0) { // nothing to draw
                 continue;
             }
             std::optional<MaterialHandle> &material = materials[submesh.materialIndex];
@@ -138,7 +141,7 @@ namespace assets {
         return m_sphereModels.emplace(material.index, std::move(model)).first->second;
     }
 
-    TextureHandle AssetCache::LoadTexture(const std::filesystem::path &path, TextureUsage usage) {
+    TextureHandle AssetCache::LoadTexture(const fs::path &path, TextureUsage usage) {
         const std::wstring key = std::format(L"{}|{}", NormalizedPath(path).native(), static_cast<int>(usage));
         if (const auto it = m_textures.find(key); it != m_textures.end()) {
             return it->second;
@@ -170,6 +173,7 @@ namespace assets {
             info.opacity = ToByte(material.baseColor.w);
             std::optional<TextureHandle> mask =
                 MaterialTexture(model, material.opacityMap, TextureUsage::Opacity, embedded, modelName);
+            // grey would cut out almost everything, use white
             if (mask == m_gpu->UnloadedTexture()) {
                 core::LogWarning("AssetCache: material \"{}\" of {}: its opacity map did not load. Drawing it "
                                  "without one.",
@@ -184,7 +188,7 @@ namespace assets {
     std::optional<TextureHandle> AssetCache::MaterialTexture(const render::ModelData &model,
                                                              const render::TextureSource &source, TextureUsage usage,
                                                              EmbeddedTextures &embedded, std::wstring_view modelName) {
-        if (const auto *file = std::get_if<std::filesystem::path>(&source)) {
+        if (const auto *file = std::get_if<fs::path>(&source)) {
             return LoadTexture(*file, usage);
         }
         const auto *inFile = std::get_if<render::EmbeddedTexture>(&source);
@@ -209,6 +213,7 @@ namespace assets {
     MaterialHandle AssetCache::Material(const render::MaterialInfo &material) {
         render::MaterialInfo used = material;
         const render::MaterialInfo defaults;
+        // reset unused fields, so equal-looking materials share handle
         if (used.alphaMode != render::AlphaMode::Mask) {
             used.alphaCutoff = defaults.alphaCutoff;
         }
@@ -240,7 +245,7 @@ namespace assets {
         const uint8_t red = ToByte(material.baseColor.x);
         const uint8_t green = ToByte(material.baseColor.y);
         const uint8_t blue = ToByte(material.baseColor.z);
-        if (red == 0 && green == 0 && blue == 0) {
+        if (red == 0 && green == 0 && blue == 0) { // files often say black for no colour
             return m_gpu->UnloadedTexture();
         }
         return SolidColor(red, green, blue);

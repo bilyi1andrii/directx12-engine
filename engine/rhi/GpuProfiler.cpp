@@ -34,6 +34,8 @@ namespace rhi {
     void GpuProfiler::BeginFrame(CommandContext &commands, uint64_t frame) {
         m_slot = static_cast<uint32_t>(frame % kFramesInFlight);
         SlotRecord &record = m_slots[m_slot];
+
+        // slot's previous frame finished
         if (record.resolved) {
             m_latest = ReadSlot(m_slot, record);
         }
@@ -63,6 +65,8 @@ namespace rhi {
 
         const uint32_t first = FirstQuery(m_slot);
         commands.WriteTimestamp(m_queryHeap.Get(), first + timestamp::kFrameEnd);
+
+        // copies only queries this frame used
         commands.ResolveTimestamps(m_queryHeap.Get(), first, timestamp::Count(record.scopeCount),
                                    m_readback->GetResource(), uint64_t{first} * sizeof(uint64_t));
         record.resolved = true;
@@ -94,7 +98,7 @@ namespace rhi {
         ThrowIfFailed(buffer->Map(0, &readRange, &mapped));
         std::array<uint64_t, timestamp::kPerFrame> ticks{};
         std::memcpy(ticks.data(), static_cast<const std::byte *>(mapped) + begin, size);
-        const D3D12_RANGE noWrite{.Begin = 0, .End = 0};
+        const D3D12_RANGE noWrite{.Begin = 0, .End = 0}; // CPU wrote nothing
         buffer->Unmap(0, &noWrite);
 
         std::array<std::string_view, kMaxGpuScopes> names{};

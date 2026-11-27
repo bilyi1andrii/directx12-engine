@@ -37,6 +37,7 @@ namespace render {
             bool doubleSided = false;
             bool alphaTest = false;
 
+            // flattened 4D index
             [[nodiscard]] constexpr uint32_t Index() const noexcept {
                 const uint32_t formatAndShading =
                     std::to_underlying(format) * uint32_t{std::to_underlying(Shading::Count)} +

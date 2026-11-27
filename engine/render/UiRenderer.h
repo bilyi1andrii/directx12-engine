@@ -15,7 +15,7 @@ struct ImGui_ImplDX12_InitInfo;
 namespace render {
     class UiRenderer {
     public:
-        UiRenderer(ID3D12Device *device, ID3D12CommandQueue *queue, rhi::BindlessHeap &heap);
+        UiRenderer(ID3D12Device *device, ID3D12CommandQueue *queue, rhi::BindlessHeap &heap, rhi::FrameContext &frame);
         ~UiRenderer();
 
         UiRenderer(const UiRenderer &) = delete;
@@ -32,7 +32,7 @@ namespace render {
                                    D3D12_GPU_DESCRIPTOR_HANDLE gpu);
 
         rhi::BindlessHeap &m_heap;
-        rhi::FrameContext *m_frame = nullptr;
+        rhi::FrameContext *m_frame;
     };
 } // namespace render
 

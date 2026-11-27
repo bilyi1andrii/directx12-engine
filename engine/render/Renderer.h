@@ -70,6 +70,7 @@ namespace render {
 
         [[nodiscard]] const std::optional<rhi::GpuFrameTimes> &GpuTimes() const noexcept { return m_profiler.Latest(); }
 
+        // flushes queue, returns frames still in flight
         [[nodiscard]] std::vector<rhi::GpuFrameTimes> FinishGpuTimes();
 
         [[nodiscard]] bool TearingSupported() const noexcept { return m_device.TearingSupported(); }
@@ -77,12 +78,14 @@ namespace render {
         [[nodiscard]] const std::string &DriverVersion() const noexcept { return m_device.DriverVersion(); }
 
     private:
+        // enforces BeginFrame, Render, EndFrame order
         enum class FrameStage : uint8_t {
             Idle,
             Begun,
             Rendered,
         };
 
+        // graph rebuilt when this changes
         struct GraphKey {
             uint32_t width = 0;
             uint32_t height = 0;
@@ -91,36 +94,37 @@ namespace render {
             friend bool operator==(const GraphKey &, const GraphKey &) = default;
         };
 
+        // same slot as two frames ago
         [[nodiscard]] rhi::FrameContext &CurrentFrame() { return m_frames[m_frameNumber % rhi::kFramesInFlight]; }
 
         void BuildGraph();
 
         void DestroyResources() noexcept;
 
-        // Destroyed in reverse order: the device goes last, so its leak report sees everything else released
-        rhi::Device m_device;
-        rhi::Allocator m_allocator;       // destroyed after every buffer, texture and deferred release
-        rhi::BindlessHeap m_bindlessHeap; // destroyed after the frames: their deferred frees return slots to it
+        // destroyed bottom to top, so each member outlives what uses it
+        rhi::Device m_device;             // last to go, its leak report sees everything released
+        rhi::Allocator m_allocator;       // outlives every buffer, texture and deferred release
+        rhi::BindlessHeap m_bindlessHeap; // outlives frames, their deferred frees return slots here
         std::vector<rhi::FrameContext> m_frames;
         rhi::UploadContext m_upload;
         rhi::CommandContext m_context;
-        rhi::CommandQueue m_queue; // destroyed before the frames, upload and list: its destructor waits for the GPU
+        rhi::CommandQueue m_queue; // goes before frames, upload and list, its destructor waits for GPU
         rhi::GpuProfiler m_profiler;
         rhi::DescriptorAllocator m_rtvAllocator;
         rhi::DescriptorAllocator m_dsvAllocator;
-        rhi::SwapChain m_swapChain;        // destroyed before the queue and the RTV allocator, which it uses
-        TransientTexturePool m_transients; // destroyed before the allocators and the heap its textures use
+        rhi::SwapChain m_swapChain;        // uses queue and RTV allocator
+        TransientTexturePool m_transients; // its textures use allocators and heap
         rhi::PipelineCache m_pipelines;
-        GpuResources m_resources; // destroyed before everything it uses
-        ShadowPass m_shadow;      // the passes are destroyed before the pipeline cache they refer to
+        GpuResources m_resources; // uses everything above
+        ShadowPass m_shadow;      // passes refer to pipeline cache
         OpaquePass m_opaque;
         TransparentPass m_transparent;
         DynamicInstances m_dynamicInstances;
-        std::unique_ptr<UiRenderer> m_ui; // destroyed before the frames and the heap: its shutdown defers a free
-        FrameGraph m_graph;               // destroyed first: its passes refer to the members above
-        std::optional<GraphKey> m_graphKey;
+        std::unique_ptr<UiRenderer> m_ui;   // destroyed before frames and heap, its shutdown frees a slot through them
+        FrameGraph m_graph;                 // first to go, its passes refer to members above
+        std::optional<GraphKey> m_graphKey; // empty until first build
         FgTexture m_backBuffer;
-        std::vector<std::span<const InstanceDraw>> m_drawSets;
+        std::vector<std::span<const InstanceDraw>> m_drawSets; // static lists then moving objects
         std::vector<TransparentObject> m_transparentObjects;
 
         RendererSettings m_settings;

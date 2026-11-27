@@ -15,6 +15,8 @@
 #include "TestFiles.h"
 #include "sandbox/SceneSave.h"
 
+namespace fs = std::filesystem;
+
 using core::ErrorCode;
 using sandbox::ReadSandboxSave;
 using sandbox::SandboxSave;
@@ -43,23 +45,23 @@ namespace {
 
     class TempFolder {
     public:
-        explicit TempFolder(const std::filesystem::path &name) : m_path(std::filesystem::temp_directory_path() / name) {
+        explicit TempFolder(const fs::path &name) : m_path(fs::temp_directory_path() / name) {
             std::error_code ignored;
-            std::filesystem::remove_all(m_path, ignored);
+            fs::remove_all(m_path, ignored);
         }
         ~TempFolder() {
             std::error_code ignored;
-            std::filesystem::remove_all(m_path, ignored);
+            fs::remove_all(m_path, ignored);
         }
         TempFolder(const TempFolder &) = delete;
         TempFolder &operator=(const TempFolder &) = delete;
-        [[nodiscard]] const std::filesystem::path &Path() const noexcept { return m_path; }
+        [[nodiscard]] const fs::path &Path() const noexcept { return m_path; }
 
     private:
-        std::filesystem::path m_path;
+        fs::path m_path;
     };
 
-    [[nodiscard]] std::string ReadText(const std::filesystem::path &path) {
+    [[nodiscard]] std::string ReadText(const fs::path &path) {
         std::ifstream stream(path, std::ios::binary);
         return {std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>()};
     }
@@ -71,13 +73,13 @@ namespace {
 
 TEST(SandboxSave, WrittenSaveReadsBackTheSame) {
     const TempFolder root(L"engine_test_save_root");
-    const std::filesystem::path outside = std::filesystem::temp_directory_path() / L"elsewhere" / L"model.obj";
+    const fs::path outside = fs::temp_directory_path() / L"elsewhere" / L"model.obj";
     SandboxSave save{.gridCount = 400, .gridMode = "dynamic"};
     save.gridCubes.push_back({.index = 12, .world = Matrix(1.0f)});
     save.cubes.push_back({.name = "Orange cube", .world = Matrix(2.0f)});
     save.models.push_back({.path = root.Path() / L"assets" / L"замок" / L"scene.gltf", .world = Matrix(3.0f)});
     save.models.push_back({.path = outside, .world = Matrix(4.0f)});
-    const std::filesystem::path file = root.Path() / L"saves" / L"sandbox.json";
+    const fs::path file = root.Path() / L"saves" / L"sandbox.json";
 
     ASSERT_TRUE(WriteSandboxSave(file, save, root.Path()).has_value());
     const auto read = ReadSandboxSave(file, root.Path());
@@ -98,7 +100,7 @@ TEST(SandboxSave, WrittenSaveReadsBackTheSame) {
 
     const std::string text = ReadText(file);
     EXPECT_NE(text.find(R"("assets/замок/scene.gltf")"), std::string::npos) << text;
-    EXPECT_FALSE(std::filesystem::exists(std::filesystem::path(file) += L".tmp"));
+    EXPECT_FALSE(fs::exists(fs::path(file) += L".tmp"));
 }
 
 TEST(SandboxSave, MissingFileIsFileNotFound) {

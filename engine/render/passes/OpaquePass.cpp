@@ -22,6 +22,7 @@ namespace render {
             std::wstring_view pixelShader;
             std::wstring_view name;
         };
+        // only combinations that exist, unlit has no alpha test
         constexpr std::array kVariants{
             Variant{{.shading = Shading::Lit}, L"ps_light.cso", L"Lit PSO"},
             Variant{{.shading = Shading::Lit, .doubleSided = true}, L"ps_light.cso", L"Lit two-sided PSO"},

@@ -11,6 +11,7 @@ namespace render {
     }
 
     void RenderList::Clear() noexcept {
+        // reverse, so buckets get their own vectors back next frame
         for (auto bucket = m_buckets.rbegin(); bucket != m_buckets.rend(); ++bucket) {
             bucket->worlds.clear();
             m_spareWorlds.push_back(std::move(bucket->worlds));
@@ -30,6 +31,7 @@ namespace render {
             return m_buckets[m_lastBucket];
         }
 
+        // so noexcept Clear never allocates
         m_spareWorlds.reserve(m_buckets.size() + m_spareWorlds.size() + 1);
         BatchBucket newBucket{.key = key, .worlds = {}};
         if (!m_spareWorlds.empty()) {

@@ -45,6 +45,9 @@
 #include "ui/DebugUI.h"
 #include "ui/LightsWindow.h"
 
+namespace fs = std::filesystem;
+namespace chrono = std::chrono;
+
 using core::LogError;
 using core::LogInfo;
 
@@ -97,7 +100,7 @@ namespace {
     };
 
     struct DroppedFile {
-        std::filesystem::path path;
+        fs::path path;
         int32_t x = 0;
         int32_t y = 0;
     };
@@ -121,8 +124,8 @@ namespace {
                     return handledByUi;
                 },
             .onFilesDropped =
-                [&droppedFiles](std::span<const std::filesystem::path> paths, int32_t x, int32_t y) {
-                    for (const std::filesystem::path &path : paths) {
+                [&droppedFiles](std::span<const fs::path> paths, int32_t x, int32_t y) {
+                    for (const fs::path &path : paths) {
                         droppedFiles.push_back({.path = path, .x = x, .y = y});
                     }
                 },
@@ -154,7 +157,7 @@ namespace {
         assets::AssetCache assets(renderer.Resources());
         scene::Scene scene;
 
-        const std::filesystem::path gridTexturePath =
+        const fs::path gridTexturePath =
             options.texturePath.value_or(core::ExecutableDirectory() / sandbox::kDefaultGridTexture);
         const uint32_t gridCount =
             options.gridCount.value_or(saved && saved->gridCount > 0 ? saved->gridCount : apps::kDefaultGridCount);
@@ -185,12 +188,11 @@ namespace {
         if (options.modelPath) {
             models = sandbox::AddModels(scene, assets, {&*options.modelPath, 1});
         } else if (!smokeTestFrames) {
-            std::vector<std::filesystem::path> newModels = sandbox::FindAssetModels();
+            std::vector<fs::path> newModels = sandbox::FindAssetModels();
             if (saved) {
                 for (const sandbox::SavedModel &model : saved->models) {
-                    std::erase_if(newModels, [&model](const std::filesystem::path &path) {
-                        return path.lexically_normal() == model.path;
-                    });
+                    std::erase_if(newModels,
+                                  [&model](const fs::path &path) { return path.lexically_normal() == model.path; });
                     if (std::optional<sandbox::PlacedModel> placed =
                             sandbox::AddModel(scene, assets, model.path, 0.0f, 0.0f, model.world)) {
                         models.push_back(std::move(*placed));
@@ -351,12 +353,12 @@ namespace {
             }
 
             renderer.BeginFrame(window.Width(), window.Height(), settings);
-            const auto recordStart = std::chrono::steady_clock::now();
+            const auto recordStart = chrono::steady_clock::now();
             renderList.Clear();
             scene::Extract(scene, renderList, scene::Mobility::Movable);
             scene::Extract(scene, lights);
             renderer.Render(frameView, lights, renderList, staticLists, uiDrawData);
-            const std::chrono::duration<double, std::milli> recordMs = std::chrono::steady_clock::now() - recordStart;
+            const chrono::duration<double, std::milli> recordMs = chrono::steady_clock::now() - recordStart;
             frameTimes.Add(frameTimer.DeltaSeconds(), recordMs.count(), renderer.GpuTimes());
             renderer.EndFrame();
             ++framesRendered;
@@ -377,7 +379,7 @@ namespace {
         }
 
         if (keepScene) {
-            const std::filesystem::path file = sandbox::SavePath();
+            const fs::path file = sandbox::SavePath();
             if (const auto written = sandbox::WriteSandboxSave(
                     file, sandbox::MakeSave(scene, grid, gridCount, namedCubes, models), sandbox::RepositoryRoot())) {
                 LogInfo("Scene saved: {}", core::ToUtf8(file.native()));

@@ -17,6 +17,8 @@
 #include "assets/ModelImporter.h"
 #include "core/Utf8.h"
 
+namespace fs = std::filesystem;
+
 using assets::ImportModel;
 using assets::IsModelFile;
 using core::ErrorCode;
@@ -66,7 +68,7 @@ namespace {
     }
 
     [[nodiscard]] std::wstring FileOf(const TextureSource &texture) {
-        const auto *path = std::get_if<std::filesystem::path>(&texture);
+        const auto *path = std::get_if<fs::path>(&texture);
         return path != nullptr ? path->native() : std::wstring{};
     }
 
@@ -75,8 +77,8 @@ namespace {
         return embedded != nullptr ? static_cast<int>(embedded->index) : -1;
     }
 
-    [[nodiscard]] std::wstring Normalized(const std::filesystem::path &file) {
-        return std::filesystem::weakly_canonical(file).native();
+    [[nodiscard]] std::wstring Normalized(const fs::path &file) {
+        return fs::weakly_canonical(file).native();
     }
 
     [[nodiscard]] const MaterialDesc &MaterialOfFirstSubmesh(const ModelData &model) {

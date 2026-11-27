@@ -11,7 +11,7 @@
 namespace scene {
     struct Camera {
         DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
-        DirectX::XMFLOAT3 rotation{0.0f, 0.0f, 0.0f};
+        DirectX::XMFLOAT3 rotation{0.0f, 0.0f, 0.0f}; // pitch, yaw, roll in radians
         float fovDegrees = 90.0f;
         float nearZ = 0.1f;
         float farZ = 1000.0f;

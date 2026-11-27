@@ -23,10 +23,14 @@ namespace rhi {
         CommandContext(CommandContext &&) = delete;
         CommandContext &operator=(CommandContext &&) = delete;
 
+        // restarts recording into frame's allocator
         void Begin(ID3D12CommandAllocator *allocator);
 
+        // only queued, recorded before next clear, copy, draw or close
         void Transition(ID3D12Resource *resource, D3D12_RESOURCE_STATES before, D3D12_RESOURCE_STATES after,
                         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+
+        // records all queued barriers in one call
         void FlushBarriers();
 
         void ClearRenderTarget(D3D12_CPU_DESCRIPTOR_HANDLE rtv, std::span<const float, 4> color);
@@ -42,14 +46,17 @@ namespace rhi {
         void SetViewportAndScissor(uint32_t width, uint32_t height);
         void SetDescriptorHeap(ID3D12DescriptorHeap *heap);
         void SetGraphicsRootSignature(ID3D12RootSignature *rootSignature);
+
         void SetPipelineState(ID3D12PipelineState *pipelineState);
         template <GpuCopyable T> void SetGraphicsRootConstants(uint32_t rootIndex, const T &constants) {
             static_assert(sizeof(T) % 4 == 0, "root constants are 32-bit values");
             SetGraphicsRootConstantBytes(rootIndex, std::as_bytes(std::span(&constants, 1)));
         }
+
         void SetGraphicsRootConstant(uint32_t rootIndex, uint32_t value, uint32_t offset) {
             m_list->SetGraphicsRoot32BitConstant(rootIndex, value, offset);
         }
+
         void SetGraphicsRootConstantBufferView(uint32_t rootIndex, D3D12_GPU_VIRTUAL_ADDRESS address);
         void SetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY topology);
         void SetVertexBuffer(const D3D12_VERTEX_BUFFER_VIEW &view);
@@ -71,6 +78,7 @@ namespace rhi {
         [[nodiscard]] ID3D12GraphicsCommandList *Native() const noexcept { return m_list.Get(); }
 
     private:
+        // full batch is flushed early
         static constexpr uint32_t kMaxPendingBarriers = 16;
 
         void SetGraphicsRootConstantBytes(uint32_t rootIndex, std::span<const std::byte> data);

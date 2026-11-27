@@ -10,7 +10,7 @@
 
 namespace scene {
     struct CameraKeyframe {
-        uint32_t frame = 0;
+        uint32_t frame = 0; // frame number
         DirectX::XMFLOAT3 position{0.0f, 0.0f, 0.0f};
         DirectX::XMFLOAT3 target{0.0f, 0.0f, 1.0f};
     };

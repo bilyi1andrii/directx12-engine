@@ -55,6 +55,7 @@ namespace rhi {
         std::wstring_view name;
     };
 
+    // index into cache, resolved by Native() when recording
     struct PipelineHandle {
         uint32_t index = std::numeric_limits<uint32_t>::max();
 
@@ -92,6 +93,7 @@ namespace rhi {
             bool operator==(const InputElement &) const = default;
         };
 
+        // copies desc's strings and arrays, so key never points at caller's memory
         struct Key {
             std::wstring vertexShader;
             std::wstring pixelShader;

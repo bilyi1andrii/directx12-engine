@@ -21,6 +21,7 @@
 #include "common/shared_types.hlsli"
 
 namespace render {
+    // pipelineFor returns invalid handle to skip draw
     template <typename PipelineFor>
     void RecordMeshDraws(rhi::CommandContext &context, const rhi::PipelineCache &pipelines,
                          const GpuResources &resources, DrawPath drawPath,
@@ -36,6 +37,7 @@ namespace render {
             if (!pipeline.IsValid()) {
                 continue;
             }
+            // switch PSO and buffers only when they change
             if (pipeline != currentPipeline) {
                 context.SetPipelineState(pipelines.Native(pipeline));
                 currentPipeline = pipeline;
@@ -54,6 +56,7 @@ namespace render {
             if (drawPath == DrawPath::Instanced) {
                 context.DrawIndexedInstanced(mesh.indexCount, draw.count, mesh.firstIndex, mesh.baseVertex);
             } else {
+                // one draw per object, only instanceOffset changes
                 for (uint32_t i = 0; i < draw.count; ++i) {
                     context.SetGraphicsRootConstant(gpu::kRootDrawConstants, draw.firstElement + i,
                                                     kInstanceOffsetConstant);

@@ -5,6 +5,7 @@
 file(GLOB SHADER_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.hlsl")
 file(GLOB_RECURSE SHADER_INCLUDES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.hlsli")
 
+# source, variant name, define
 set(SHADER_VARIANTS
         ps_light ps_light_alpha_test ALPHA_TEST=1
         ps_light ps_light_blend ALPHA_BLEND=1

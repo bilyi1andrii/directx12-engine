@@ -15,12 +15,13 @@ namespace render {
             InstanceChunk chunk{.memory =
                                     frame.Ring().Allocate(uint64_t{elementCount} * kInstanceStride, kInstanceStride)};
             chunk.instanceBufferIndex = heap.Allocate();
-            frame.DeferFree(heap, chunk.instanceBufferIndex);
+            frame.DeferFree(heap, chunk.instanceBufferIndex); // slot freed after this frame
             heap.CreateStructuredBufferSrv(chunk.instanceBufferIndex, chunk.memory.resource,
                                            chunk.memory.offset / kInstanceStride, elementCount, kInstanceStride);
             return chunk;
         };
         m_draws.clear();
+        // chunk at most one ring page
         WriteInstances(list, static_cast<uint32_t>(frame.Ring().PageSize() / kInstanceStride), beginChunk, m_ranges,
                        m_draws);
     }
@@ -29,12 +30,13 @@ namespace render {
                                              const DirectX::XMFLOAT4X4 &view,
                                              std::vector<TransparentObject> &objects) const {
         const std::span<const BatchBucket> buckets = list.Buckets();
+        // Blend draws only, one object per element
         for (size_t i = 0; i < m_draws.size(); ++i) {
             const InstanceDraw &draw = m_draws[i];
             if (resources.Material(draw.key.material).alphaMode != AlphaMode::Blend) {
                 continue;
             }
-            const InstanceRange &range = m_ranges[i];
+            const InstanceRange &range = m_ranges[i]; // range that made this draw
             const BatchBucket &bucket = buckets[range.bucket];
             const DirectX::XMFLOAT3 &center = resources.Mesh(draw.key.mesh).center;
             for (uint32_t object = 0; object < range.count; ++object) {

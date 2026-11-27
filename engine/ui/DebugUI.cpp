@@ -36,7 +36,7 @@ namespace ui {
         m_context = ImGui::CreateContext();
 
         ImGuiIO &io = ImGui::GetIO();
-        io.IniFilename = nullptr;
+        io.IniFilename = nullptr; // no imgui.ini next to exe
         // Keyboard navigation stays off: a focused panel would keep WantCaptureKeyboard and block the camera keys
 
         m_dpiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(window.Handle());
@@ -59,6 +59,7 @@ namespace ui {
 
     void DebugUI::NewFrame() {
         ImGui_ImplWin32_NewFrame();
+        // window may move to another monitor
         const float dpiScale = ImGui_ImplWin32_GetDpiScaleForHwnd(ImGui::GetMainViewport()->PlatformHandleRaw);
         if (dpiScale != m_dpiScale) {
             m_dpiScale = dpiScale;
@@ -90,7 +91,8 @@ namespace ui {
         const XMVECTOR clip = XMVector4Transform(XMVectorSet(world._41, world._42, world._43, 1.0f),
                                                  XMLoadFloat4x4(&view) * XMLoadFloat4x4(&projection));
         constexpr float kMinDistance = 0.001f;
-        constexpr float kImGuizmoMinClipZ = 0.001f;
+        constexpr float kImGuizmoMinClipZ = 0.001f; // ImGuizmo's own clip limit
+        // skip if behind camera, unless dragging
         if ((XMVectorGetW(clip) < kMinDistance || XMVectorGetZ(clip) < kImGuizmoMinClipZ) && !ImGuizmo::IsUsing()) {
             return false;
         }
@@ -100,6 +102,7 @@ namespace ui {
         const ImGuizmo::OPERATION operation = m_gizmoMode == GizmoMode::Rotate  ? ImGuizmo::ROTATE
                                               : m_gizmoMode == GizmoMode::Scale ? ImGuizmo::SCALE
                                                                                 : ImGuizmo::TRANSLATE;
+        // scale along object's own axes
         const ImGuizmo::MODE space = m_gizmoMode == GizmoMode::Scale ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
         const bool moved = ImGuizmo::Manipulate(&view.m[0][0], &projection.m[0][0], operation, space, &world.m[0][0]);
         m_gizmoDrawn = true;
@@ -157,6 +160,7 @@ namespace ui {
                 ImGui::RadioButton("Rotate (E)", &mode, static_cast<int>(GizmoMode::Rotate));
                 ImGui::SameLine();
                 ImGui::RadioButton("Scale (R)", &mode, static_cast<int>(GizmoMode::Scale));
+                // W, E, R switch mode unless typing or flying
                 if (!ImGui::GetIO().WantCaptureKeyboard && !ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
                     if (ImGui::IsKeyPressed(ImGuiKey_W, false)) {
                         mode = static_cast<int>(GizmoMode::Translate);

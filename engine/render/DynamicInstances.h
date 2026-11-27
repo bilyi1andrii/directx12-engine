@@ -32,7 +32,7 @@ namespace render {
 
     private:
         std::vector<InstanceRange> m_ranges;
-        std::vector<InstanceDraw> m_draws;
+        std::vector<InstanceDraw> m_draws; // one per range, same order
     };
 } // namespace render
 

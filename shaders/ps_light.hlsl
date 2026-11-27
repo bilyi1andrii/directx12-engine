@@ -13,8 +13,9 @@ SamplerComparisonState g_shadowCompare : register(s2);
 
 float DirectionalShadow(float3 worldPosition, float3 N)
 {
+    // move along normal to fight acne
     const float4 clip = mul(float4(worldPosition + N * g_shadow.normalOffset, 1.0f), g_shadow.lightViewProjection);
-    const float2 uv = clip.xy * float2(0.5f, -0.5f) + 0.5f;
+    const float2 uv = clip.xy * float2(0.5f, -0.5f) + 0.5f; // clip space to UV, v points down
     if (any(uv < 0.0f) || any(uv > 1.0f))
     {
         return 1.0f;
@@ -22,6 +23,7 @@ float DirectionalShadow(float3 worldPosition, float3 N)
 
     Texture2D<float> shadowMap = ResourceDescriptorHeap[g_shadow.shadowMapIndex];
     float lit = 0.0f;
+    // 3x3 taps, each a hardware-filtered compare (PCF)
     [unroll] for (int y = -1; y <= 1; ++y)
     {
         [unroll] for (int x = -1; x <= 1; ++x)
@@ -73,6 +75,7 @@ float3 SpotLight(SpotLightData light, float3 N, float3 worldPosition, float3 V)
     const float3 L = toLight / max(distanceToLight, 1e-6f);
 
     const float theta = dot(light.direction, -L);
+    // 0 outside outer cone, 1 inside inner
     const float cone = saturate((theta - light.outerCos) / (light.innerCos - light.outerCos));
 
     return Attenuation(light.attenuation, distanceToLight) * cone * light.color * light.strength *
@@ -92,11 +95,11 @@ float4 main(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     const float alphaByte = (g_draw.alphaInfo & 0xFF) / 255.0f;
 #endif
 #ifdef ALPHA_TEST
-    clip(alpha - alphaByte);
+    clip(alpha - alphaByte); // drops pixel below cutoff
 #endif
 
     float3 N = normalize(input.normal);
-    N = isFrontFace ? N : -N;
+    N = isFrontFace ? N : -N; // back faces of two-sided surfaces
     const float3 V = normalize(g_frame.cameraPosition - input.worldPosition);
 
     float3 lighting = g_frame.ambientColor * g_frame.ambientStrength;

@@ -28,6 +28,7 @@ namespace render {
         rhi::PipelineHandle m_twoSided;
     };
 
+    // b2 for every pass that samples shadow map
     void BindShadowConstants(PassContext &context, uint32_t shadowMapIndex);
 } // namespace render
 

@@ -260,6 +260,7 @@ namespace rhi {
                 break;
             }
         } catch (...) {
+            // called by D3D12 runtime, nothing should escape
         }
     }
 

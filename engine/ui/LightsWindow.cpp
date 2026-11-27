@@ -17,6 +17,7 @@ namespace ui {
             ImGui::SetItemTooltip("Constant, linear, quadratic");
             if (light.type == render::LightType::Spot) {
                 if (ImGui::SliderFloat("Inner angle", &light.innerAngleDegrees, 0.0f, 90.0f, "%.1f deg")) {
+                    // keep inner <= outer
                     light.outerAngleDegrees = std::max(light.outerAngleDegrees, light.innerAngleDegrees);
                 }
                 if (ImGui::SliderFloat("Outer angle", &light.outerAngleDegrees, 0.0f, 90.0f, "%.1f deg")) {
@@ -47,6 +48,7 @@ namespace ui {
             ImGui::SeparatorText("Directional light");
             render::DirectionalLight &directional = environment.directional;
             ImGui::Checkbox("Enabled", &directional.enabled);
+            // any length, normalized when packed
             ImGui::DragFloat3("Direction", &directional.direction.x, 0.01f, -1.0f, 1.0f, "%.2f");
             ImGui::ColorEdit3("Colour", &directional.color.x);
             ImGui::SliderFloat("Strength", &directional.strength, 0.0f, 5.0f, "%.2f");

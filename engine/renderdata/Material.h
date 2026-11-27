@@ -23,8 +23,8 @@ namespace render {
         bool doubleSided = false;
 
         AlphaMode alphaMode = AlphaMode::Opaque;
-        uint8_t alphaCutoff = 128;
-        uint8_t opacity = 255;
+        uint8_t alphaCutoff = 128; // 0-255
+        uint8_t opacity = 255; // 0-255, for Blend
 
         TextureHandle opacityMap;
 

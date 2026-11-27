@@ -22,8 +22,8 @@ namespace render {
                 .pixelShader = L"ps_light_blend.cso",
                 .inputLayout = kVertexLayout,
                 .blend = rhi::BlendMode::AlphaBlend,
-                .cull = farSide ? rhi::CullMode::Front : rhi::CullMode::Back,
-                .depth = rhi::DepthMode::TestOnly,
+                .cull = farSide ? rhi::CullMode::Front : rhi::CullMode::Back, // far side draws back faces only
+                .depth = rhi::DepthMode::TestOnly,                            // glass doesn't hide what's behind it
                 .renderTargetFormats = kBackBufferTargets,
                 .depthFormat = rhi::kDepthFormat,
                 .name = farSide ? L"Transparent far-side PSO" : L"Transparent PSO",
@@ -74,6 +74,7 @@ namespace render {
                                                                 .materialIndex = material.albedo.index,
                                                                 .instanceBufferIndex = object.instanceBufferIndex,
                                                                 .alphaInfo = PackAlphaInfo(material)});
+            // far side first, so near side blends over it
             if (material.doubleSided) {
                 drawWith(Pipeline(geometry.vertexFormat, true), mesh);
             }

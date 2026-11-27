@@ -34,9 +34,9 @@ namespace rhi {
         Texture(Texture &&) noexcept = default;
         Texture &operator=(Texture &&) = delete;
 
-        [[nodiscard]] static Texture Create(Allocator &allocator, UploadContext &upload, BindlessHeap &heap,
-                                            DXGI_FORMAT format, std::span<const TextureMipData> mips,
-                                            std::wstring_view name);
+        [[nodiscard]] static Texture Create(NativeDevice *device, Allocator &allocator, UploadContext &upload,
+                                            BindlessHeap &heap, DXGI_FORMAT format,
+                                            std::span<const TextureMipData> mips, std::wstring_view name);
 
         void Destroy(FrameContext &frame, BindlessHeap &heap);
 

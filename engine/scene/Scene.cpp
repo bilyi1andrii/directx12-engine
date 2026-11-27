@@ -22,6 +22,7 @@ namespace scene {
             EntityPart entityPart{.bounds = part.bounds};
             XMStoreFloat4x4(&entityPart.toObject, toObject);
             Transform transform;
+            // part world, what renderer draws
             XMStoreFloat4x4(&transform.world, toObject * objectWorld);
 
             m_transforms.push_back(transform);
@@ -45,7 +46,7 @@ namespace scene {
     }
 
     render::LocalLight *Scene::Light(ObjectId id) {
-        return const_cast<render::LocalLight *>(std::as_const(*this).Light(id));
+        return const_cast<render::LocalLight *>(std::as_const(*this).Light(id)); // one body for const and non-const
     }
 
     const render::LocalLight *Scene::Light(ObjectId id) const {
@@ -57,6 +58,7 @@ namespace scene {
         using namespace DirectX;
 
         SceneObject &object = m_objects[id.index];
+        // static parts already uploaded as static list
         ENGINE_ASSERT_MSG(object.mobility == Mobility::Movable, "Object {} is static", object.name);
 
         object.world = world;
@@ -115,6 +117,7 @@ namespace scene {
 
         const std::span<const Transform> transforms = scene.Transforms();
         const std::span<const EntityPart> parts = scene.Parts();
+        // union of every part's world box, light markers too
         lights.shadowBounds = {};
         for (size_t i = 0; i < parts.size(); ++i) {
             const render::Aabb box = render::TransformBox(parts[i].bounds, transforms[i].world);
@@ -131,6 +134,7 @@ namespace scene {
                 lights.points.push_back({.light = light, .position = position});
             } else {
                 XMFLOAT3 direction{};
+                // spot points along object's +Z
                 XMStoreFloat3(&direction, XMVector3Normalize(XMVectorSet(world._31, world._32, world._33, 0.0f)));
                 lights.spots.push_back({.light = light, .position = position, .direction = direction});
             }

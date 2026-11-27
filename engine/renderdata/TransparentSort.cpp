@@ -11,6 +11,7 @@ namespace render {
     }
 
     float ViewDepth(const DirectX::XMFLOAT4X4 &view, const DirectX::XMFLOAT3 &position) noexcept {
+        // only z of view transform
         return position.x * view._13 + position.y * view._23 + position.z * view._33 + view._43;
     }
 
@@ -19,6 +20,8 @@ namespace render {
             if (a.viewDepth != b.viewDepth) {
                 return a.viewDepth > b.viewDepth;
             }
+
+            // ties broken by buffer and element, so order is stable across frames
             if (a.instanceBufferIndex != b.instanceBufferIndex) {
                 return a.instanceBufferIndex < b.instanceBufferIndex;
             }

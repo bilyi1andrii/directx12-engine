@@ -7,8 +7,9 @@
 #include <cstdint>
 
 namespace render {
+    // tag only makes each handle its own type
     template <typename Tag> struct Handle {
-        uint32_t index = 0;
+        uint32_t index = 0; // into renderer's table or bindless slot for textures
 
         bool operator==(const Handle &) const = default;
     };

@@ -45,6 +45,7 @@ namespace rhi {
         CommandContext m_commands;
         bool m_recording = false;
 
+        // keeps staging buffers alive until GPU copied them
         std::vector<Allocation> m_staging;
         uint64_t m_stagingBytes = 0;
         std::vector<Allocation> m_submittedStaging;

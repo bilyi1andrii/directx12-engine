@@ -14,6 +14,8 @@ namespace render {
             using namespace DirectX;
 
             const XMVECTOR vector = XMLoadFloat3(&direction);
+
+            // zero vector points straight down
             XMFLOAT3 result{0.0f, -1.0f, 0.0f};
             if (XMVectorGetX(XMVector3LengthSq(vector)) > 1e-12f) {
                 XMStoreFloat3(&result, XMVector3Normalize(vector));
@@ -58,9 +60,11 @@ namespace render {
             if (spotCount == gpu::kMaxSpotLights) {
                 break;
             }
-            constexpr float kMinCosGap = 1e-4f;
+            constexpr float kMinCosGap = 1e-4f; // keeps outerCos below innerCos, never divide by zero
             const float outerDegrees = std::clamp(spot.light.outerAngleDegrees, 0.0f, 90.0f);
             const float innerDegrees = std::clamp(spot.light.innerAngleDegrees, 0.0f, outerDegrees);
+
+            // cosines, so shader compares dot product directly
             const float innerCos = std::cos(DirectX::XMConvertToRadians(innerDegrees));
             const float outerCos = std::min(std::cos(DirectX::XMConvertToRadians(outerDegrees)), innerCos - kMinCosGap);
 

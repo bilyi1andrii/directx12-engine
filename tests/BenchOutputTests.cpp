@@ -11,6 +11,8 @@
 
 #include "bench/BenchOutput.h"
 
+namespace fs = std::filesystem;
+
 using bench::FrameTiming;
 using bench::RunField;
 
@@ -34,14 +36,14 @@ TEST(BenchOutput, GpuPassColumnIsOneLowerCaseWord) {
 
 TEST(BenchOutput, ResultsNeverOverwriteAnEarlierRun) {
     struct TempFolder {
-        std::filesystem::path path = std::filesystem::temp_directory_path() / "engine_tests_bench_output";
+        fs::path path = fs::temp_directory_path() / "engine_tests_bench_output";
         ~TempFolder() {
             std::error_code ignored;
-            std::filesystem::remove_all(path, ignored);
+            fs::remove_all(path, ignored);
         }
     } results;
     std::error_code ignored;
-    std::filesystem::remove_all(results.path, ignored);
+    fs::remove_all(results.path, ignored);
 
     const std::array<std::string, 1> passes{"Opaque"};
     constexpr std::array timings{FrameTiming{.cpuFrameMs = 1.0, .cpuRecordMs = 0.5}};
@@ -51,11 +53,11 @@ TEST(BenchOutput, ResultsNeverOverwriteAnEarlierRun) {
     ASSERT_TRUE(first.has_value()) << first.error();
     ASSERT_TRUE(second.has_value()) << second.error();
 
-    const std::filesystem::path expected = results.path / "dx12" / "stress" / "20261107-221530";
+    const fs::path expected = results.path / "dx12" / "stress" / "20261107-221530";
     EXPECT_EQ(*first, expected);
     EXPECT_EQ(second->filename(), "20261107-221530-2");
-    for (const std::filesystem::path &folder : {*first, *second}) {
-        EXPECT_TRUE(std::filesystem::is_regular_file(folder / "frames.csv")) << folder;
-        EXPECT_TRUE(std::filesystem::is_regular_file(folder / "run.txt")) << folder;
+    for (const fs::path &folder : {*first, *second}) {
+        EXPECT_TRUE(fs::is_regular_file(folder / "frames.csv")) << folder;
+        EXPECT_TRUE(fs::is_regular_file(folder / "run.txt")) << folder;
     }
 }
